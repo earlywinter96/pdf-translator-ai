@@ -6,6 +6,6 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: "*",
       allow: "/",
     },
-    sitemap: "https://YOUR_DOMAIN.com/sitemap.xml",
+    sitemap: "https://pdf-translator-ai-xgu2.vercel.app/sitemap.xml",
   };
 }
