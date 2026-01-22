@@ -1,4 +1,5 @@
 # PDF-Translator-AI 🇮🇳  
+LIVE : https://pdf-translator-ai-xgu2.vercel.app/
 **AI-powered PDF translation platform for Indian regional languages**
 
 A production-ready system for translating PDF documents into **Indian languages** such as Hindi, Tamil, Telugu, Kannada, Malayalam, Marathi, Gujarati, Bengali, Punjabi, and more. Designed for scale, accuracy, and real-world document complexity common in Indian workflows.
