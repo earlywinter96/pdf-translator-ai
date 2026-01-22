@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+python-multipart
+pdfplumber
+reportlab
+python-dotenv
+openai
+pytesseract
+pdf2image
+Pillow
+pytesseract
