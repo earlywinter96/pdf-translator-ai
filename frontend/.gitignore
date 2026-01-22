@@ -45,9 +45,7 @@ backend/__pycache__/
 backend/*.log
 
 # Env files
-.env
-.env.local
-.env.production
+backend/.env
 
 # Node / Next.js
 frontend/node_modules/

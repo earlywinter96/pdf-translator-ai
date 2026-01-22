@@ -1,21 +1,23 @@
-import { MetadataRoute } from "next";
+import type { MetadataRoute } from "next";
 
 export default function sitemap(): MetadataRoute.Sitemap {
+  const baseUrl = "https://pdf-translator-ai-xgu2.vercel.app";
+
   return [
     {
-      url: "https://YOUR_DOMAIN.com",
+      url: `${baseUrl}/`,
       lastModified: new Date(),
     },
     {
-      url: "https://YOUR_DOMAIN.com/convert",
+      url: `${baseUrl}/convert`,
       lastModified: new Date(),
     },
     {
-      url: "https://YOUR_DOMAIN.com/privacy",
+      url: `${baseUrl}/privacy`,
       lastModified: new Date(),
     },
     {
-      url: "https://YOUR_DOMAIN.com/terms",
+      url: `${baseUrl}/terms`,
       lastModified: new Date(),
     },
   ];
