@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 /**
  * Upload PDF for translation
@@ -7,7 +7,7 @@ export async function uploadPDF(
   file: File,
   language: string,
   direction: string,
-  mode: string 
+  mode: string
 ): Promise<{ job_id: string; message: string }> {
   if (!API_BASE) {
     throw new Error("API base URL not configured");
@@ -19,8 +19,7 @@ export async function uploadPDF(
   formData.append("direction", direction);
   formData.append("mode", mode);
 
-
-  const response = await fetch(`${API_BASE}/translate`, {
+  const response = await fetch(`${API_BASE}/api/translate`, {
     method: "POST",
     body: formData,
   });
@@ -45,9 +44,10 @@ export async function getJobStatus(jobId: string): Promise<{
     throw new Error("API base URL not configured");
   }
 
-  const response = await fetch(`${API_BASE}/status/${jobId}`, {
-    cache: "no-store",
-  });
+  const response = await fetch(
+    `${API_BASE}/api/status/${jobId}`,
+    { cache: "no-store" }
+  );
 
   if (!response.ok) {
     throw new Error("Failed to fetch job status");
@@ -64,5 +64,5 @@ export function downloadTranslatedPDF(jobId: string) {
     throw new Error("API base URL not configured");
   }
 
-  window.location.href = `${API_BASE}/download/${jobId}`;
+  window.location.href = `${API_BASE}/api/download/${jobId}`;
 }
