@@ -33,11 +33,20 @@ export default function TerminalTitle() {
   }, []);
 
   return (
-    <h1
-      className="text-4xl md:text-5xl font-mono font-semibold tracking-tight
-                 text-white flex justify-center items-center
-                 drop-shadow-[0_0_14px_rgba(56,189,248,0.35)]"
-    >
+    <h1 className="
+      text-lg            /* 📱 mobile */
+      sm:text-xl
+      md:text-4xl        /* 💻 laptop */
+      lg:text-5xl
+      font-mono
+      font-semibold
+      tracking-tight
+      text-white
+      flex justify-center items-center
+      drop-shadow-[0_0_14px_rgba(56,189,248,0.35)]
+      whitespace-nowrap
+    "
+  >
       {displayed}
       <span
         className={`ml-1 ${showCursor ? "opacity-100" : "opacity-0"}`}

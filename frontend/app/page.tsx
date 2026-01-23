@@ -21,10 +21,6 @@ export default function HomeClient() {
         {/* Title */}
         <TerminalTitle />
 
-
-
-
-
         {/* Subtitle */}
         <p className="text-gray-400 text-lg leading-relaxed">
           Translate scanned and text-based PDFs from{" "}

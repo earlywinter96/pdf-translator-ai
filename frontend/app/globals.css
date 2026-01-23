@@ -44,3 +44,11 @@ body {
   background: rgba(34, 211, 238, 0.25); /* cyan tint */
   color: #ffffff;
 }
+@keyframes blink {
+  0%, 50%, 100% { opacity: 1; }
+  25%, 75% { opacity: 0; }
+}
+
+.cursor-blink {
+  animation: blink 1.2s infinite;
+}

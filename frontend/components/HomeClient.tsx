@@ -9,9 +9,21 @@ export default function HomeClient() {
     <main className="min-h-screen bg-gradient-to-br from-[#020617] to-black flex items-center justify-center px-6">
       <div className="max-w-4xl mx-auto pt-24 pb-20 space-y-14 text-center">
 
-        <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight">
-          AI PDF Translator
-        </h1>
+      <h1
+  className="
+    font-mono
+    text-xl            /* 📱 mobile */
+    md:text-5xl        /* 💻 desktop */
+    tracking-tight
+    md:tracking-normal
+    text-white
+    whitespace-nowrap
+  "
+>
+  &lt; AI PDF Translator <span className="animate-pulse">_</span> &gt;
+</h1>
+
+  
 
         <p className="text-gray-400 text-lg">
           Translate scanned and text-based PDFs from
