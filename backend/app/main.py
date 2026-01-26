@@ -94,6 +94,17 @@ async def options_handler(path: str):
 
 
 
+"""
+Add this to your main.py process_translation_job function
+Replace the existing function with this version
+"""
+
+from contextlib import contextmanager
+import time
+
+class JobTimeoutError(Exception):
+    pass
+
 def process_translation_job(
     job_id: str,
     pdf_path: str,
@@ -102,130 +113,100 @@ def process_translation_job(
     mode: str
 ):
     """
-    Background task for PDF translation
+    Background task for PDF translation with HARD TIMEOUT (thread-safe)
     """
-    try:
-        logger.info(f"🚀 Starting translation job: {job_id}")
-        logger.info(f"   PDF Path: {pdf_path}")
-        logger.info(f"   Language: {language}")
-        logger.info(f"   Direction: {direction}")
-        logger.info(f"   Mode: {mode}")
-        
-        # Verify file exists and is readable
-        if not os.path.exists(pdf_path):
-            raise Exception(f"PDF file not found: {pdf_path}")
-            
-        file_size = os.path.getsize(pdf_path)
-        logger.info(f"   File size: {file_size / 1024 / 1024:.2f} MB")
-        
-        # Step 1: Extract text from PDF
-        update_job(job_id, 10, "Extracting text from PDF...")
-        logger.info(f"📄 Step 1: Starting text extraction...")
-        
-        ocr_lang, lang_name = LANGUAGE_MAP.get(language, ("eng", "English"))
-        logger.info(f"   OCR Language: {ocr_lang}, Name: {lang_name}")
-        
-        try:
-            pages = extract_text_from_pdf(pdf_path, ocr_lang)
-            logger.info(f"✅ Extracted text from {len(pages)} pages")
-            
-            # Check if extraction actually worked
-            total_chars = sum(len(p) for p in pages)
-            if total_chars < 50:
-                raise PDFReadError("Extracted text is too short - PDF may be corrupted or unreadable")
-                
-        except TimeoutError as e:
-            logger.error(f"❌ Text extraction timeout: {e}")
-            fail_job(job_id, "Text extraction timed out. Please try a smaller PDF or contact support.")
-            return
-            
-        except PDFReadError as e:
-            logger.error(f"❌ Text extraction failed: {e}")
-            fail_job(job_id, f"Text extraction failed: {str(e)}")
-            return
-            
-        except Exception as e:
-            logger.error(f"❌ Unexpected error during text extraction: {e}", exc_info=True)
-            fail_job(job_id, f"Text extraction failed: {str(e)}")
-            return
-        
-        update_job(job_id, 30, f"Text extracted from {len(pages)} pages")
+    start_time = time.monotonic()
+    TIME_LIMIT = 600  # 10 minutes
 
-        # Step 2: Chunk pages for translation
-        logger.info(f"📝 Step 2: Starting chunking...")
-        try:
-            chunks = chunk_pages(pages)
-            logger.info(f"✅ Split into {len(chunks)} chunks")
-        except Exception as e:
-            logger.error(f"❌ Chunking failed: {e}")
-            fail_job(job_id, f"Chunking failed: {str(e)}")
-            return
-            
-        update_job(job_id, 40, f"Processing {len(chunks)} text chunks...")
-        
-        # Step 3: Determine source and target languages
+    def check_timeout():
+        if time.monotonic() - start_time > TIME_LIMIT:
+            raise JobTimeoutError("Job exceeded 10 minute time limit")
+
+    try:
+        logger.info(f"🚀 Starting job: {job_id}")
+        logger.info(f"   PDF: {pdf_path}")
+        logger.info(f"   Language: {language}, Direction: {direction}, Mode: {mode}")
+
+        check_timeout()
+
+        # Step 0: Verify file
+        if not os.path.exists(pdf_path):
+            raise Exception(f"PDF not found: {pdf_path}")
+
+        file_size = os.path.getsize(pdf_path)
+        logger.info(f"   Size: {file_size / 1024 / 1024:.2f} MB")
+
+        # Step 1: Extract text
+        update_job(job_id, 10, "Extracting text from PDF...")
+        logger.info("📄 Step 1: Text extraction...")
+
+        ocr_lang, lang_name = LANGUAGE_MAP.get(language, ("eng", "English"))
+
+        pages = extract_text_from_pdf(pdf_path, ocr_lang)
+        check_timeout()
+
+        total_chars = sum(len(p) for p in pages)
+        if total_chars < 50:
+            raise PDFReadError("Extracted text too short - PDF may be corrupted")
+
+        update_job(job_id, 30, f"Extracted text from {len(pages)} pages")
+
+        # Step 2: Chunking
+        logger.info("📝 Step 2: Chunking...")
+        chunks = chunk_pages(pages)
+        check_timeout()
+
+        update_job(job_id, 40, f"Processing {len(chunks)} chunks...")
+
+        # Step 3: Translator setup
         if direction == "to_en":
-            source_lang = lang_name
-            target_lang = "English"
+            source_lang, target_lang = lang_name, "English"
         else:
-            source_lang = "English"
-            target_lang = lang_name
-        
-        logger.info(f"🌍 Translating {source_lang} → {target_lang}")
-        
-        # Step 4: Initialize translator
-        logger.info(f"🔧 Step 3: Initializing translator...")
-        try:
-            translator = TranslatorService(
-                source_language=source_lang,
-                target_language=target_lang,
-                mode=mode
-            )
-            logger.info(f"✅ Translator initialized")
-        except Exception as e:
-            logger.error(f"❌ Translator initialization failed: {e}")
-            fail_job(job_id, f"Translator setup failed: {str(e)}")
-            return
-        
-        # Step 5: Translate chunks
-        logger.info(f"🔄 Step 4: Starting translation of {len(chunks)} chunks...")
+            source_lang, target_lang = "English", lang_name
+
+        translator = TranslatorService(
+            source_language=source_lang,
+            target_language=target_lang,
+            mode=mode
+        )
+
+        # Step 4: Translate chunks
         translated_chunks = []
-        total_chunks = len(chunks)
-        
+
         for idx, chunk in enumerate(chunks, start=1):
-            progress = 40 + int((idx / total_chunks) * 50)
-            update_job(job_id, progress, f"Translating chunk {idx}/{total_chunks}...")
-            
-            logger.info(f"   Translating chunk {idx}/{total_chunks} ({len(chunk)} chars)")
-            
-            try:
-                translated_text = translator.translate_chunk(chunk)
-                translated_chunks.append(translated_text)
-                logger.info(f"   ✅ Chunk {idx} translated ({len(translated_text)} chars)")
-            except Exception as e:
-                logger.error(f"   ❌ Chunk {idx} translation failed: {e}")
-                fail_job(job_id, f"Translation failed at chunk {idx}/{total_chunks}: {str(e)}")
-                return
-        
-        # Step 6: Create output PDF
-        logger.info(f"📄 Step 5: Creating output PDF...")
-        update_job(job_id, 90, "Creating translated PDF...")
+            check_timeout()
+
+            progress = 40 + int((idx / len(chunks)) * 50)
+            update_job(job_id, progress, f"Translating chunk {idx}/{len(chunks)}...")
+
+            translated = translator.translate_chunk(chunk)
+            translated_chunks.append(translated)
+
+            logger.info(f"✓ Chunk {idx}/{len(chunks)} done")
+
+        # Step 5: Create PDF
+        update_job(job_id, 90, "Generating translated PDF...")
         output_path = os.path.join(OUTPUTS_DIR, f"{job_id}_translated.pdf")
-        
-        try:
-            create_pdf_from_text(translated_chunks, output_path, "Translated Document")
-            logger.info(f"✅ Created translated PDF: {output_path}")
-        except Exception as e:
-            logger.error(f"❌ PDF creation failed: {e}")
-            fail_job(job_id, f"PDF creation failed: {str(e)}")
-            return
-        
-        # Step 7: Mark job as completed
+
+        create_pdf_from_text(
+            translated_chunks,
+            output_path,
+            "Translated Document"
+        )
+
         complete_job(job_id)
-        logger.info(f"🎉 Translation completed: {job_id}")
-        
+        logger.info(f"🎉 Job completed: {job_id}")
+
+    except JobTimeoutError:
+        logger.error(f"⏰ Job timeout: {job_id}")
+        fail_job(
+            job_id,
+            "Processing took too long (10+ minutes). "
+            "Try a smaller PDF or upgrade for more resources."
+        )
+
     except Exception as e:
-        logger.exception(f"❌ Unexpected error in translation job {job_id}")
+        logger.exception(f"❌ Unexpected error in job {job_id}")
         fail_job(job_id, f"Unexpected error: {str(e)}")
 
 

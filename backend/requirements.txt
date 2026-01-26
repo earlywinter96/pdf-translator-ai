@@ -9,3 +9,4 @@ pytesseract
 pdf2image
 Pillow
 pytesseract
+Pillow>=10.0.0  # Ensure latest version for image processing
