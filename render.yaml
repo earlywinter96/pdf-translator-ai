@@ -7,24 +7,27 @@ services:
     plan: free
     branch: main
     
-    # Health check to prevent cold starts
+    # Health check
     healthCheckPath: /health
     
     envVars:
       - key: MOCK_TRANSLATION
-        value: "true"  # Keep mock mode enabled
+        value: "true"
       - key: PORT
         value: "8000"
       - key: MAX_PAGES_LIMIT
-        value: "50"  # Limit pages for free tier
-      # Uncomment when ready for production:
-      # - key: OPENAI_API_KEY
-      #   sync: false
+        value: "20"  # REDUCED for free tier stability
+      
+      # Memory optimization
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: MALLOC_TRIM_THRESHOLD_
+        value: "100000"
     
-    # Auto-deploy settings
+    # Auto-deploy
     autoDeploy: true
     
-    # Disk for temporary files
+    # Persistent disk (jobs survive restarts)
     disk:
       name: pdf-temp
       mountPath: /app/uploads
