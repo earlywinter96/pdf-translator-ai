@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: pdf-translator-ai
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    region: singapore
+    plan: free
+    branch: main
+    envVars:
+      - key: MOCK_TRANSLATION
+        value: true
+      - key: PORT
+        value: 8000
