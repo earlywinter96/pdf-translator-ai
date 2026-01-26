@@ -8,22 +8,11 @@ openai
 pytesseract
 pdf2image
 Pillow
-pytesseract
-Pillow>=10.0.0  # Ensure latest version for image processing
 psutil==5.9.8
 # Existing dependencies...
 fastapi
 uvicorn
 pydantic
-
-# PDF Processing
-PyMuPDF==1.23.8
-pdf2image==1.17.0
-pytesseract==0.3.10
-Pillow==10.2.0
-
-# If not already there:
-python-multipart
 
 # FastAPI and server
 fastapi==0.115.6
