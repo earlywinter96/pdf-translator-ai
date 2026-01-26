@@ -8,6 +8,10 @@ services:
     branch: main
     envVars:
       - key: MOCK_TRANSLATION
-        value: true
+        value: "true"  # ✅ Keep mock mode for now
       - key: PORT
-        value: 8000
+        value: "8000"
+      # Add OPENAI_API_KEY later when you're ready
+      # - key: OPENAI_API_KEY
+      #   sync: false  # Will set this manually in Render dashboard
+```

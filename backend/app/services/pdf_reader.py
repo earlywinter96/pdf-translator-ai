@@ -24,8 +24,8 @@ class PDFReadError(Exception):
     pass
 
 
-# OCR languages (Gujarati + Marathi + Hindi)
 def _ocr_page(image: Image.Image, ocr_lang: str) -> str:
+    """Perform OCR on a single page image"""
     try:
         text = pytesseract.image_to_string(
             image,
@@ -44,7 +44,7 @@ def extract_text_from_pdf(pdf_path: str, ocr_lang: str) -> List[str]:
     Uses OCR ONLY when extracted text is insufficient.
     """
 
-    MIN_TEXT_LENGTH = 60  # 🔑 critical threshold
+    MIN_TEXT_LENGTH = 60  # Critical threshold
     pages_text: List[str] = []
 
     if not os.path.exists(pdf_path):
@@ -59,7 +59,7 @@ def extract_text_from_pdf(pdf_path: str, ocr_lang: str) -> List[str]:
                 text = ""
 
                 try:
-                    # 1️⃣ Try normal text extraction
+                    # 1️⃣ Try normal text extraction first
                     extracted = page.extract_text() or ""
                     text = extracted.strip()
 
@@ -70,19 +70,20 @@ def extract_text_from_pdf(pdf_path: str, ocr_lang: str) -> List[str]:
 
                 # 2️⃣ OCR fallback ONLY if text is insufficient
                 if len(text) < MIN_TEXT_LENGTH:
-                    logger.info(f"Using OCR for page {page_number}")
+                    logger.info(f"Using OCR for page {page_number} (extracted text too short: {len(text)} chars)")
 
                     with tempfile.TemporaryDirectory() as temp_dir:
                         images = convert_from_path(
                             pdf_path,
                             first_page=page_number,
                             last_page=page_number,
-                            dpi=250,  # 🔹 faster, still accurate
+                            dpi=250,
                             output_folder=temp_dir
                         )
 
                         if images:
                             text = _ocr_page(images[0], ocr_lang).strip()
+                            logger.info(f"OCR extracted {len(text)} chars from page {page_number}")
 
                 # 3️⃣ Normalize text
                 if text:

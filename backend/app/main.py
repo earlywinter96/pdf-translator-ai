@@ -39,14 +39,18 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS Configuration - Enhanced for file downloads
+# CORS Configuration - Support both local and production
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        # Production
         "https://pdf-translator-ai-xgu2.vercel.app",
         "https://www.pdf-translator-ai-xgu2.vercel.app",
+        # Local development
         "http://localhost:3000",
         "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -58,7 +62,6 @@ app.add_middleware(
         "X-Content-Type-Options"
     ]
 )
-
 # Directory Configuration
 UPLOADS_DIR = "uploads"
 OUTPUTS_DIR = "outputs"
@@ -100,29 +103,41 @@ def process_translation_job(
 ):
     """
     Background task for PDF translation
-    
-    Args:
-        job_id: Unique job identifier
-        pdf_path: Path to uploaded PDF
-        language: Source/target language code (gu, hi, mr)
-        direction: Translation direction (to_en or from_en)
-        mode: Translation mode (general or government)
     """
     try:
         logger.info(f"🚀 Starting translation job: {job_id}")
+        logger.info(f"   PDF Path: {pdf_path}")
+        logger.info(f"   Language: {language}")
+        logger.info(f"   Direction: {direction}")
+        logger.info(f"   Mode: {mode}")
         
         # Step 1: Extract text from PDF
         update_job(job_id, 10, "Extracting text from PDF...")
+        logger.info(f"📄 Step 1: Starting text extraction...")
         
         ocr_lang, lang_name = LANGUAGE_MAP.get(language, ("eng", "English"))
-        pages = extract_text_from_pdf(pdf_path, ocr_lang)
+        logger.info(f"   OCR Language: {ocr_lang}, Name: {lang_name}")
         
-        logger.info(f"📄 Extracted text from {len(pages)} pages")
+        try:
+            pages = extract_text_from_pdf(pdf_path, ocr_lang)
+            logger.info(f"✅ Extracted text from {len(pages)} pages")
+        except Exception as e:
+            logger.error(f"❌ Text extraction failed: {e}")
+            fail_job(job_id, f"Text extraction failed: {str(e)}")
+            return
+        
         update_job(job_id, 30, f"Text extracted from {len(pages)} pages")
         
         # Step 2: Chunk pages for translation
-        chunks = chunk_pages(pages)
-        logger.info(f"🔪 Split into {len(chunks)} chunks")
+        logger.info(f"📝 Step 2: Starting chunking...")
+        try:
+            chunks = chunk_pages(pages)
+            logger.info(f"✅ Split into {len(chunks)} chunks")
+        except Exception as e:
+            logger.error(f"❌ Chunking failed: {e}")
+            fail_job(job_id, f"Chunking failed: {str(e)}")
+            return
+            
         update_job(job_id, 40, f"Processing {len(chunks)} text chunks...")
         
         # Step 3: Determine source and target languages
@@ -133,16 +148,24 @@ def process_translation_job(
             source_lang = "English"
             target_lang = lang_name
         
-        logger.info(f"🌐 Translating {source_lang} → {target_lang}")
+        logger.info(f"🌍 Translating {source_lang} → {target_lang}")
         
         # Step 4: Initialize translator
-        translator = TranslatorService(
-            source_language=source_lang,
-            target_language=target_lang,
-            mode=mode
-        )
+        logger.info(f"🔧 Step 3: Initializing translator...")
+        try:
+            translator = TranslatorService(
+                source_language=source_lang,
+                target_language=target_lang,
+                mode=mode
+            )
+            logger.info(f"✅ Translator initialized")
+        except Exception as e:
+            logger.error(f"❌ Translator initialization failed: {e}")
+            fail_job(job_id, f"Translator setup failed: {str(e)}")
+            return
         
         # Step 5: Translate chunks
+        logger.info(f"🔄 Step 4: Starting translation of {len(chunks)} chunks...")
         translated_chunks = []
         total_chunks = len(chunks)
         
@@ -150,25 +173,37 @@ def process_translation_job(
             progress = 40 + int((idx / total_chunks) * 50)
             update_job(job_id, progress, f"Translating chunk {idx}/{total_chunks}...")
             
-            translated_text = translator.translate_chunk(chunk)
-            translated_chunks.append(translated_text)
+            logger.info(f"   Translating chunk {idx}/{total_chunks} ({len(chunk)} chars)")
             
-            logger.info(f"✅ Translated chunk {idx}/{total_chunks}")
+            try:
+                translated_text = translator.translate_chunk(chunk)
+                translated_chunks.append(translated_text)
+                logger.info(f"   ✅ Chunk {idx} translated ({len(translated_text)} chars)")
+            except Exception as e:
+                logger.error(f"   ❌ Chunk {idx} translation failed: {e}")
+                fail_job(job_id, f"Translation failed at chunk {idx}/{total_chunks}: {str(e)}")
+                return
         
         # Step 6: Create output PDF
+        logger.info(f"📄 Step 5: Creating output PDF...")
         update_job(job_id, 90, "Creating translated PDF...")
         output_path = os.path.join(OUTPUTS_DIR, f"{job_id}_translated.pdf")
-        create_pdf_from_text(translated_chunks, output_path, "Translated Document")
         
-        logger.info(f"📝 Created translated PDF: {output_path}")
+        try:
+            create_pdf_from_text(translated_chunks, output_path, "Translated Document")
+            logger.info(f"✅ Created translated PDF: {output_path}")
+        except Exception as e:
+            logger.error(f"❌ PDF creation failed: {e}")
+            fail_job(job_id, f"PDF creation failed: {str(e)}")
+            return
         
         # Step 7: Mark job as completed
         complete_job(job_id)
-        logger.info(f"✅ Translation completed: {job_id}")
+        logger.info(f"🎉 Translation completed: {job_id}")
         
     except Exception as e:
-        logger.error(f"❌ Translation failed for {job_id}: {str(e)}")
-        fail_job(job_id, str(e))
+        logger.exception(f"❌ Unexpected error in translation job {job_id}")
+        fail_job(job_id, f"Unexpected error: {str(e)}")
 
 
 # ================================
@@ -510,3 +545,4 @@ if __name__ == "__main__":
         reload=True,
         log_level="info"
     )
+

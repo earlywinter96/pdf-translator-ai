@@ -5,6 +5,7 @@ Responsibility:
 - Translate text chunks using OpenAI GPT models
 - Preserve meaning, tone, formatting
 - Handle retries, errors, and rate limits safely
+- MOCK MODE: Returns original OCR text without translation (no API cost)
 """
 
 from typing import List
@@ -33,7 +34,7 @@ class TranslatorService:
             source_language: str,
             target_language: str,
             mode: str = "general",
-            model: str = "gpt-4o-mini",  # Fast and cost-effective
+            model: str = "gpt-4o-mini",
             max_retries: int = 3,
             sleep_between_retries: int = 2
     ):
@@ -46,7 +47,10 @@ class TranslatorService:
 
         # Initialize OpenAI client only if not in mock mode
         if MOCK_TRANSLATION:
-            logger.info("🔧 Mock translation mode enabled (no API calls)")
+            logger.info("🔧 Mock translation mode enabled")
+            logger.info("   ✅ OCR will extract real text")
+            logger.info("   ✅ PDF will be generated with extracted text")
+            logger.info("   ⚠️  Translation will be skipped (no API cost)")
             self.client = None
         else:
             if not OPENAI_API_KEY:
@@ -112,27 +116,21 @@ TRANSLATION:""".strip()
             text: Text chunk to translate
             
         Returns:
-            Translated text
+            Translated text (or original text if in mock mode)
         """
         if not text or not text.strip():
             logger.warning("Empty text chunk received, skipping")
             return ""
 
-        # Mock mode (for testing without API costs)
+        # ✅ IMPROVED MOCK MODE - Returns original extracted text
         if MOCK_TRANSLATION:
-            logger.info(f"🔧 Mock translating chunk ({len(text)} chars)")
-            return f"""[MOCK TRANSLATION - {self.source_language} → {self.target_language}]
-
-This is a placeholder translation for testing.
-Real translation will appear when OpenAI API is enabled.
-
-Original text length: {len(text)} characters
-Translation mode: {self.mode}
-
----
-Original text preview:
-{text[:200]}{'...' if len(text) > 200 else ''}
----""".strip()
+            logger.info(f"🔧 Mock mode: Returning original OCR text ({len(text)} chars)")
+            logger.info(f"   Language pair: {self.source_language} → {self.target_language}")
+            logger.info(f"   Mode: {self.mode}")
+            
+            # Return the actual extracted text instead of placeholder
+            # This allows you to verify OCR is working correctly
+            return text.strip()
 
         # Real translation with retries
         prompt = self._build_prompt(text)
@@ -153,9 +151,9 @@ Original text preview:
                             "content": prompt
                         }
                     ],
-                    temperature=0.3,  # Low temperature for consistency
-                    max_tokens=4000,  # Increased for longer chunks
-                    timeout=90  # Increased timeout for large chunks
+                    temperature=0.3,
+                    max_tokens=4000,
+                    timeout=90
                 )
 
                 translated_text = response.choices[0].message.content
@@ -175,12 +173,10 @@ Original text preview:
                         f"Translation failed after {self.max_retries} attempts: {str(e)}"
                     )
 
-                # Wait before retrying
-                sleep_time = self.sleep_between_retries * attempt  # Exponential backoff
+                sleep_time = self.sleep_between_retries * attempt
                 logger.info(f"⏳ Waiting {sleep_time}s before retry...")
                 time.sleep(sleep_time)
 
-        # Should never reach here
         raise TranslationError("Translation failed unexpectedly")
 
     def translate_chunks(self, chunks: List[str]) -> List[str]:
@@ -191,7 +187,7 @@ Original text preview:
             chunks: List of text chunks to translate
             
         Returns:
-            List of translated chunks
+            List of translated chunks (or original chunks if in mock mode)
         """
         if not chunks:
             raise TranslationError("No chunks provided for translation")
@@ -200,7 +196,7 @@ Original text preview:
         total = len(chunks)
 
         logger.info(f"📚 Starting translation of {total} chunks")
-        logger.info(f"   Mode: {self.mode}")
+        logger.info(f"   Mode: {'MOCK (no API cost)' if MOCK_TRANSLATION else 'REAL (OpenAI API)'}")
         logger.info(f"   {self.source_language} → {self.target_language}")
 
         for idx, chunk in enumerate(chunks, start=1):
@@ -214,5 +210,5 @@ Original text preview:
                 logger.error(f"❌ Chunk {idx} translation failed: {e}")
                 raise TranslationError(f"Failed to translate chunk {idx}/{total}: {str(e)}")
 
-        logger.info(f"✅ All {total} chunks translated successfully")
+        logger.info(f"✅ All {total} chunks processed successfully")
         return translated_chunks
