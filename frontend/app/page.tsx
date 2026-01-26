@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { FileText, Zap, Globe, CheckCircle, ArrowRight, Shield, Clock, Languages } from "lucide-react";
 
+import { ReactNode } from "react";
+
 // TerminalTitle Component with typing effect
 function TerminalTitle() {
   const TEXT = "< AI PDF Translator >";
@@ -335,60 +337,102 @@ export default function ImprovedHomepage() {
   );
 }
 
-function TrustBadge({ icon, text }) {
+type TrustBadgeProps = {
+  icon: ReactNode;
+  text: string;
+};
+
+function TrustBadge({ icon, text }: TrustBadgeProps) {
   return (
     <div className="flex items-center gap-2 text-gray-300">
-      <div className="w-5 h-5 text-green-400">
-        {icon}
-      </div>
+      <div className="w-5 h-5 text-green-400">{icon}</div>
       <span className="text-sm">{text}</span>
     </div>
   );
 }
 
-function FeatureCard({ icon, title, description, highlight }) {
+
+type FeatureCardProps = {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  highlight: string;
+};
+
+function FeatureCard({
+  icon,
+  title,
+  description,
+  highlight,
+}: FeatureCardProps) {
   return (
     <div className="relative group rounded-xl bg-white/5 border border-white/10 p-6 hover:bg-white/10 transition">
       <div className="absolute -top-3 -right-3 px-3 py-1 rounded-full bg-cyan-500/20 border border-cyan-500/30 text-xs text-cyan-300 font-medium">
         {highlight}
       </div>
+
       <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 flex items-center justify-center text-cyan-400 mb-4 group-hover:scale-110 transition">
         {icon}
       </div>
+
       <h3 className="text-white font-semibold mb-2 text-lg">{title}</h3>
       <p className="text-gray-400 text-sm leading-relaxed">{description}</p>
     </div>
   );
 }
 
-function ProcessStep({ number, title, description }) {
+
+type ProcessStepProps = {
+  number: string;
+  title: string;
+  description: string;
+};
+
+function ProcessStep({ number, title, description }: ProcessStepProps) {
   return (
     <div className="relative">
       {number !== "3" && (
         <div className="hidden md:block absolute top-8 left-[calc(50%+2rem)] w-[calc(100%-4rem)] h-[2px] bg-gradient-to-r from-cyan-500/30 to-transparent" />
       )}
-      
+
       <div className="relative text-center space-y-3">
         <div className="w-16 h-16 mx-auto rounded-full bg-gradient-to-br from-cyan-500 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
           {number}
         </div>
         <h3 className="text-white font-semibold text-lg">{title}</h3>
-        <p className="text-gray-400 text-sm leading-relaxed max-w-xs mx-auto">{description}</p>
+        <p className="text-gray-400 text-sm leading-relaxed max-w-xs mx-auto">
+          {description}
+        </p>
       </div>
     </div>
   );
 }
 
-function UseCase({ emoji, text }) {
+
+type UseCaseProps = {
+  emoji: string;
+  text: string;
+};
+
+function UseCase({ emoji, text }: UseCaseProps) {
   return (
     <div className="flex items-center gap-3 px-5 py-4 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 hover:border-cyan-500/30 transition group">
-      <span className="text-2xl group-hover:scale-110 transition">{emoji}</span>
+      <span className="text-2xl group-hover:scale-110 transition">
+        {emoji}
+      </span>
       <span className="text-gray-300 text-sm font-medium">{text}</span>
     </div>
   );
 }
 
-function LanguageCard({ language, native, details }) {
+
+type LanguageCardProps = {
+  language: string;
+  native: string;
+  details: string;
+};
+
+function LanguageCard({ language, native, details }: LanguageCardProps) {
   return (
     <div className="space-y-2">
       <div className="text-3xl font-bold text-white">{language}</div>
@@ -398,11 +442,25 @@ function LanguageCard({ language, native, details }) {
   );
 }
 
-function ModeCard({ title, description, features, recommended }) {
+
+type ModeCardProps = {
+  title: string;
+  description: string;
+  features: string[];
+  recommended: string;
+};
+
+function ModeCard({
+  title,
+  description,
+  features,
+  recommended,
+}: ModeCardProps) {
   return (
     <div className="rounded-xl bg-white/5 border border-white/10 p-6 hover:border-cyan-500/30 transition">
       <h3 className="text-white font-semibold text-lg mb-2">{title}</h3>
       <p className="text-gray-400 text-sm mb-4">{description}</p>
+
       <div className="space-y-2 mb-4">
         {features.map((feature, i) => (
           <div key={i} className="flex items-center gap-2 text-sm text-gray-300">
@@ -411,14 +469,24 @@ function ModeCard({ title, description, features, recommended }) {
           </div>
         ))}
       </div>
+
       <div className="pt-3 border-t border-white/10">
-        <p className="text-xs text-gray-500">Best for: <span className="text-cyan-400">{recommended}</span></p>
+        <p className="text-xs text-gray-500">
+          Best for: <span className="text-cyan-400">{recommended}</span>
+        </p>
       </div>
     </div>
   );
 }
 
-function BenefitCard({ icon, title, text }) {
+
+type BenefitCardProps = {
+  icon: ReactNode;
+  title: string;
+  text: string;
+};
+
+function BenefitCard({ icon, title, text }: BenefitCardProps) {
   return (
     <div className="text-center p-6 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition">
       <div className="text-4xl mb-3">{icon}</div>
@@ -428,12 +496,20 @@ function BenefitCard({ icon, title, text }) {
   );
 }
 
-function FAQItem({ question, answer }) {
+
+type FAQItemProps = {
+  question: string;
+  answer: string;
+};
+
+function FAQItem({ question, answer }: FAQItemProps) {
   return (
     <details className="group rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition">
       <summary className="cursor-pointer p-4 text-white font-medium flex justify-between items-center">
         {question}
-        <span className="text-cyan-400 group-open:rotate-180 transition">▼</span>
+        <span className="text-cyan-400 group-open:rotate-180 transition">
+          ▼
+        </span>
       </summary>
       <div className="px-4 pb-4 text-gray-400 text-sm leading-relaxed">
         {answer}
