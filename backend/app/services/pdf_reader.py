@@ -1,334 +1,384 @@
-"""
-PDF Reader Service - Optimized for 512MB Free Tier
----------------------------------------------------
-FIXES:
-1. Increased OCR timeout (45s → 120s)
-2. Aggressive memory cleanup
-3. Sequential processing (no concurrent pages)
-4. Smaller image sizes
-5. Early failure detection
-"""
-
-from typing import List
-import pdfplumber
-import logging
-import pytesseract
-from pdf2image import convert_from_path
-from PIL import Image, ImageEnhance, ImageFilter
 import os
-import tempfile
-import gc
-import subprocess
+import logging
+from typing import List, Dict, Optional
+from pathlib import Path
+import fitz  # PyMuPDF
+from pdf2image import convert_from_path
+import pytesseract
+from PIL import Image, ImageEnhance
 import time
-import re
-import psutil  # For memory monitoring
 
+# Configure logger
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
+# Environment-based configuration
+OCR_TIMEOUT = int(os.getenv('TESSERACT_TIMEOUT', 180))
+OCR_DPI = int(os.getenv('OCR_DPI', 150))
+MAX_IMAGE_SIZE = int(os.getenv('MAX_IMAGE_SIZE', 1600))
 
-class PDFReadError(Exception):
-    pass
+# OCR language mapping
+LANGUAGE_MAP = {
+    'gu': 'guj',  # Gujarati
+    'mr': 'mar',  # Marathi
+    'hi': 'hin',  # Hindi
+    'en': 'eng',  # English
+}
 
 
-def get_memory_usage():
-    """Get current memory usage in MB"""
-    try:
-        process = psutil.Process(os.getpid())
-        return process.memory_info().rss / 1024 / 1024
-    except:
-        return 0
-
-
-def preprocess_image_for_ocr(image: Image.Image) -> Image.Image:
-    """Preprocess image - optimized for low memory"""
-    try:
-        # Convert to grayscale (saves memory)
-        if image.mode != 'L':
-            image = image.convert('L')
+class PDFReader:
+    """
+    Thread-safe PDF reader with fast OCR support.
+    Works with FastAPI background tasks and threading.
+    """
+    
+    def __init__(self, pdf_path: str, language: str = 'en'):
+        self.pdf_path = Path(pdf_path)
+        self.language = language
+        self.ocr_lang = LANGUAGE_MAP.get(language, 'eng')
+        self.doc = None
         
-        # Enhance contrast
-        enhancer = ImageEnhance.Contrast(image)
-        image = enhancer.enhance(1.5)
+        if not self.pdf_path.exists():
+            raise FileNotFoundError(f"PDF not found: {pdf_path}")
         
-        # Denoise - prevents repeated text
-        image = image.filter(ImageFilter.MedianFilter(size=3))
+        logger.info(f"Initializing PDF reader for: {pdf_path}")
+        logger.info(f"Language: {language} -> OCR: {self.ocr_lang}")
+        logger.info(f"OCR Settings - DPI: {OCR_DPI}, Timeout: {OCR_TIMEOUT}s, Max Size: {MAX_IMAGE_SIZE}px")
+    
+    def open(self) -> int:
+        """Open PDF and return page count."""
+        try:
+            self.doc = fitz.open(self.pdf_path)
+            page_count = len(self.doc)
+            logger.info(f"PDF opened: {page_count} pages")
+            return page_count
+        except Exception as e:
+            logger.error(f"Failed to open PDF: {e}")
+            raise
+    
+    def close(self):
+        """Close PDF document."""
+        if self.doc:
+            self.doc.close()
+            self.doc = None
+            logger.info("PDF closed")
+    
+    def extract_text_from_page(self, page_num: int) -> str:
+        """
+        Extract text from a single page.
+        First tries native text extraction, falls back to OCR if needed.
+        """
+        if not self.doc:
+            raise RuntimeError("PDF not opened. Call open() first.")
         
-        # Sharpen
-        enhancer = ImageEnhance.Sharpness(image)
-        image = enhancer.enhance(1.2)
+        if page_num < 1 or page_num > len(self.doc):
+            raise ValueError(f"Invalid page number: {page_num}")
         
-        return image
-    except Exception as e:
-        logger.warning(f"Image preprocessing failed: {e}")
-        return image
-
-
-def deduplicate_text(text: str) -> str:
-    """Remove repeated lines from OCR output"""
-    if not text:
+        logger.info(f"📄 Processing page {page_num}/{len(self.doc)}")
+        
+        # Get page (0-indexed internally)
+        page = self.doc[page_num - 1]
+        
+        # Try native text extraction first
+        text = page.get_text().strip()
+        logger.info(f"  Native extraction: {len(text)} chars")
+        
+        # If no text or very little text, use OCR
+        if len(text) < 50:
+            logger.info(f"  🔍 Using OCR (insufficient text)")
+            text = self._ocr_page(page_num)
+        
         return text
     
-    lines = text.split('\n')
-    unique_lines = []
-    recent_window = []
-    
-    for line in lines:
-        cleaned = line.strip()
-        
-        if not cleaned:
-            unique_lines.append('')
-            continue
-        
-        # Check last 5 lines for duplicates
-        if cleaned not in recent_window:
-            unique_lines.append(line)
-            recent_window.append(cleaned)
-            if len(recent_window) > 5:
-                recent_window.pop(0)
-    
-    return '\n'.join(unique_lines)
-
-
-def remove_repeated_patterns(text: str) -> str:
-    """Remove consecutive word/phrase repetitions"""
-    pattern = r'\b(\w+(?:\s+\w+){0,3})\s+\1\b'
-    
-    cleaned = text
-    for _ in range(3):
-        before = cleaned
-        cleaned = re.sub(pattern, r'\1', cleaned, flags=re.IGNORECASE)
-        if cleaned == before:
-            break
-    
-    return cleaned
-
-
-def _ocr_page_with_subprocess(image_path: str, ocr_lang: str, page_num: int, timeout: int = 120) -> str:
-    """
-    OCR with subprocess - INCREASED TIMEOUT for free tier
-    """
-    try:
-        mem_before = get_memory_usage()
-        logger.info(f"🔍 Starting OCR on page {page_num} (timeout: {timeout}s, memory: {mem_before:.1f}MB)")
-        
-        # Use PSM 3 for better page segmentation
-        cmd = [
-            'tesseract',
-            image_path,
-            'stdout',
-            '-l', ocr_lang,
-            '--psm', '3',  # Automatic page segmentation
-            '--oem', '1',
-            '-c', 'preserve_interword_spaces=1'
-        ]
-        
-        start_time = time.time()
-        
+    def _ocr_page(self, page_num: int) -> str:
+        """
+        Perform FAST OCR on a page - THREAD SAFE (no signals).
+        Uses pytesseract's built-in timeout mechanism.
+        """
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=timeout,  # Increased to 120s
-                check=False
+            # Step 1: Convert PDF to image
+            logger.info(f"  ⏱️  Converting to image...")
+            start_time = time.time()
+            
+            images = self._convert_page_to_image(page_num)
+            
+            conversion_time = time.time() - start_time
+            logger.info(f"  ✅ Converted in {conversion_time:.1f}s")
+            
+            if not images:
+                logger.error(f"  ❌ No images generated")
+                return ""
+            
+            image = images[0]
+            logger.info(f"  📐 Image size: {image.size}")
+            
+            # Step 2: Preprocess image
+            image = self._fast_preprocess(image)
+            
+            # Step 3: OCR with pytesseract's built-in timeout
+            logger.info(f"  🔤 Running OCR (timeout: {OCR_TIMEOUT}s)...")
+            ocr_start = time.time()
+            
+            # Optimized config for speed
+            custom_config = (
+                f'--oem 1 '  # LSTM only (fastest)
+                f'--psm 3 '  # Automatic page segmentation
+                f'-l {self.ocr_lang} '
             )
             
-            elapsed = time.time() - start_time
-            mem_after = get_memory_usage()
+            try:
+                # Use pytesseract's built-in timeout (works in threads)
+                text = pytesseract.image_to_string(
+                    image,
+                    config=custom_config,
+                    timeout=OCR_TIMEOUT  # This works in background threads
+                )
+            except RuntimeError as e:
+                if "timeout" in str(e).lower():
+                    logger.error(f"  ❌ OCR timeout ({OCR_TIMEOUT}s)")
+                    return ""
+                logger.error(f"  ❌ OCR error: {e}")
+                return ""
+            except Exception as e:
+                logger.error(f"  ❌ OCR error: {e}")
+                return ""
             
-            if result.returncode != 0:
-                logger.warning(f"Tesseract warning: {result.stderr[:200]}")
+            ocr_time = time.time() - ocr_start
+            logger.info(f"  ✅ OCR completed in {ocr_time:.1f}s: {len(text)} chars")
             
-            raw_text = result.stdout.strip()
+            # Cleanup
+            image.close()
+            del images
             
-            # Apply deduplication
-            cleaned_text = deduplicate_text(raw_text)
-            cleaned_text = remove_repeated_patterns(cleaned_text)
+            return text.strip()
             
-            logger.info(
-                f"✅ OCR done for page {page_num}: {elapsed:.1f}s, "
-                f"{len(cleaned_text)} chars (from {len(raw_text)}), "
-                f"memory: {mem_after:.1f}MB"
+        except Exception as e:
+            logger.error(f"  ❌ OCR failed: {e}")
+            return ""
+    
+    def _convert_page_to_image(self, page_num: int):
+        """Convert PDF page to image with optimizations."""
+        try:
+            return convert_from_path(
+                str(self.pdf_path),
+                dpi=OCR_DPI,
+                first_page=page_num,
+                last_page=page_num,
+                fmt='jpeg',  # JPEG is faster than PNG
+                thread_count=1,
+                grayscale=True,
+                size=(MAX_IMAGE_SIZE, None)
             )
+        except Exception as e:
+            logger.error(f"  ❌ Image conversion failed: {e}")
+            return []
+    
+    def _fast_preprocess(self, image: Image.Image) -> Image.Image:
+        """Fast image preprocessing for OCR."""
+        try:
+            # Ensure grayscale
+            if image.mode != 'L':
+                image = image.convert('L')
             
-            return cleaned_text
+            # Aggressive resize if too large
+            if image.width > MAX_IMAGE_SIZE or image.height > MAX_IMAGE_SIZE:
+                ratio = min(MAX_IMAGE_SIZE / image.width, MAX_IMAGE_SIZE / image.height)
+                new_size = (int(image.width * ratio), int(image.height * ratio))
+                image = image.resize(new_size, Image.Resampling.LANCZOS)
+                logger.info(f"  📏 Resized to: {image.size}")
             
-        except subprocess.TimeoutExpired:
-            logger.error(f"⏰ OCR TIMEOUT on page {page_num} after {timeout}s")
-            return f"[OCR TIMEOUT - Page {page_num}]\n\nThis page took too long to process. Try a higher quality scan or smaller PDF."
+            # Light contrast enhancement for better OCR
+            enhancer = ImageEnhance.Contrast(image)
+            image = enhancer.enhance(1.2)
+            
+            return image
+        except Exception as e:
+            logger.warning(f"  ⚠️ Preprocessing warning: {e}")
+            return image
+    
+    def extract_all_text(self, progress_callback=None) -> List[Dict[str, any]]:
+        """Extract text from all pages with progress reporting."""
+        if not self.doc:
+            raise RuntimeError("PDF not opened. Call open() first.")
         
-    except Exception as e:
-        logger.error(f"❌ OCR failed on page {page_num}: {e}")
-        return f"[OCR ERROR - Page {page_num}]\n\nError: {str(e)}"
+        results = []
+        total_pages = len(self.doc)
+        
+        logger.info(f"🚀 Starting extraction of {total_pages} pages")
+        total_start = time.time()
+        
+        for page_num in range(1, total_pages + 1):
+            try:
+                text = self.extract_text_from_page(page_num)
+                
+                results.append({
+                    'page': page_num,
+                    'text': text,
+                    'char_count': len(text)
+                })
+                
+                if progress_callback:
+                    progress_callback(page_num, total_pages, text)
+                
+            except Exception as e:
+                logger.error(f"❌ Failed to extract page {page_num}: {e}")
+                results.append({
+                    'page': page_num,
+                    'text': '',
+                    'error': str(e)
+                })
+        
+        total_time = time.time() - total_start
+        total_chars = sum(r.get('char_count', 0) for r in results)
+        logger.info(f"✅ Extraction complete: {total_pages} pages, {total_chars} chars in {total_time:.1f}s")
+        
+        if total_pages > 0:
+            logger.info(f"⚡ Average: {total_time/total_pages:.1f}s per page")
+        
+        return results
+    
+    def get_page_count(self) -> int:
+        """Get total number of pages."""
+        if not self.doc:
+            raise RuntimeError("PDF not opened. Call open() first.")
+        return len(self.doc)
+    
+    def get_metadata(self) -> Dict[str, any]:
+        """Get PDF metadata."""
+        if not self.doc:
+            raise RuntimeError("PDF not opened. Call open() first.")
+        
+        metadata = self.doc.metadata
+        file_size = self.pdf_path.stat().st_size
+        
+        return {
+            'title': metadata.get('title', ''),
+            'author': metadata.get('author', ''),
+            'subject': metadata.get('subject', ''),
+            'keywords': metadata.get('keywords', ''),
+            'creator': metadata.get('creator', ''),
+            'producer': metadata.get('producer', ''),
+            'pages': len(self.doc),
+            'file_size_mb': round(file_size / (1024 * 1024), 2),
+            'encrypted': self.doc.is_encrypted
+        }
 
 
-def extract_text_from_pdf(pdf_path: str, ocr_lang: str) -> List[str]:
+# BACKWARD COMPATIBILITY FUNCTION - Required by main.py
+def extract_text_from_pdf(pdf_path: str, language: str = 'en') -> List[str]:
     """
-    Extract text from PDF - OPTIMIZED FOR FREE TIER
+    Extract text from PDF - BACKWARD COMPATIBLE with existing code.
+    Thread-safe for use in FastAPI background tasks.
     
-    Changes:
-    - Smaller images (DPI 150 instead of 200)
-    - Aggressive memory cleanup
-    - Lower page limit (20 pages for free tier)
-    - Early failure detection
+    Args:
+        pdf_path: Path to PDF file
+        language: OCR language code (e.g., 'guj', 'hin', 'mar')
+        
+    Returns:
+        List of extracted text per page
     """
-    MIN_TEXT_LENGTH = 60
-    MAX_PAGES_FREE_TIER = 20  # REDUCED from 50
-    pages_text: List[str] = []
-    temp_dir = None
+    # Convert Tesseract language codes to ISO if needed
+    lang_mapping = {
+        'guj': 'gu',
+        'hin': 'hi',
+        'mar': 'mr',
+        'eng': 'en'
+    }
+    iso_lang = lang_mapping.get(language, language)
     
-    if not os.path.exists(pdf_path):
-        raise PDFReadError("PDF file does not exist")
-    
-    logger.info(f"📊 Initial memory: {get_memory_usage():.1f}MB")
+    reader = PDFReader(pdf_path, iso_lang)
     
     try:
-        with pdfplumber.open(pdf_path) as pdf:
-            total_pages = len(pdf.pages)
-            logger.info(f"📄 PDF opened: {total_pages} pages")
-            
-            if total_pages > MAX_PAGES_FREE_TIER:
-                raise PDFReadError(
-                    f"PDF has {total_pages} pages. Free tier limit is {MAX_PAGES_FREE_TIER} pages. "
-                    f"Please split your PDF into smaller files."
-                )
-            
-            for page_number, page in enumerate(pdf.pages, start=1):
-                logger.info(f"📖 Processing page {page_number}/{total_pages}")
-                text = ""
-                
-                # Check memory before processing
-                mem_usage = get_memory_usage()
-                if mem_usage > 400:  # If using >400MB, cleanup aggressively
-                    logger.warning(f"⚠️ High memory usage: {mem_usage:.1f}MB - forcing cleanup")
-                    gc.collect()
-                
-                # Step 1: Try text extraction
-                try:
-                    extracted = page.extract_text() or ""
-                    text = extracted.strip()
-                    text = deduplicate_text(text)
-                    text = remove_repeated_patterns(text)
-                    logger.info(f"   ✓ Text extraction: {len(text)} chars")
-                except Exception as e:
-                    logger.warning(f"   ✗ Text extraction failed: {e}")
-                
-                # Step 2: OCR fallback if needed
-                if len(text) < MIN_TEXT_LENGTH:
-                    logger.info(f"   → OCR needed (text too short: {len(text)} chars)")
-                    
-                    temp_image_path = None
-                    
-                    try:
-                        # Create temp dir once
-                        if temp_dir is None:
-                            temp_dir = tempfile.mkdtemp()
-                            logger.info(f"📁 Created temp dir: {temp_dir}")
-                        
-                        logger.info(f"   Converting page {page_number} to image...")
-                        
-                        try:
-                            # REDUCED DPI for free tier (150 instead of 200)
-                            images = convert_from_path(
-                                pdf_path,
-                                first_page=page_number,
-                                last_page=page_number,
-                                dpi=150,  # Lower DPI = less memory
-                                output_folder=temp_dir,
-                                fmt='png',
-                                thread_count=1,
-                                grayscale=False
-                            )
-                            
-                            if not images:
-                                raise Exception("No images generated")
-                            
-                            image = images[0]
-                            
-                            # Preprocess
-                            image = preprocess_image_for_ocr(image)
-                            
-                            # Resize if too large (REDUCED max size)
-                            max_dimension = 2000  # Reduced from 2500
-                            if max(image.size) > max_dimension:
-                                ratio = max_dimension / max(image.size)
-                                new_size = tuple(int(dim * ratio) for dim in image.size)
-                                image = image.resize(new_size, Image.LANCZOS)
-                                logger.info(f"   Resized to {new_size}")
-                            
-                            # Save
-                            temp_image_path = os.path.join(temp_dir, f"page_{page_number}.png")
-                            image.save(temp_image_path, 'PNG', optimize=True)
-                            
-                            # Immediate cleanup
-                            image.close()
-                            del images
-                            gc.collect()
-                            
-                            logger.info(f"   ✓ Image saved: {temp_image_path}")
-                            
-                        except Exception as e:
-                            logger.error(f"   ✗ Image conversion failed: {e}")
-                            text = f"[IMAGE CONVERSION FAILED - Page {page_number}]"
-                            pages_text.append(text)
-                            continue
-                        
-                        # OCR with increased timeout (120s)
-                        if temp_image_path and os.path.exists(temp_image_path):
-                            text = _ocr_page_with_subprocess(
-                                temp_image_path, 
-                                ocr_lang, 
-                                page_number,
-                                timeout=120  # Increased from 45s
-                            )
-                        
-                    except Exception as e:
-                        logger.error(f"   ✗ OCR process failed: {e}")
-                        text = f"[OCR FAILED - Page {page_number}]"
-                    
-                    finally:
-                        # Clean up temp image IMMEDIATELY
-                        if temp_image_path and os.path.exists(temp_image_path):
-                            try:
-                                os.remove(temp_image_path)
-                            except:
-                                pass
-                        gc.collect()
-                
-                # Step 3: Store text
-                if text:
-                    cleaned = text.replace("\u00a0", " ").replace("\t", " ").strip()
-                    cleaned = deduplicate_text(cleaned)
-                    cleaned = remove_repeated_patterns(cleaned)
-                    pages_text.append(cleaned)
-                    logger.info(f"   ✓ Page {page_number} complete: {len(cleaned)} chars")
-                else:
-                    logger.warning(f"   ⚠ No text on page {page_number}")
-                    pages_text.append(f"[EMPTY PAGE {page_number}]")
-                
-                # Force cleanup after EACH page
-                gc.collect()
-                logger.info(f"   💾 Memory after page: {get_memory_usage():.1f}MB")
-    
+        reader.open()
+        pages = reader.extract_all_text()
+        
+        # Return list of text strings (compatible with old interface)
+        return [page['text'] for page in pages]
+        
     except Exception as e:
-        logger.exception("❌ PDF reading failed")
-        raise PDFReadError(f"PDF reading failed: {str(e)}")
+        logger.error(f"Failed to extract text from PDF: {e}")
+        raise
     
     finally:
-        # Final cleanup
-        if temp_dir and os.path.exists(temp_dir):
-            try:
-                import shutil
-                shutil.rmtree(temp_dir)
-                logger.info(f"🗑️ Cleaned up temp dir")
-            except Exception as e:
-                logger.warning(f"Cleanup warning: {e}")
-        gc.collect()
-        logger.info(f"📊 Final memory: {get_memory_usage():.1f}MB")
+        reader.close()
+
+
+def read_pdf(pdf_path: str, language: str = 'en', progress_callback=None) -> Dict[str, any]:
+    """
+    Convenience function to read entire PDF with metadata.
+    """
+    reader = PDFReader(pdf_path, language)
     
-    if not any(pages_text):
-        raise PDFReadError("No extractable text found in PDF")
+    try:
+        reader.open()
+        metadata = reader.get_metadata()
+        pages = reader.extract_all_text(progress_callback)
+        
+        return {
+            'success': True,
+            'metadata': metadata,
+            'pages': pages,
+            'total_pages': len(pages),
+            'total_chars': sum(p['char_count'] for p in pages if 'char_count' in p)
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to read PDF: {e}")
+        return {
+            'success': False,
+            'error': str(e)
+        }
     
-    logger.info(f"✅ Extraction complete: {len(pages_text)} pages processed")
-    return pages_text
+    finally:
+        reader.close()
+
+
+def test_ocr_setup():
+    """Test OCR setup and language availability."""
+    try:
+        version = pytesseract.get_tesseract_version()
+        logger.info(f"✅ Tesseract version: {version}")
+        
+        langs = pytesseract.get_languages()
+        logger.info(f"📚 Available languages: {langs}")
+        
+        required = ['guj', 'mar', 'hin', 'eng']
+        missing = [lang for lang in required if lang not in langs]
+        
+        if missing:
+            logger.warning(f"⚠️  Missing language packs: {missing}")
+            return False
+        
+        logger.info("✅ OCR setup verified")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ OCR setup test failed: {e}")
+        return False
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    
+    print("🔍 Testing OCR setup...")
+    if test_ocr_setup():
+        print("✅ OCR setup OK")
+    else:
+        print("❌ OCR setup failed")
+    
+    import sys
+    if len(sys.argv) > 1:
+        pdf_path = sys.argv[1]
+        language = sys.argv[2] if len(sys.argv) > 2 else 'en'
+        
+        print(f"\n📖 Reading PDF: {pdf_path}")
+        print(f"🌍 Language: {language}")
+        
+        result = read_pdf(pdf_path, language)
+        
+        if result['success']:
+            print(f"✅ Success!")
+            print(f"  Pages: {result['total_pages']}")
+            print(f"  Characters: {result['total_chars']}")
+        else:
+            print(f"❌ Failed: {result['error']}")

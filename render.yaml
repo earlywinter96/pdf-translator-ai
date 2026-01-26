@@ -15,19 +15,33 @@ services:
         value: "true"
       - key: PORT
         value: "8000"
+      
+      # PAGE LIMITS - CRITICAL FOR FREE TIER
       - key: MAX_PAGES_LIMIT
-        value: "20"  # REDUCED for free tier stability
+        value: "10"  # Max 10 pages on free tier
+      
+      # OCR SPEED OPTIMIZATIONS - THESE ARE THE KEY FIXES
+      - key: OCR_DPI
+        value: "150"  # Lower DPI = much faster (was 200)
+      - key: TESSERACT_TIMEOUT
+        value: "180"  # 3 minutes per page max
+      - key: MAX_IMAGE_SIZE
+        value: "1600"  # Smaller images = faster OCR
       
       # Memory optimization
       - key: PYTHONUNBUFFERED
         value: "1"
       - key: MALLOC_TRIM_THRESHOLD_
         value: "100000"
+      
+      # Tesseract config
+      - key: OMP_THREAD_LIMIT
+        value: "1"
     
     # Auto-deploy
     autoDeploy: true
     
-    # Persistent disk (jobs survive restarts)
+    # Persistent disk
     disk:
       name: pdf-temp
       mountPath: /app/uploads
