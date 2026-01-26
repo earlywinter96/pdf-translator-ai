@@ -42,7 +42,12 @@ app = FastAPI(
 # CORS Configuration - Enhanced for file downloads
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://pdf-translator-ai-xgu2.vercel.app"],  # Update for production: ["https://yourdomain.com"]
+    allow_origins=[
+        "https://pdf-translator-ai-xgu2.vercel.app",
+        "https://www.pdf-translator-ai-xgu2.vercel.app",
+        "http://localhost:3000",
+        "http://localhost:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -79,6 +84,11 @@ async def startup_event():
     logger.info("✅ PDF Translator API started successfully")
     logger.info(f"📁 Uploads directory: {UPLOADS_DIR}")
     logger.info(f"📁 Outputs directory: {OUTPUTS_DIR}")
+
+@app.options("/{path:path}")
+async def options_handler(path: str):
+    return {}
+
 
 
 def process_translation_job(
