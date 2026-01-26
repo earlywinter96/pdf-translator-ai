@@ -416,7 +416,10 @@ async def preview_original_pdf(job_id: str):
         media_type="application/pdf",
         headers={
             "Content-Disposition": f'inline; filename="{job.get("original_filename", "original.pdf")}"',
-            "Access-Control-Expose-Headers": "Content-Disposition"
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Expose-Headers": "Content-Disposition",
+            "Cross-Origin-Resource-Policy": "cross-origin",
+            "Cross-Origin-Embedder-Policy": "unsafe-none"
         }
     )
 
@@ -451,12 +454,12 @@ async def preview_translated_pdf(job_id: str):
         media_type="application/pdf",
         headers={
             "Content-Disposition": f'inline; filename="translated_{job_id}.pdf"',
-            "Access-Control-Expose-Headers": "Content-Disposition"
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Expose-Headers": "Content-Disposition",
+            "Cross-Origin-Resource-Policy": "cross-origin",
+            "Cross-Origin-Embedder-Policy": "unsafe-none"
         }
     )
-
-
-
 
 
 
