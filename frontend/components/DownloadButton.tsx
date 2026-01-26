@@ -8,8 +8,8 @@ export default function DownloadButton({ jobId }: { jobId: string }) {
     try {
       console.log("🟢 Download started for jobId:", jobId);
       
-      // Use the correct environment variable name
-      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
+      // FIX: Use correct environment variable name
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://pdf-translator-ai.onrender.com';
       const downloadUrl = `${API_BASE}/api/download/${jobId}`;
       
       console.log("📥 Download URL:", downloadUrl);

@@ -10,11 +10,15 @@ interface Props {
 export default function BilingualPreview({ jobId }: Props) {
   const [activeTab, setActiveTab] = useState<"side-by-side" | "original" | "translated">("side-by-side");
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+  // FIX: Use correct environment variable name
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://pdf-translator-ai.onrender.com';
   
   // Use preview endpoints instead of download endpoints
   const originalUrl = `${API_BASE}/api/preview/original/${jobId}`;
   const translatedUrl = `${API_BASE}/api/preview/translated/${jobId}`;
+
+  // Debug log
+  console.log("🔍 Preview URLs:", { originalUrl, translatedUrl });
 
   return (
     <div className="space-y-4">
