@@ -42,7 +42,7 @@ app = FastAPI(
 # CORS Configuration - Enhanced for file downloads
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Update for production: ["https://yourdomain.com"]
+    allow_origins=["https://pdf-translator-ai-xgu2.vercel.app"],  # Update for production: ["https://yourdomain.com"]
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
