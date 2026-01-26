@@ -12,6 +12,8 @@ import uuid
 import shutil
 import logging
 from typing import Optional
+from contextlib import contextmanager
+import time
 
 # Relative imports - works when running as: uvicorn app.main:app
 from .models.job import (
@@ -62,6 +64,7 @@ app.add_middleware(
         "X-Content-Type-Options"
     ]
 )
+
 # Directory Configuration
 UPLOADS_DIR = "uploads"
 OUTPUTS_DIR = "outputs"
@@ -88,22 +91,20 @@ async def startup_event():
     logger.info(f"📁 Uploads directory: {UPLOADS_DIR}")
     logger.info(f"📁 Outputs directory: {OUTPUTS_DIR}")
 
+
 @app.options("/{path:path}")
 async def options_handler(path: str):
     return {}
 
 
-
-"""
-Add this to your main.py process_translation_job function
-Replace the existing function with this version
-"""
-
-from contextlib import contextmanager
-import time
-
+# Custom Exception
 class JobTimeoutError(Exception):
     pass
+
+
+class PDFReadError(Exception):
+    pass
+
 
 def process_translation_job(
     job_id: str,
@@ -432,6 +433,7 @@ async def download_translated_pdf(job_id: str):
         }
     )
 
+
 @app.get("/api/preview/original/{job_id}")
 async def preview_original_pdf(job_id: str):
     """Preview original PDF (inline in browser)"""
@@ -500,6 +502,7 @@ async def preview_translated_pdf(job_id: str):
         }
     )
 
+
 @app.get("/api/test-tesseract")
 async def test_tesseract():
     """Check if Tesseract OCR is installed"""
@@ -533,7 +536,15 @@ async def test_tesseract():
         }
 
 
-
+@app.get("/test-ocr")
+async def test_ocr():
+    """Test OCR setup and verify language availability"""
+    from app.services.pdf_reader import test_ocr_setup
+    success = test_ocr_setup()
+    return {
+        "ocr_working": success,
+        "message": "OCR setup verified" if success else "OCR setup failed"
+    }
 
 
 # ================================
@@ -549,4 +560,3 @@ if __name__ == "__main__":
         reload=True,
         log_level="info"
     )
-

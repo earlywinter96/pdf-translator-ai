@@ -6,6 +6,7 @@ import FileUploader from "@/components/FileUploader";
 import ProgressBar from "@/components/ProgressBar";
 import DownloadButton from "@/components/DownloadButton";
 import BilingualPreview from "@/components/BilingualPreview";
+import WaitingTimeFiller from "@/components/WaitingTimeFiller";
 import { getJobStatus } from "@/lib/api";
 import TranslationFeedback from "@/components/TranslationFeedback";
 
@@ -132,49 +133,67 @@ export default function ConvertClient() {
 
         {/* PROCESSING STATE */}
         {jobId && jobStatus !== "completed" && jobStatus !== "failed" && (
-          <div className="mx-auto max-w-2xl rounded-2xl bg-white/5 backdrop-blur-md
-            border border-white/10 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)]
-            overflow-hidden">
+          <div className="mx-auto max-w-2xl space-y-6">
+            
+            {/* Main Progress Card */}
+            <div className="rounded-2xl bg-white/5 backdrop-blur-md
+              border border-white/10 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)]
+              overflow-hidden">
 
-            <div className="h-[2px] bg-gradient-to-r from-cyan-500/60 to-indigo-500/60" />
+              <div className="h-[2px] bg-gradient-to-r from-cyan-500/60 to-indigo-500/60" />
 
-            <div className="p-8 space-y-6">
-              
-              <div className="text-center space-y-3">
-                <Loader2 className="w-10 h-10 mx-auto text-cyan-400 animate-spin" />
-                <div>
-                  <p className="text-white font-medium text-lg">
-                    {getFriendlyMessage()}
-                  </p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    This usually takes 2-5 minutes
-                  </p>
-                  
-                  {stuckDetected && (
-                    <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                      <p className="text-xs text-yellow-400">
-                        💡 Tip: Free tier servers may take longer. If stuck for 5+ minutes, 
-                        try a smaller PDF or refresh the page.
-                      </p>
-                    </div>
-                  )}
+              <div className="p-8 space-y-6">
+                
+                <div className="text-center space-y-3">
+                  <Loader2 className="w-10 h-10 mx-auto text-cyan-400 animate-spin" />
+                  <div>
+                    <p className="text-white font-medium text-lg">
+                      {getFriendlyMessage()}
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      This usually takes 2-3 minutes
+                    </p>
+                    
+                    {stuckDetected && (
+                      <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                        <p className="text-xs text-yellow-400">
+                          💡 Tip: Free tier servers may take longer. If stuck for 5+ minutes, 
+                          try a smaller PDF or refresh the page.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              <ProgressBar progress={progress} />
-              
-              {/* Show manual retry option if stuck */}
-              {stuckDetected && (
-                <button
-                  onClick={handleReset}
-                  className="w-full px-4 py-2 rounded-lg text-sm
-                    border border-yellow-500/30 text-yellow-400
-                    hover:bg-yellow-500/10 transition"
-                >
-                  Cancel and Try Again
-                </button>
-              )}
+                <ProgressBar progress={progress} />
+                
+                {/* Show manual retry option if stuck */}
+                {stuckDetected && (
+                  <button
+                    onClick={handleReset}
+                    className="w-full px-4 py-2 rounded-lg text-sm
+                      border border-yellow-500/30 text-yellow-400
+                      hover:bg-yellow-500/10 transition"
+                  >
+                    Cancel and Try Again
+                  </button>
+                )}
+              </div>
             </div>
+
+            {/* Interactive Waiting Time Filler */}
+            <WaitingTimeFiller progress={progress} />
+
+            {/* Processing Tips */}
+            <div className="text-center space-y-2">
+              <p className="text-xs text-gray-500">
+                💡 <span className="text-cyan-400">Pro Tip:</span> Smaller PDFs (under 10 pages) process faster on the free tier
+              </p>
+              <p className="text-xs text-gray-600">
+                Need faster processing? Consider upgrading or use text-based PDFs instead of scanned ones
+              </p>
+            </div>
+
           </div>
         )}
 
@@ -193,7 +212,7 @@ export default function ConvertClient() {
 
                 <div>
                   <h2 className="text-2xl font-bold text-white mb-2">
-                    Translation Complete!
+                    Translation Complete! 🎉
                   </h2>
                   <p className="text-gray-400">
                     Your PDF has been successfully translated
