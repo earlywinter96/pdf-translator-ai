@@ -1,7 +1,10 @@
-# Use Python 3.11 slim for smaller size
+# Use Python 3.11 slim
 FROM python:3.11-slim
 
-# Install system dependencies
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies first
 RUN apt-get update && apt-get install -y --no-install-recommends \
     # Tesseract OCR with language packs
     tesseract-ocr \
@@ -9,26 +12,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr-mar \
     tesseract-ocr-hin \
     tesseract-ocr-eng \
-    # PDF tools
+    # PDF tools (required for pdf2image)
     poppler-utils \
-    # Image processing libraries
+    # Image processing libraries (required for Pillow)
     libjpeg-dev \
     libpng-dev \
     libtiff-dev \
-    # Cleanup
+    # Build tools (required for some Python packages)
+    gcc \
+    g++ \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /tmp/* \
-    && rm -rf /var/tmp/*
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Verify Tesseract installation
 RUN tesseract --version && tesseract --list-langs
 
-WORKDIR /app
-
-# Copy and install Python dependencies
+# Copy requirements and install Python packages
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt && pip cache purge
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip cache purge
 
 # Copy application code
 COPY backend/ .
@@ -36,15 +39,15 @@ COPY backend/ .
 # Create directories
 RUN mkdir -p uploads outputs
 
-# CRITICAL: Environment variables for OCR optimization
+# Environment variables
 ENV PYTHONUNBUFFERED=1
 ENV MALLOC_TRIM_THRESHOLD_=100000
 
-# Tesseract OCR configuration
+# Tesseract configuration
 ENV TESSDATA_PREFIX=/usr/share/tesseract-ocr/5/tessdata
 ENV OMP_THREAD_LIMIT=1
 
-# OCR SPEED OPTIMIZATIONS
+# OCR optimization settings
 ENV OCR_DPI=150
 ENV TESSERACT_TIMEOUT=180
 ENV MAX_IMAGE_SIZE=1600
@@ -55,11 +58,10 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 
 EXPOSE 8000
 
-# Run with increased timeout for OCR operations
+# Run uvicorn
 CMD ["uvicorn", "app.main:app", \
      "--host", "0.0.0.0", \
      "--port", "8000", \
      "--workers", "1", \
      "--timeout-keep-alive", "300", \
-     "--limit-concurrency", "3", \
-     "--timeout-graceful-shutdown", "120"]
+     "--limit-concurrency", "3"]

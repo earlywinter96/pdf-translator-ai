@@ -11,3 +11,39 @@ Pillow
 pytesseract
 Pillow>=10.0.0  # Ensure latest version for image processing
 psutil==5.9.8
+# Existing dependencies...
+fastapi
+uvicorn
+pydantic
+
+# PDF Processing
+PyMuPDF==1.23.8
+pdf2image==1.17.0
+pytesseract==0.3.10
+Pillow==10.2.0
+
+# If not already there:
+python-multipart
+
+# FastAPI and server
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+
+# PDF processing
+PyMuPDF==1.24.14
+pdf2image==1.17.0
+
+# OCR
+pytesseract==0.3.13
+Pillow==11.0.0
+
+# Translation (optional - only needed if not using mock mode)
+openai==1.59.5
+
+# Utilities
+python-dotenv==1.0.1
+reportlab==4.2.5
+
+# CORS
+python-multipart==0.0.20
