@@ -461,7 +461,37 @@ async def preview_translated_pdf(job_id: str):
         }
     )
 
-
+@app.get("/api/test-tesseract")
+async def test_tesseract():
+    """Check if Tesseract OCR is installed"""
+    import shutil
+    import subprocess
+    
+    tesseract_path = shutil.which('tesseract')
+    
+    if tesseract_path:
+        try:
+            result = subprocess.run(
+                ['tesseract', '--version'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            return {
+                "installed": True,
+                "path": tesseract_path,
+                "version": result.stdout.split('\n')[0]
+            }
+        except Exception as e:
+            return {
+                "installed": False,
+                "error": str(e)
+            }
+    else:
+        return {
+            "installed": False,
+            "error": "tesseract not found in PATH"
+        }
 
 
 
