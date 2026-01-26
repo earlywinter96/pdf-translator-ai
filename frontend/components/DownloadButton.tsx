@@ -1,17 +1,44 @@
 "use client";
 
-import { downloadTranslatedPDF } from "@/lib/api";
+import { Download } from "lucide-react";
 
 export default function DownloadButton({ jobId }: { jobId: string }) {
+  
+  const handleDownload = async () => {
+    try {
+      console.log("🟢 Download started for jobId:", jobId);
+      
+      // Use the correct environment variable name
+      const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
+      const downloadUrl = `${API_BASE}/api/download/${jobId}`;
+      
+      console.log("📥 Download URL:", downloadUrl);
+      
+      // Create a temporary link and trigger download
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `translated_${jobId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      console.log("✅ Download triggered successfully");
+    } catch (error) {
+      console.error("❌ Download failed:", error);
+      alert("Download failed. Please try again.");
+    }
+  };
+
   return (
     <button
-      onClick={() => downloadTranslatedPDF(jobId)}
-      className="px-6 py-2.5 rounded-md text-white font-medium
+      onClick={handleDownload}
+      className="px-6 py-3 rounded-lg text-white font-medium
         bg-gradient-to-r from-emerald-600 to-green-600
         hover:from-emerald-500 hover:to-green-500
-        transition shadow-lg"
+        transition shadow-lg flex items-center justify-center gap-2"
     >
-      Download Translated PDF
+      <Download className="w-5 h-5" />
+      Download Translation
     </button>
   );
 }

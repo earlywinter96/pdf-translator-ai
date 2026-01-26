@@ -61,7 +61,7 @@ export default function Navbar() {
           </IconLink>
 
           <IconLink
-            href="https://my-portfolio-ten-sable-21.vercel.app/"
+            href="https://my-portfolio2-peach-six.vercel.app/"
             label="Portfolio"
           >
             <Globe size={18} />

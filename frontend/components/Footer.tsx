@@ -17,7 +17,7 @@ export default function Footer() {
         <div className="flex gap-4">
           <a href="https://github.com/earlywinter96" target="_blank"><Github size={18} /></a>
           <a href="https://www.linkedin.com/in/hemant-solanki-366462199/" target="_blank"><Linkedin size={18} /></a>
-          <a href="https://my-portfolio-ten-sable-21.vercel.app/" target="_blank"><Globe size={18} /></a>
+          <a href="https://my-portfolio2-peach-six.vercel.app/" target="_blank"><Globe size={18} /></a>
         </div>
       </div>
     </footer>
