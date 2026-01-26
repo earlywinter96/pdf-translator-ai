@@ -6,12 +6,26 @@ services:
     region: singapore
     plan: free
     branch: main
+    
+    # Health check to prevent cold starts
+    healthCheckPath: /health
+    
     envVars:
       - key: MOCK_TRANSLATION
-        value: "true"  # ✅ Keep mock mode for now
+        value: "true"  # Keep mock mode enabled
       - key: PORT
         value: "8000"
-      # Add OPENAI_API_KEY later when you're ready
+      - key: MAX_PAGES_LIMIT
+        value: "50"  # Limit pages for free tier
+      # Uncomment when ready for production:
       # - key: OPENAI_API_KEY
-      #   sync: false  # Will set this manually in Render dashboard
-```
+      #   sync: false
+    
+    # Auto-deploy settings
+    autoDeploy: true
+    
+    # Disk for temporary files
+    disk:
+      name: pdf-temp
+      mountPath: /app/uploads
+      sizeGB: 1

@@ -1,9 +1,9 @@
 """
-PDF Reader Service with OCR Support
-----------------------------------
-- Extracts text from text-based PDFs
-- Automatically falls back to OCR for scanned PDFs
-- Supports Gujarati, Marathi, Hindi
+PDF Reader Service with OCR Support - Optimized for Low Memory
+--------------------------------------------------------------
+- Reduced memory footprint for Render free tier (512MB)
+- Better timeout handling
+- Aggressive cleanup
 """
 
 from typing import List
@@ -14,8 +14,8 @@ from pdf2image import convert_from_path
 from PIL import Image
 import os
 import tempfile
-import signal
-from contextlib import contextmanager
+import threading
+import gc
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -29,35 +29,54 @@ class TimeoutError(Exception):
     pass
 
 
-@contextmanager
-def timeout(seconds):
-    """Context manager for timeout"""
-    def timeout_handler(signum, frame):
-        raise TimeoutError(f"Operation timed out after {seconds} seconds")
+def timeout_handler(func, args=(), kwargs={}, timeout_duration=30):
+    """Thread-based timeout that works in Docker"""
+    result = [TimeoutError("Operation timed out")]
     
-    # Set the signal handler and alarm
-    signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(seconds)
-    try:
-        yield
-    finally:
-        signal.alarm(0)
+    def wrapper():
+        try:
+            result[0] = func(*args, **kwargs)
+        except Exception as e:
+            result[0] = e
+    
+    thread = threading.Thread(target=wrapper)
+    thread.daemon = True
+    thread.start()
+    thread.join(timeout_duration)
+    
+    if thread.is_alive():
+        raise TimeoutError(f"Operation timed out after {timeout_duration} seconds")
+    
+    if isinstance(result[0], Exception):
+        raise result[0]
+    
+    return result[0]
 
 
 def _ocr_page(image: Image.Image, ocr_lang: str, page_num: int) -> str:
-    """Perform OCR on a single page image with timeout"""
+    """Perform OCR on a single page with aggressive memory cleanup"""
     try:
-        logger.info(f"Starting OCR on page {page_num} with language: {ocr_lang}")
+        logger.info(f"Starting OCR on page {page_num} (lang: {ocr_lang})")
         
-        # Add timeout to prevent hanging (30 seconds per page)
-        with timeout(30):
-            text = pytesseract.image_to_string(
+        # Resize image if too large (save memory)
+        max_dimension = 2000
+        if max(image.size) > max_dimension:
+            ratio = max_dimension / max(image.size)
+            new_size = tuple(int(dim * ratio) for dim in image.size)
+            image = image.resize(new_size, Image.LANCZOS)
+            logger.info(f"Resized image to {new_size} to save memory")
+        
+        # Perform OCR with timeout
+        def ocr_task():
+            return pytesseract.image_to_string(
                 image,
                 lang=ocr_lang,
-                config="--psm 6"
+                config="--psm 6 --oem 1"  # Use LSTM engine for better accuracy
             )
         
-        logger.info(f"OCR completed for page {page_num}, extracted {len(text)} characters")
+        text = timeout_handler(ocr_task, timeout_duration=45)
+        
+        logger.info(f"OCR complete for page {page_num}: {len(text)} chars")
         return text.strip()
         
     except TimeoutError as e:
@@ -66,16 +85,19 @@ def _ocr_page(image: Image.Image, ocr_lang: str, page_num: int) -> str:
         
     except Exception as e:
         logger.error(f"OCR failed on page {page_num}: {e}")
-        return f"[OCR ERROR - Page {page_num}]"
+        return f"[OCR ERROR - Page {page_num}: {str(e)}]"
+    
+    finally:
+        # Force cleanup
+        gc.collect()
 
 
 def extract_text_from_pdf(pdf_path: str, ocr_lang: str) -> List[str]:
     """
-    Extract text from PDF pages.
-    Uses OCR ONLY when extracted text is insufficient.
+    Extract text from PDF with memory-optimized OCR fallback
     """
-
-    MIN_TEXT_LENGTH = 60  # Critical threshold
+    MIN_TEXT_LENGTH = 60
+    MAX_PAGES_FREE_TIER = 50  # Reduced from 400 for free tier
     pages_text: List[str] = []
 
     if not os.path.exists(pdf_path):
@@ -86,65 +108,71 @@ def extract_text_from_pdf(pdf_path: str, ocr_lang: str) -> List[str]:
     try:
         with pdfplumber.open(pdf_path) as pdf:
             total_pages = len(pdf.pages)
-            logger.info(f"PDF opened successfully. Pages: {total_pages}")
+            logger.info(f"PDF opened: {total_pages} pages")
             
-            # Limit pages to prevent memory issues
-            if total_pages > 400:
-                raise PDFReadError(f"PDF has {total_pages} pages. Maximum allowed is 400.")
+            # Strict limit for free tier
+            if total_pages > MAX_PAGES_FREE_TIER:
+                raise PDFReadError(
+                    f"PDF has {total_pages} pages. Maximum {MAX_PAGES_FREE_TIER} pages "
+                    f"allowed on free tier. Please upgrade or split your PDF."
+                )
 
             for page_number, page in enumerate(pdf.pages, start=1):
+                logger.info(f"Processing page {page_number}/{total_pages}")
                 text = ""
 
                 try:
-                    # 1️⃣ Try normal text extraction first
+                    # Try text extraction first
                     extracted = page.extract_text() or ""
                     text = extracted.strip()
-                    logger.info(f"Page {page_number}: Extracted {len(text)} chars via pdfplumber")
+                    logger.info(f"Page {page_number}: {len(text)} chars extracted")
 
                 except Exception as e:
                     logger.warning(f"Text extraction failed on page {page_number}: {e}")
 
-                # 2️⃣ OCR fallback ONLY if text is insufficient
+                # OCR fallback if needed
                 if len(text) < MIN_TEXT_LENGTH:
-                    logger.info(f"Using OCR for page {page_number} (extracted text too short: {len(text)} chars)")
+                    logger.info(f"Using OCR for page {page_number}")
 
                     try:
-                        # Create temp directory only when needed
+                        # Create temp dir only when needed
                         if temp_dir is None:
                             temp_dir = tempfile.mkdtemp()
-                            logger.info(f"Created temp directory: {temp_dir}")
                         
-                        # Convert ONLY the current page to reduce memory usage
-                        with timeout(60):  # 60 second timeout for image conversion
-                            images = convert_from_path(
+                        # Convert single page with reduced DPI
+                        def convert_task():
+                            return convert_from_path(
                                 pdf_path,
                                 first_page=page_number,
                                 last_page=page_number,
-                                dpi=200,  # Reduced from 250 to save memory
+                                dpi=150,  # Reduced from 200
                                 output_folder=temp_dir,
-                                fmt='jpeg',  # JPEG uses less memory than PNG
-                                thread_count=1  # Limit threads to reduce memory
+                                fmt='jpeg',
+                                thread_count=1,
+                                grayscale=True  # Save memory
                             )
+                        
+                        images = timeout_handler(convert_task, timeout_duration=60)
 
                         if images:
                             text = _ocr_page(images[0], ocr_lang, page_number).strip()
-                            logger.info(f"OCR extracted {len(text)} chars from page {page_number}")
                             
-                            # Clean up image immediately
+                            # Cleanup immediately
                             images[0].close()
                             del images
+                            gc.collect()
                         else:
                             logger.warning(f"No images generated for page {page_number}")
                             
                     except TimeoutError:
-                        logger.error(f"Image conversion timeout on page {page_number}")
+                        logger.error(f"Conversion timeout on page {page_number}")
                         text = f"[PAGE CONVERSION TIMEOUT - Page {page_number}]"
                         
                     except Exception as e:
-                        logger.error(f"OCR process failed for page {page_number}: {e}")
+                        logger.error(f"OCR failed for page {page_number}: {e}")
                         text = f"[OCR FAILED - Page {page_number}]"
 
-                # 3️⃣ Normalize text
+                # Add normalized text
                 if text:
                     cleaned = (
                         text.replace("\u00a0", " ")
@@ -153,25 +181,31 @@ def extract_text_from_pdf(pdf_path: str, ocr_lang: str) -> List[str]:
                     )
                     pages_text.append(cleaned)
                 else:
-                    logger.warning(f"No usable text on page {page_number}")
+                    logger.warning(f"No text on page {page_number}")
                     pages_text.append(f"[EMPTY PAGE {page_number}]")
+                
+                # Force garbage collection after each page
+                gc.collect()
 
     except Exception as e:
         logger.exception("Failed to read PDF")
         raise PDFReadError(f"PDF reading failed: {str(e)}")
     
     finally:
-        # Clean up temporary directory
+        # Cleanup temp directory
         if temp_dir and os.path.exists(temp_dir):
             try:
                 import shutil
                 shutil.rmtree(temp_dir)
-                logger.info(f"Cleaned up temp directory: {temp_dir}")
+                logger.info(f"Cleaned up temp: {temp_dir}")
             except Exception as e:
-                logger.warning(f"Failed to clean up temp directory: {e}")
+                logger.warning(f"Cleanup failed: {e}")
+        
+        # Final garbage collection
+        gc.collect()
 
     if not any(pages_text):
-        raise PDFReadError("No extractable text found (OCR also failed)")
+        raise PDFReadError("No extractable text found")
 
-    logger.info("PDF text extraction (hybrid OCR) completed successfully")
+    logger.info(f"Extraction complete: {len(pages_text)} pages")
     return pages_text
