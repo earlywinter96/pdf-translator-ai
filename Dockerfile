@@ -22,7 +22,11 @@ COPY backend/ .
 # Create directories
 RUN mkdir -p uploads outputs
 
+# Set environment variables for better memory management
+ENV PYTHONUNBUFFERED=1
+ENV MALLOC_TRIM_THRESHOLD_=100000
+
 EXPOSE 8000
 
-# Start FastAPI
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start FastAPI with limited workers for free tier
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

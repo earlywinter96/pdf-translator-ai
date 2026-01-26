@@ -111,6 +111,13 @@ def process_translation_job(
         logger.info(f"   Direction: {direction}")
         logger.info(f"   Mode: {mode}")
         
+        # Verify file exists and is readable
+        if not os.path.exists(pdf_path):
+            raise Exception(f"PDF file not found: {pdf_path}")
+            
+        file_size = os.path.getsize(pdf_path)
+        logger.info(f"   File size: {file_size / 1024 / 1024:.2f} MB")
+        
         # Step 1: Extract text from PDF
         update_job(job_id, 10, "Extracting text from PDF...")
         logger.info(f"📄 Step 1: Starting text extraction...")
@@ -121,13 +128,29 @@ def process_translation_job(
         try:
             pages = extract_text_from_pdf(pdf_path, ocr_lang)
             logger.info(f"✅ Extracted text from {len(pages)} pages")
-        except Exception as e:
+            
+            # Check if extraction actually worked
+            total_chars = sum(len(p) for p in pages)
+            if total_chars < 50:
+                raise PDFReadError("Extracted text is too short - PDF may be corrupted or unreadable")
+                
+        except TimeoutError as e:
+            logger.error(f"❌ Text extraction timeout: {e}")
+            fail_job(job_id, "Text extraction timed out. Please try a smaller PDF or contact support.")
+            return
+            
+        except PDFReadError as e:
             logger.error(f"❌ Text extraction failed: {e}")
+            fail_job(job_id, f"Text extraction failed: {str(e)}")
+            return
+            
+        except Exception as e:
+            logger.error(f"❌ Unexpected error during text extraction: {e}", exc_info=True)
             fail_job(job_id, f"Text extraction failed: {str(e)}")
             return
         
         update_job(job_id, 30, f"Text extracted from {len(pages)} pages")
-        
+
         # Step 2: Chunk pages for translation
         logger.info(f"📝 Step 2: Starting chunking...")
         try:
