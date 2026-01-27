@@ -312,3 +312,7 @@ __pycache__/
 # Keep sample .env template (without actual values)
 !.env.example
 !.env.template
+
+
+admin_credentials.json
+usage_data.json

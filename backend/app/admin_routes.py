@@ -1,94 +1,206 @@
 """
-Admin Routes - Secure Admin Dashboard (Vercel Safe)
---------------------------------------------------
-✔ Password hash based login (bcrypt)
-✔ No HTTPBasic (browser-safe)
-✔ Header-based auth (X-Admin-Auth)
-✔ Uses REAL billing data (usage_tracker.json)
-✔ Works with Vercel + Render
+Admin Dashboard Routes for PDF Translator
+------------------------------------------
+Includes authentication, usage tracking, password management, and admin controls
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Header, status
-from pydantic import BaseModel, validator
-import os
-import bcrypt
+from fastapi import APIRouter, HTTPException, Header
+from pydantic import BaseModel
 import base64
-import re
+import json
+import os
 import logging
-from typing import List
-
-from app.utils.usage_tracker import load_usage, reset_usage_data
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# ROUTER
+# ADMIN ROUTER
 # ============================================================================
 
-admin_router = APIRouter(
-    prefix="/admin",
-    tags=["admin"],
-)
-
-
+admin_router = APIRouter(prefix="", tags=["Admin"])
 
 # ============================================================================
-# ENV
+# CREDENTIALS STORAGE
 # ============================================================================
 
-ADMIN_USERNAME = "admin"
+CREDENTIALS_FILE = "admin_credentials.json"
 
-# TEMP reset password = Admin@123
-ADMIN_PASSWORD_HASH = bcrypt.hashpw(
-    b"Admin@123",
-    bcrypt.gensalt()
-).decode()
+def init_credentials():
+    """Initialize credentials file with defaults if it doesn't exist"""
+    if not os.path.exists(CREDENTIALS_FILE):
+        # Check for environment variables first
+        default_username = os.getenv("ADMIN_USERNAME", "admin")
+        default_password = os.getenv("ADMIN_PASSWORD", "admin123")
+        
+        default_creds = {
+            "username": default_username,
+            "password": default_password
+        }
+        
+        with open(CREDENTIALS_FILE, 'w') as f:
+            json.dump(default_creds, f, indent=2)
+        
+        logger.info(f"✅ Created credentials file with username: {default_username}")
+        logger.warning("⚠️  Using default password - please change immediately!")
 
-logger.warning(f"DEBUG ADMIN_USERNAME = {ADMIN_USERNAME}")
-logger.warning(f"DEBUG ADMIN_PASSWORD_HASH loaded = {bool(ADMIN_PASSWORD_HASH)}")
-
-
-# ============================================================================
-# AUTH HELPERS
-# ============================================================================
-
-def verify_password(password: str) -> bool:
+def load_credentials():
+    """Load admin credentials from file"""
+    init_credentials()  # Ensure file exists
+    
     try:
-        return bcrypt.checkpw(
-            password.encode("utf-8"),
-            ADMIN_PASSWORD_HASH.encode("utf-8"),
-        )
-    except Exception:
+        with open(CREDENTIALS_FILE, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Error loading credentials: {e}")
+        # Fallback to environment variables
+        return {
+            "username": os.getenv("ADMIN_USERNAME", "admin"),
+            "password": os.getenv("ADMIN_PASSWORD", "admin123")
+        }
+
+def save_credentials(username: str, password: str):
+    """Save admin credentials to file"""
+    credentials = {
+        "username": username,
+        "password": password
+    }
+    
+    try:
+        with open(CREDENTIALS_FILE, 'w') as f:
+            json.dump(credentials, f, indent=2)
+        logger.info(f"✅ Credentials updated for user: {username}")
+        return True
+    except Exception as e:
+        logger.error(f"Error saving credentials: {e}")
         return False
 
+# ============================================================================
+# AUTHENTICATION
+# ============================================================================
 
-import base64
-
-def verify_admin(
-    x_admin_auth: str = Header(..., description="base64(username:password)")
-):
+def verify_admin_auth(x_admin_auth: str = Header(None)):
+    """
+    Verify admin authentication from X-Admin-Auth header
+    
+    Args:
+        x_admin_auth: Base64 encoded "username:password"
+    
+    Returns:
+        username if authentication successful
+    
+    Raises:
+        HTTPException: If authentication fails
+    """
+    if not x_admin_auth:
+        logger.warning("❌ Missing authentication header")
+        raise HTTPException(
+            status_code=401, 
+            detail="Missing authentication. Please login."
+        )
+    
     try:
-        decoded_bytes = base64.b64decode(x_admin_auth)
-        decoded = decoded_bytes.decode("utf-8")
-        username, password = decoded.split(":", 1)
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid auth header")
-
-    if username != ADMIN_USERNAME:
-        raise HTTPException(status_code=401, detail="Invalid admin credentials")
-
-    if not bcrypt.checkpw(
-        password.encode("utf-8"),
-        ADMIN_PASSWORD_HASH.encode("utf-8"),
-    ):
-        raise HTTPException(status_code=401, detail="Invalid admin credentials")
-
-    return username
-
+        # Decode base64 auth
+        decoded = base64.b64decode(x_admin_auth).decode('utf-8')
+        username, password = decoded.split(':', 1)
+        
+        # Load current credentials
+        creds = load_credentials()
+        
+        # Verify credentials
+        if username != creds['username'] or password != creds['password']:
+            logger.warning(f"❌ Invalid credentials attempt for user: {username}")
+            raise HTTPException(
+                status_code=401, 
+                detail="Invalid credentials"
+            )
+        
+        logger.info(f"✅ Authentication successful for user: {username}")
+        return username
+        
+    except ValueError:
+        logger.error("❌ Invalid authentication format")
+        raise HTTPException(
+            status_code=401, 
+            detail="Invalid authentication format"
+        )
+    except Exception as e:
+        logger.error(f"❌ Authentication error: {e}")
+        raise HTTPException(
+            status_code=401, 
+            detail="Authentication failed"
+        )
 
 # ============================================================================
-# MODELS
+# USAGE TRACKING (Placeholder - Implement based on your needs)
 # ============================================================================
+
+USAGE_FILE = "usage_data.json"
+
+def init_usage_data():
+    """Initialize usage data file"""
+    if not os.path.exists(USAGE_FILE):
+        default_usage = {
+            "current_usage_inr": 0.0,
+            "budget_limit_inr": 1000.0,
+            "total_requests": 0,
+            "requests": []
+        }
+        with open(USAGE_FILE, 'w') as f:
+            json.dump(default_usage, f, indent=2)
+
+def load_usage_data():
+    """Load usage data from file"""
+    init_usage_data()
+    
+    try:
+        with open(USAGE_FILE, 'r') as f:
+            data = json.load(f)
+        
+        # Calculate derived fields
+        data["remaining_budget_inr"] = data["budget_limit_inr"] - data["current_usage_inr"]
+        data["percentage_used"] = (data["current_usage_inr"] / data["budget_limit_inr"] * 100) if data["budget_limit_inr"] > 0 else 0
+        data["recent_requests"] = data.get("requests", [])[-10:]  # Last 10 requests
+        
+        return data
+    except Exception as e:
+        logger.error(f"Error loading usage data: {e}")
+        return {
+            "current_usage_inr": 0.0,
+            "budget_limit_inr": 1000.0,
+            "remaining_budget_inr": 1000.0,
+            "percentage_used": 0.0,
+            "total_requests": 0,
+            "recent_requests": []
+        }
+
+def save_usage_data(data: dict):
+    """Save usage data to file"""
+    try:
+        with open(USAGE_FILE, 'w') as f:
+            json.dump(data, f, indent=2)
+        return True
+    except Exception as e:
+        logger.error(f"Error saving usage data: {e}")
+        return False
+
+def reset_usage_data():
+    """Reset all usage statistics"""
+    default_usage = {
+        "current_usage_inr": 0.0,
+        "budget_limit_inr": 1000.0,
+        "total_requests": 0,
+        "requests": []
+    }
+    return save_usage_data(default_usage)
+
+# ============================================================================
+# PYDANTIC MODELS
+# ============================================================================
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
 
 class UsageData(BaseModel):
     current_usage_inr: float
@@ -96,88 +208,180 @@ class UsageData(BaseModel):
     remaining_budget_inr: float
     percentage_used: float
     total_requests: int
-    recent_requests: List[dict]
-
-
-class PasswordChangeRequest(BaseModel):
-    current_password: str
-    new_password: str
-
-    @validator("new_password")
-    def strong_password(cls, v: str):
-        rules = [
-            (len(v) >= 8, "at least 8 characters"),
-            (re.search(r"[A-Z]", v), "one uppercase letter"),
-            (re.search(r"[a-z]", v), "one lowercase letter"),
-            (re.search(r"[0-9]", v), "one number"),
-            (re.search(r"[!@#$%^&*]", v), "one special character"),
-        ]
-        failed = [rule[1] for rule in rules if not rule[0]]
-        if failed:
-            raise ValueError("Password must include: " + ", ".join(failed))
-        return v
+    recent_requests: list
 
 # ============================================================================
-# ROUTES
+# ADMIN ENDPOINTS
 # ============================================================================
 
-@admin_router.get("/dashboard", response_model=UsageData)
-async def dashboard(admin: str = Depends(verify_admin)):
-    usage = load_usage()
-
-    budget_limit = 500.0
-    spent = float(usage.get("total_spent_inr", 0.0))
-    remaining = max(0.0, budget_limit - spent)
-    percentage = (spent / budget_limit) * 100 if budget_limit else 0.0
-
-    return {
-        "current_usage_inr": spent,
-        "budget_limit_inr": budget_limit,
-        "remaining_budget_inr": remaining,
-        "percentage_used": percentage,
-        "total_requests": len(usage.get("requests", [])),
-        "recent_requests": usage.get("requests", [])[-10:][::-1],
-    }
-
-
-@admin_router.post("/reset-usage")
-async def reset_usage(admin: str = Depends(verify_admin)):
-    reset_usage_data()
-    logger.info(f"🔄 Usage reset by {admin}")
-    return {
-        "message": "Usage reset successful",
-        "reset_by": admin,
-    }
+@admin_router.get("/admin/dashboard")
+async def get_admin_dashboard(x_admin_auth: str = Header(None)):
+    """
+    Get admin dashboard data including usage statistics
+    
+    Headers:
+        X-Admin-Auth: Base64 encoded "username:password"
+    
+    Returns:
+        UsageData with current usage and budget information
+    """
+    # Verify authentication
+    verify_admin_auth(x_admin_auth)
+    
+    # Load and return usage data
+    usage_data = load_usage_data()
+    
+    logger.info(f"📊 Dashboard accessed - Usage: ₹{usage_data['current_usage_inr']:.2f} / ₹{usage_data['budget_limit_inr']:.2f}")
+    
+    return usage_data
 
 
-@admin_router.post("/change-password")
-async def change_password(
-    data: PasswordChangeRequest,
-    admin: str = Depends(verify_admin),
+@admin_router.post("/admin/change-password")
+async def change_admin_password(
+    request: PasswordChangeRequest,
+    x_admin_auth: str = Header(None)
 ):
-    if not verify_password(data.current_password):
+    """
+    Change admin password from the dashboard
+    
+    Headers:
+        X-Admin-Auth: Base64 encoded "username:password"
+    
+    Body:
+        current_password: Current admin password
+        new_password: New admin password (min 6 characters)
+    
+    Returns:
+        Success message
+    """
+    # Verify authentication
+    username = verify_admin_auth(x_admin_auth)
+    
+    # Load current credentials
+    creds = load_credentials()
+    
+    # Verify current password matches (double check)
+    if request.current_password != creds['password']:
+        logger.warning(f"❌ Password change failed - incorrect current password for user: {username}")
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Current password incorrect",
+            status_code=400, 
+            detail="Current password is incorrect"
         )
-
-    new_hash = bcrypt.hashpw(
-        data.new_password.encode("utf-8"),
-        bcrypt.gensalt(rounds=12),
-    ).decode("utf-8")
-
-    logger.warning("⚠️ Admin password validated but NOT auto-saved")
-    logger.warning("👉 Update ADMIN_PASSWORD_HASH in Render environment variables")
-
+    
+    # Validate new password
+    if len(request.new_password) < 6:
+        logger.warning("❌ Password change failed - password too short")
+        raise HTTPException(
+            status_code=400, 
+            detail="New password must be at least 6 characters long"
+        )
+    
+    if request.new_password == request.current_password:
+        logger.warning("❌ Password change failed - same as current password")
+        raise HTTPException(
+            status_code=400, 
+            detail="New password must be different from current password"
+        )
+    
+    # Save new password
+    success = save_credentials(username, request.new_password)
+    
+    if not success:
+        logger.error("❌ Failed to save new password")
+        raise HTTPException(
+            status_code=500, 
+            detail="Failed to save new password. Please try again."
+        )
+    
+    logger.info(f"🔐 Password changed successfully for user: {username}")
+    
     return {
-        "message": "Password validated. Update ADMIN_PASSWORD_HASH in Render manually.",
-        "new_hash": new_hash,
+        "success": True,
+        "message": "Password changed successfully. Please login again with your new password."
     }
 
 
-@admin_router.get("/test-auth")
-async def test_auth(admin: str = Depends(verify_admin)):
+@admin_router.post("/admin/reset-usage")
+async def reset_usage_statistics(x_admin_auth: str = Header(None)):
+    """
+    Reset all usage statistics to zero
+    
+    Headers:
+        X-Admin-Auth: Base64 encoded "username:password"
+    
+    Returns:
+        Success message
+    """
+    # Verify authentication
+    username = verify_admin_auth(x_admin_auth)
+    
+    # Reset usage data
+    success = reset_usage_data()
+    
+    if not success:
+        logger.error("❌ Failed to reset usage data")
+        raise HTTPException(
+            status_code=500, 
+            detail="Failed to reset usage data. Please try again."
+        )
+    
+    logger.info(f"🔄 Usage statistics reset by user: {username}")
+    
     return {
-        "message": "Admin authenticated",
-        "user": admin,
+        "success": True,
+        "message": "Usage statistics have been reset successfully."
     }
+
+
+# ============================================================================
+# UTILITY: Track API Usage (Call this from your translation endpoints)
+# ============================================================================
+
+def track_api_usage(cost_inr: float, request_info: dict = None):
+    """
+    Track API usage and costs
+    
+    Args:
+        cost_inr: Cost in INR for this request
+        request_info: Optional dictionary with request details
+    """
+    try:
+        usage_data = load_usage_data()
+        
+        # Update costs
+        usage_data["current_usage_inr"] += cost_inr
+        usage_data["total_requests"] += 1
+        
+        # Add request to history
+        if "requests" not in usage_data:
+            usage_data["requests"] = []
+        
+        request_record = {
+            "timestamp": str(os.times()),
+            "cost_inr": cost_inr,
+            **(request_info or {})
+        }
+        
+        usage_data["requests"].append(request_record)
+        
+        # Keep only last 100 requests
+        usage_data["requests"] = usage_data["requests"][-100:]
+        
+        # Save updated data
+        save_usage_data(usage_data)
+        
+        logger.info(f"💰 Tracked usage: ₹{cost_inr:.2f} (Total: ₹{usage_data['current_usage_inr']:.2f})")
+        
+    except Exception as e:
+        logger.error(f"Error tracking usage: {e}")
+
+
+# ============================================================================
+# INITIALIZE ON IMPORT
+# ============================================================================
+
+# Initialize credentials and usage data files
+init_credentials()
+init_usage_data()
+
+logger.info("✅ Admin routes initialized")
