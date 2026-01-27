@@ -23,7 +23,7 @@ export default function AdminDashboard() {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   const API_BASE =
-    process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    process.env.NEXT_PUBLIC_API_URL || "https://pdf-translator-ai.onrender.com";
 
   /* -------------------- helpers -------------------- */
 
