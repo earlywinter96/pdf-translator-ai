@@ -131,6 +131,8 @@ def complete_job(job_id: str):
             _save_job_to_disk(job_id)
     logger.info(f"✅ Job completed: {job_id}")
 
+    
+
 
 def fail_job(job_id: str, message: str):
     """Mark job as failed"""

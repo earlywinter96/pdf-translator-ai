@@ -1,66 +1,314 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# PDF Translation App - Git Ignore File
 
-# dependencies
-/node_modules
+# ===================================
+# PDF Files & Processing Directories
+# ===================================
+# CRITICAL: Don't commit user uploads or generated files
+uploads/
+outputs/
+backend/uploads/
+backend/outputs/
+*.pdf
+*.PDF
+
+# Job metadata
+.jobs/
+backend/.jobs/
+
+# ===================================
+# Python
+# ===================================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+backend/venv/
+backend/env/
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath
+*.sage.py
+
+# Environments
+.env
+.env.local
+.env.*.local
+backend/.env
+backend/.env.local
+
+# Spyder
+.spyderproject
+.spyproject
+
+# Rope
+.ropeproject
+
+# mkdocs
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre
+.pyre/
+
+# ===================================
+# Node.js / Next.js (Frontend)
+# ===================================
+# Dependencies
+node_modules/
+frontend/node_modules/
 /.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+.pnp.js
 
-# testing
+# Testing
 /coverage
 
-# next.js
+# Next.js
 /.next/
 /out/
+.next/
+frontend/.next/
+frontend/out/
 
-# production
+# Production
 /build
+frontend/build/
 
-# misc
+# Misc
 .DS_Store
 *.pem
 
-# debug
+# Debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# Local env files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# vercel
+# Vercel
 .vercel
 
-# typescript
+# Typescript
 *.tsbuildinfo
 next-env.d.ts
-# Python
-backend/venv/
-backend/__pycache__/
-backend/*.log
 
-# Env files
-backend/.env
-frontend/.env
-.env
-.env*
+# ===================================
+# IDEs and Editors
+# ===================================
+# VSCode
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+*.code-workspace
 
+# PyCharm
+.idea/
+*.iml
+*.iws
+*.ipr
+.idea_modules/
 
-# Node / Next.js
-frontend/node_modules/
-frontend/.next/
-frontend/.vercel/
-frontend/npm-debug.log*
-frontend/yarn.lock
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
 
-# OS
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+
+# ===================================
+# Operating System
+# ===================================
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
 
-# PDFs / outputs
-backend/uploads/
-backend/outputs/
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.directory
+.Trash-*
+.nfs*
+
+# ===================================
+# Logs
+# ===================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.npm
+.yarn-integrity
+
+# ===================================
+# Temporary Files
+# ===================================
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+*~.nib
+*.swp
+*.swo
+
+# ===================================
+# Docker
+# ===================================
+# Docker compose override
+docker-compose.override.yml
+
+# ===================================
+# Database
+# ===================================
+*.db
+*.sqlite
+*.sqlite3
+
+# ===================================
+# Secrets & API Keys
+# ===================================
+# Environment files with secrets
+.env
+.env.local
+.env.*.local
+secrets/
+*.key
+*.pem
+*.cert
+
+# ===================================
+# Testing & CI
+# ===================================
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+
+# ===================================
+# Project Specific
+# ===================================
+# Backup files
+*.backup.*
+backup_*/
+
+# Sample/test PDFs (if you have a samples directory)
+samples/*.pdf
+test/*.pdf
+
+# User data
+user-data/
+
+# Cache
+.cache/
+__pycache__/
+
+# ===================================
+# Keep These Files (Negation)
+# ===================================
+# Keep directory structure files
+!.gitkeep
+!.keep
+
+# Keep sample .env template (without actual values)
+!.env.example
+!.env.template
