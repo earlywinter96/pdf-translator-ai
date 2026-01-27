@@ -1,46 +1,60 @@
 import json
+import os
 from datetime import datetime
-from pathlib import Path
+from typing import Dict, Any
 
-BASE_DIR = Path(__file__).resolve().parents[2]  # backend/
-DATA_DIR = BASE_DIR / "data"
-DATA_DIR.mkdir(exist_ok=True)
-
-USAGE_FILE = DATA_DIR / "usage_tracker.json"
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+USAGE_FILE = os.path.join(BASE_DIR, "usage_tracker.json")
 
 
-def _default():
-    return {
-        "total_spent_inr": 0.0,
-        "total_requests": 0,
-        "requests": [],
-        "last_reset": None,
-    }
+def _ensure_file():
+    if not os.path.exists(USAGE_FILE):
+        with open(USAGE_FILE, "w") as f:
+            json.dump(
+                {
+                    "total_spent_inr": 0.0,
+                    "requests": [],
+                    "last_reset": datetime.utcnow().isoformat(),
+                },
+                f,
+                indent=2,
+            )
 
 
-def load_usage():
-    if not USAGE_FILE.exists():
-        return _default()
-    return json.loads(USAGE_FILE.read_text())
+def load_usage() -> Dict[str, Any]:
+    _ensure_file()
+    with open(USAGE_FILE, "r") as f:
+        return json.load(f)
 
 
-def save_usage(data):
-    USAGE_FILE.write_text(json.dumps(data, indent=2))
+def record_usage(cost_inr: float, details: Dict[str, Any]):
+    _ensure_file()
+    data = load_usage()
 
-
-def record_usage(cost_inr: float, details: dict):
-    usage = load_usage()
-    usage["total_spent_inr"] += cost_inr
-    usage["total_requests"] += 1
-    usage["requests"].append(
+    data["total_spent_inr"] += float(cost_inr)
+    data["requests"].append(
         {
             "timestamp": datetime.utcnow().isoformat(),
-            "cost_inr": cost_inr,
+            "cost_inr": float(cost_inr),
             "details": details,
         }
     )
-    save_usage(usage)
+
+    # keep last 100 entries only
+    data["requests"] = data["requests"][-100:]
+
+    with open(USAGE_FILE, "w") as f:
+        json.dump(data, f, indent=2)
 
 
-def reset_usage():
-    save_usage({**_default(), "last_reset": datetime.utcnow().isoformat()})
+def reset_usage_data():
+    with open(USAGE_FILE, "w") as f:
+        json.dump(
+            {
+                "total_spent_inr": 0.0,
+                "requests": [],
+                "last_reset": datetime.utcnow().isoformat(),
+            },
+            f,
+            indent=2,
+        )

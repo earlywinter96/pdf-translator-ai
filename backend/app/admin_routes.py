@@ -8,13 +8,13 @@ Admin Routes - Secure Admin Dashboard (Vercel Safe)
 ✔ Works with Vercel + Render
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Header
+from fastapi import APIRouter, HTTPException, Depends, Header, status
 from pydantic import BaseModel, validator
 import os
 import bcrypt
+import base64
 import re
 import logging
-from datetime import datetime
 from typing import List
 
 from app.utils.usage_tracker import load_usage, reset_usage_data
@@ -30,45 +30,61 @@ admin_router = APIRouter(
     tags=["admin"],
 )
 
+
+
 # ============================================================================
 # ENV
 # ============================================================================
 
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PASSWORD_HASH")
+ADMIN_USERNAME = "admin"
 
-if not ADMIN_PASSWORD_HASH:
-    raise RuntimeError("❌ ADMIN_PASSWORD_HASH is NOT set in environment")
+# TEMP reset password = Admin@123
+ADMIN_PASSWORD_HASH = bcrypt.hashpw(
+    b"Admin@123",
+    bcrypt.gensalt()
+).decode()
+
+logger.warning(f"DEBUG ADMIN_USERNAME = {ADMIN_USERNAME}")
+logger.warning(f"DEBUG ADMIN_PASSWORD_HASH loaded = {bool(ADMIN_PASSWORD_HASH)}")
+
 
 # ============================================================================
 # AUTH HELPERS
 # ============================================================================
 
 def verify_password(password: str) -> bool:
-    return bcrypt.checkpw(
-        password.encode(),
-        ADMIN_PASSWORD_HASH.encode(),
-    )
+    try:
+        return bcrypt.checkpw(
+            password.encode("utf-8"),
+            ADMIN_PASSWORD_HASH.encode("utf-8"),
+        )
+    except Exception:
+        return False
 
+
+import base64
 
 def verify_admin(
     x_admin_auth: str = Header(..., description="base64(username:password)")
 ):
-    """
-    Custom auth header (Vercel-safe)
-    Header:
-      X-Admin-Auth: base64(admin:password)
-    """
     try:
-        decoded = os.popen(f"echo {x_admin_auth} | base64 --decode").read().strip()
+        decoded_bytes = base64.b64decode(x_admin_auth)
+        decoded = decoded_bytes.decode("utf-8")
         username, password = decoded.split(":", 1)
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid auth header")
 
-    if username != ADMIN_USERNAME or not verify_password(password):
+    if username != ADMIN_USERNAME:
+        raise HTTPException(status_code=401, detail="Invalid admin credentials")
+
+    if not bcrypt.checkpw(
+        password.encode("utf-8"),
+        ADMIN_PASSWORD_HASH.encode("utf-8"),
+    ):
         raise HTTPException(status_code=401, detail="Invalid admin credentials")
 
     return username
+
 
 # ============================================================================
 # MODELS
@@ -88,17 +104,17 @@ class PasswordChangeRequest(BaseModel):
     new_password: str
 
     @validator("new_password")
-    def strong_password(cls, v):
+    def strong_password(cls, v: str):
         rules = [
-            (len(v) >= 8, "8 characters"),
-            (re.search(r"[A-Z]", v), "uppercase"),
-            (re.search(r"[a-z]", v), "lowercase"),
-            (re.search(r"[0-9]", v), "number"),
-            (re.search(r"[!@#$%^&*]", v), "special char"),
+            (len(v) >= 8, "at least 8 characters"),
+            (re.search(r"[A-Z]", v), "one uppercase letter"),
+            (re.search(r"[a-z]", v), "one lowercase letter"),
+            (re.search(r"[0-9]", v), "one number"),
+            (re.search(r"[!@#$%^&*]", v), "one special character"),
         ]
-        failed = [r[1] for r in rules if not r[0]]
+        failed = [rule[1] for rule in rules if not rule[0]]
         if failed:
-            raise ValueError(f"Password must include: {', '.join(failed)}")
+            raise ValueError("Password must include: " + ", ".join(failed))
         return v
 
 # ============================================================================
@@ -110,17 +126,17 @@ async def dashboard(admin: str = Depends(verify_admin)):
     usage = load_usage()
 
     budget_limit = 500.0
-    spent = usage["total_spent_inr"]
+    spent = float(usage.get("total_spent_inr", 0.0))
     remaining = max(0.0, budget_limit - spent)
-    percentage = (spent / budget_limit) * 100 if budget_limit else 0
+    percentage = (spent / budget_limit) * 100 if budget_limit else 0.0
 
     return {
         "current_usage_inr": spent,
         "budget_limit_inr": budget_limit,
         "remaining_budget_inr": remaining,
         "percentage_used": percentage,
-        "total_requests": len(usage["requests"]),
-        "recent_requests": usage["requests"][-10:][::-1],
+        "total_requests": len(usage.get("requests", [])),
+        "recent_requests": usage.get("requests", [])[-10:][::-1],
     }
 
 
@@ -128,7 +144,10 @@ async def dashboard(admin: str = Depends(verify_admin)):
 async def reset_usage(admin: str = Depends(verify_admin)):
     reset_usage_data()
     logger.info(f"🔄 Usage reset by {admin}")
-    return {"message": "Usage reset successful", "by": admin}
+    return {
+        "message": "Usage reset successful",
+        "reset_by": admin,
+    }
 
 
 @admin_router.post("/change-password")
@@ -137,19 +156,28 @@ async def change_password(
     admin: str = Depends(verify_admin),
 ):
     if not verify_password(data.current_password):
-        raise HTTPException(status_code=401, detail="Current password incorrect")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Current password incorrect",
+        )
 
-    new_hash = bcrypt.hashpw(data.new_password.encode(), bcrypt.gensalt()).decode()
+    new_hash = bcrypt.hashpw(
+        data.new_password.encode("utf-8"),
+        bcrypt.gensalt(rounds=12),
+    ).decode("utf-8")
 
-    logger.warning("⚠️ Password changed but NOT persisted automatically")
-    logger.warning("👉 Update ADMIN_PASSWORD_HASH in Render ENV manually")
+    logger.warning("⚠️ Admin password validated but NOT auto-saved")
+    logger.warning("👉 Update ADMIN_PASSWORD_HASH in Render environment variables")
 
     return {
-        "message": "Password validated. Update ADMIN_PASSWORD_HASH in environment",
+        "message": "Password validated. Update ADMIN_PASSWORD_HASH in Render manually.",
         "new_hash": new_hash,
     }
 
 
 @admin_router.get("/test-auth")
 async def test_auth(admin: str = Depends(verify_admin)):
-    return {"message": "Admin authenticated", "user": admin}
+    return {
+        "message": "Admin authenticated",
+        "user": admin,
+    }

@@ -1,12 +1,14 @@
-# backend/openai_wrapper.py
 """
-OpenAI wrapper (MOCK MODE)
-- No real OpenAI calls
-- No billing
-- Safe for Vercel + Render testing
+OpenAI Wrapper (MOCK MODE)
+-------------------------
+✔ NO real OpenAI calls
+✔ NO external API usage
+✔ Billing-safe (records ZERO cost)
+✔ Uses usage_tracker.json
+✔ Works on Vercel + Render
+✔ Can be swapped later with real OpenAI
 """
 
-import os
 from typing import Optional, Dict, Any
 
 from app.utils.usage_tracker import record_usage, load_usage
@@ -18,31 +20,30 @@ class OpenAIWithBudget:
     """
 
     def __init__(self):
-        # Toggle this later when enabling real OpenAI
-        self.mock_mode = True
+        # Hard limit for dashboard display only
+        self.budget_limit = 500.0  # INR
 
-        self.budget_limit = 500  # INR
-        self.usd_to_inr = 83
-
-    # -----------------------
-    # Budget check (read-only)
-    # -----------------------
+    # ------------------------------------------------------------------
+    # Budget check (READ-ONLY)
+    # ------------------------------------------------------------------
     def check_budget(self) -> Dict[str, Any]:
         usage = load_usage()
-        current = usage["total_spent_inr"]
-        remaining = self.budget_limit - current
+
+        spent = float(usage.get("total_spent_inr", 0.0))
+        remaining = max(0.0, self.budget_limit - spent)
+        percentage = (spent / self.budget_limit) * 100 if self.budget_limit else 0.0
 
         return {
-            "allowed": current < self.budget_limit,
-            "current_usage_inr": current,
+            "allowed": spent < self.budget_limit,
+            "current_usage_inr": spent,
             "remaining_inr": remaining,
             "budget_limit_inr": self.budget_limit,
-            "percentage_used": (current / self.budget_limit) * 100 if self.budget_limit else 0,
+            "percentage_used": percentage,
         }
 
-    # -----------------------
-    # Translation (MOCK)
-    # -----------------------
+    # ------------------------------------------------------------------
+    # Translation (MOCK ONLY)
+    # ------------------------------------------------------------------
     def translate_text(
         self,
         text: str,
@@ -51,19 +52,22 @@ class OpenAIWithBudget:
         model: str = "mock",
     ) -> Dict[str, Any]:
         """
-        Mock translation — NO OpenAI, NO billing
+        Mock translation
+        - NO OpenAI
+        - NO billing
+        - SAFE for testing
         """
 
         budget = self.check_budget()
         if not budget["allowed"]:
-            raise Exception("Budget limit reached")
+            raise RuntimeError("Budget limit reached")
 
-        # 🧪 MOCK TRANSLATION
+        # 🧪 Mock translation output
         translated_text = (
             f"[MOCK TRANSLATION → {target_language}]\n\n{text}"
         )
 
-        # 🔒 Record ZERO billing (keeps admin dashboard consistent)
+        # 🔒 Record ZERO cost (keeps admin dashboard consistent)
         record_usage(
             cost_inr=0.0,
             details={
@@ -85,3 +89,4 @@ class OpenAIWithBudget:
             "budget_status": self.check_budget(),
             "model_used": "mock",
         }
+    
