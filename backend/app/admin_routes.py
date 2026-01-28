@@ -15,23 +15,31 @@ from fastapi import Response, Request
 
 logger = logging.getLogger(__name__)
 
-admin_router = APIRouter(prefix="", tags=["Admin"])
-
-
-@admin_router.options("/admin/{path:path}")
-async def admin_preflight(path: str):
-    """
-    Handle CORS preflight requests for admin routes
-    """
-    return Response(status_code=200)
-
-
-
-
 # ============================================================================
 # ADMIN ROUTER
 # ============================================================================
 
+admin_router = APIRouter(prefix="", tags=["Admin"])
+
+# ============================================================================
+# CORS HEADERS
+# ============================================================================
+
+CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, X-Admin-Auth",
+    "Access-Control-Max-Age": "3600",
+}
+
+# ============================================================================
+# PREFLIGHT HANDLER
+# ============================================================================
+
+@admin_router.options("/admin/{path:path}")
+async def admin_preflight(path: str):
+    """Handle CORS preflight requests for admin routes"""
+    return Response(status_code=200, headers=CORS_HEADERS)
 
 # ============================================================================
 # CREDENTIALS STORAGE
@@ -145,7 +153,7 @@ def verify_admin_auth(x_admin_auth: str = Header(None)):
         )
 
 # ============================================================================
-# USAGE TRACKING (Placeholder - Implement based on your needs)
+# USAGE TRACKING
 # ============================================================================
 
 USAGE_FILE = "usage_data.json"
@@ -229,26 +237,25 @@ class UsageData(BaseModel):
 
 @admin_router.get("/admin/dashboard")
 async def get_admin_dashboard(
-    request: Request,
     x_admin_auth: str = Header(None)
 ):
-    if request.method != "OPTIONS":
-        verify_admin_auth(x_admin_auth)
-
+    """Get admin dashboard data"""
+    verify_admin_auth(x_admin_auth)
     usage_data = load_usage_data()
-    return usage_data
+    
+    return Response(
+        content=json.dumps(usage_data),
+        media_type="application/json",
+        headers=CORS_HEADERS
+    )
 
 
 @admin_router.post("/admin/change-password")
 async def change_admin_password(
     request: PasswordChangeRequest,
-    http_request: Request,
     x_admin_auth: str = Header(None)
 ):
-    if http_request.method != "OPTIONS":
-        username = verify_admin_auth(x_admin_auth)
-    ...
-
+    """Change admin password"""
     # Verify authentication
     username = verify_admin_auth(x_admin_auth)
     
@@ -290,21 +297,23 @@ async def change_admin_password(
     
     logger.info(f"🔐 Password changed successfully for user: {username}")
     
-    return {
+    result = {
         "success": True,
         "message": "Password changed successfully. Please login again with your new password."
     }
+    
+    return Response(
+        content=json.dumps(result),
+        media_type="application/json",
+        headers=CORS_HEADERS
+    )
 
 
 @admin_router.post("/admin/reset-usage")
 async def reset_usage_statistics(
-    http_request: Request,
     x_admin_auth: str = Header(None)
 ):
-    if http_request.method != "OPTIONS":
-        username = verify_admin_auth(x_admin_auth)
-
-
+    """Reset usage statistics"""
     # Verify authentication
     username = verify_admin_auth(x_admin_auth)
     
@@ -320,10 +329,16 @@ async def reset_usage_statistics(
     
     logger.info(f"🔄 Usage statistics reset by user: {username}")
     
-    return {
+    result = {
         "success": True,
         "message": "Usage statistics have been reset successfully."
     }
+    
+    return Response(
+        content=json.dumps(result),
+        media_type="application/json",
+        headers=CORS_HEADERS
+    )
 
 
 # ============================================================================
@@ -349,8 +364,9 @@ def track_api_usage(cost_inr: float, request_info: dict = None):
         if "requests" not in usage_data:
             usage_data["requests"] = []
         
+        from datetime import datetime
         request_record = {
-            "timestamp": str(os.times()),
+            "timestamp": datetime.now().isoformat(),
             "cost_inr": cost_inr,
             **(request_info or {})
         }
@@ -378,5 +394,3 @@ init_credentials()
 init_usage_data()
 
 logger.info("✅ Admin routes initialized")
-
-
