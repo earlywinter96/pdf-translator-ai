@@ -80,6 +80,7 @@ app.add_middleware(
         "Content-Type",
         "Authorization",
         "X-Requested-With",
+        "X-Admin-Auth",
         "Origin",
         "Access-Control-Request-Method",
         "Access-Control-Request-Headers",
@@ -330,13 +331,6 @@ async def health_check():
         "cors_origins": len(ALLOWED_ORIGINS)
     }
 
-
-@app.options("/{path:path}")
-async def options_handler(path: str):
-    """Handle CORS preflight requests explicitly"""
-    return {
-        "message": "CORS preflight OK"
-    }
 
 
 # ============================================================================

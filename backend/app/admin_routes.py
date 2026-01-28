@@ -32,14 +32,6 @@ CORS_HEADERS = {
     "Access-Control-Max-Age": "3600",
 }
 
-# ============================================================================
-# PREFLIGHT HANDLER
-# ============================================================================
-
-@admin_router.options("/admin/{path:path}")
-async def admin_preflight(path: str):
-    """Handle CORS preflight requests for admin routes"""
-    return Response(status_code=200, headers=CORS_HEADERS)
 
 # ============================================================================
 # CREDENTIALS STORAGE
