@@ -15,6 +15,7 @@ from typing import Optional
 from contextlib import contextmanager
 import time
 
+
 # Relative imports - works when running as: uvicorn app.main:app
 from .models.job import (
     create_job, 
@@ -48,35 +49,48 @@ app = FastAPI(
 )
 
 # ============================================================================
-# CORS CONFIGURATION
+# CORS CONFIGURATION - UPDATED FOR PRODUCTION
 # ============================================================================
+
+# Define allowed origins
+ALLOWED_ORIGINS = [
+    # Production domains (NEW)
+    "https://www.lipitranslate.in",
+    "https://lipitranslate.in",
+    
+    # Old Vercel preview (keep for backward compatibility)
+    "https://pdf-translator-ai-xgu2.vercel.app",
+    "https://www.pdf-translator-ai-xgu2.vercel.app",
+    
+    # Local development
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        # Production (NEW DOMAIN)
-        "https://www.lipitranslate.in",
-        "https://lipitranslate.in",
-
-        # Old Vercel preview (keep)
-        "https://pdf-translator-ai-xgu2.vercel.app",
-        "https://www.pdf-translator-ai-xgu2.vercel.app",
-
-        # Local development
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
+    allow_headers=[
+        "Accept",
+        "Accept-Language",
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "Origin",
+        "Access-Control-Request-Method",
+        "Access-Control-Request-Headers",
+    ],
     expose_headers=[
         "Content-Disposition",
         "Content-Type",
         "Content-Length",
-        "X-Content-Type-Options"
-    ]
+        "X-Content-Type-Options",
+    ],
+    max_age=3600,  # Cache preflight requests for 1 hour
 )
 
 
@@ -116,6 +130,7 @@ async def startup_event():
     logger.info(f"📁 Outputs directory: {OUTPUTS_DIR}")
     logger.info(f"🔐 Admin dashboard: /admin/dashboard")
     logger.info(f"📚 API docs: /docs")
+    logger.info(f"🌐 CORS enabled for: {', '.join(ALLOWED_ORIGINS[:2])}")
     
     # Check for admin credentials
     admin_user = os.getenv("ADMIN_USERNAME")
@@ -290,6 +305,7 @@ async def root():
     return {
         "message": "PDF Translator AI with Admin Dashboard",
         "version": "2.0.0",
+        "status": "online",
         "endpoints": {
             "upload": "/api/upload",
             "status": "/api/status/{job_id}",
@@ -297,7 +313,8 @@ async def root():
             "admin_dashboard": "/admin/dashboard",
             "api_docs": "/docs"
         },
-        "supported_languages": ["Gujarati (gu)", "Hindi (hi)", "Marathi (mr)"]
+        "supported_languages": ["Gujarati (gu)", "Hindi (hi)", "Marathi (mr)"],
+        "cors_enabled": True
     }
 
 
@@ -309,14 +326,17 @@ async def health_check():
         "service": "pdf-translator-ai",
         "version": "2.0.0",
         "openai_configured": bool(os.getenv("OPENAI_API_KEY")),
-        "admin_configured": bool(os.getenv("ADMIN_PASSWORD_HASH"))
+        "admin_configured": bool(os.getenv("ADMIN_PASSWORD_HASH")),
+        "cors_origins": len(ALLOWED_ORIGINS)
     }
 
 
 @app.options("/{path:path}")
 async def options_handler(path: str):
-    """Handle CORS preflight requests"""
-    return {}
+    """Handle CORS preflight requests explicitly"""
+    return {
+        "message": "CORS preflight OK"
+    }
 
 
 # ============================================================================
@@ -552,10 +572,7 @@ async def preview_original_pdf(job_id: str):
         media_type="application/pdf",
         headers={
             "Content-Disposition": f'inline; filename="{job.get("original_filename", "original.pdf")}"',
-            "Access-Control-Allow-Origin": "*",
             "Access-Control-Expose-Headers": "Content-Disposition",
-            "Cross-Origin-Resource-Policy": "cross-origin",
-            "Cross-Origin-Embedder-Policy": "unsafe-none"
         }
     )
 
@@ -598,10 +615,7 @@ async def preview_translated_pdf(job_id: str):
         media_type="application/pdf",
         headers={
             "Content-Disposition": f'inline; filename="translated_{job_id}.pdf"',
-            "Access-Control-Allow-Origin": "*",
             "Access-Control-Expose-Headers": "Content-Disposition",
-            "Cross-Origin-Resource-Policy": "cross-origin",
-            "Cross-Origin-Embedder-Policy": "unsafe-none"
         }
     )
 
@@ -662,6 +676,20 @@ async def test_ocr():
     return {
         "ocr_working": success,
         "message": "OCR setup verified" if success else "OCR setup failed. Install Tesseract OCR."
+    }
+
+
+# ============================================================================
+# CORS TEST ENDPOINT
+# ============================================================================
+
+@app.get("/api/test-cors")
+async def test_cors():
+    """Test CORS configuration"""
+    return {
+        "message": "CORS is working!",
+        "allowed_origins": ALLOWED_ORIGINS,
+        "status": "success"
     }
 
 

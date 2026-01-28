@@ -11,6 +11,17 @@ import json
 import os
 import logging
 from typing import Optional
+from fastapi import Response, Request
+
+
+@admin_router.options("/admin/{path:path}")
+async def admin_preflight(path: str):
+    """
+    Handle CORS preflight requests for admin routes
+    """
+    return Response(status_code=200)
+
+
 
 logger = logging.getLogger(__name__)
 
@@ -215,45 +226,27 @@ class UsageData(BaseModel):
 # ============================================================================
 
 @admin_router.get("/admin/dashboard")
-async def get_admin_dashboard(x_admin_auth: str = Header(None)):
-    """
-    Get admin dashboard data including usage statistics
-    
-    Headers:
-        X-Admin-Auth: Base64 encoded "username:password"
-    
-    Returns:
-        UsageData with current usage and budget information
-    """
-    # Verify authentication
-    verify_admin_auth(x_admin_auth)
-    
-    # Load and return usage data
+async def get_admin_dashboard(
+    request: Request,
+    x_admin_auth: str = Header(None)
+):
+    if request.method != "OPTIONS":
+        verify_admin_auth(x_admin_auth)
+
     usage_data = load_usage_data()
-    
-    logger.info(f"📊 Dashboard accessed - Usage: ₹{usage_data['current_usage_inr']:.2f} / ₹{usage_data['budget_limit_inr']:.2f}")
-    
     return usage_data
 
 
 @admin_router.post("/admin/change-password")
 async def change_admin_password(
     request: PasswordChangeRequest,
+    http_request: Request,
     x_admin_auth: str = Header(None)
 ):
-    """
-    Change admin password from the dashboard
-    
-    Headers:
-        X-Admin-Auth: Base64 encoded "username:password"
-    
-    Body:
-        current_password: Current admin password
-        new_password: New admin password (min 6 characters)
-    
-    Returns:
-        Success message
-    """
+    if http_request.method != "OPTIONS":
+        username = verify_admin_auth(x_admin_auth)
+    ...
+
     # Verify authentication
     username = verify_admin_auth(x_admin_auth)
     
@@ -302,16 +295,14 @@ async def change_admin_password(
 
 
 @admin_router.post("/admin/reset-usage")
-async def reset_usage_statistics(x_admin_auth: str = Header(None)):
-    """
-    Reset all usage statistics to zero
-    
-    Headers:
-        X-Admin-Auth: Base64 encoded "username:password"
-    
-    Returns:
-        Success message
-    """
+async def reset_usage_statistics(
+    http_request: Request,
+    x_admin_auth: str = Header(None)
+):
+    if http_request.method != "OPTIONS":
+        username = verify_admin_auth(x_admin_auth)
+
+        
     # Verify authentication
     username = verify_admin_auth(x_admin_auth)
     
@@ -387,6 +378,3 @@ init_usage_data()
 logger.info("✅ Admin routes initialized")
 
 
-@admin_router.options("/{path:path}")
-async def admin_preflight_handler(path: str):
-    return {}
