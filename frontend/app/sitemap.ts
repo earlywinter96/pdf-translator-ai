@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = "https://pdf-translator-ai-xgu2.vercel.app";
+  const baseUrl = "https://www.lipitranslate.in";
 
   return [
     {

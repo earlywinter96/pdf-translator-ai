@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import logging
 import re
 import shlex
 import string
@@ -17,9 +18,10 @@ from os import remove
 from os.path import normcase
 from os.path import normpath
 from os.path import realpath
-from pkgutil import find_loader
 from tempfile import NamedTemporaryFile
 from time import sleep
+from typing import List
+from typing import Optional
 
 from packaging.version import InvalidVersion
 from packaging.version import parse
@@ -29,13 +31,21 @@ from PIL import Image
 
 tesseract_cmd = 'tesseract'
 
-numpy_installed = find_loader('numpy') is not None
-if numpy_installed:
+try:
     from numpy import ndarray
 
-pandas_installed = find_loader('pandas') is not None
-if pandas_installed:
+    numpy_installed = True
+except ModuleNotFoundError:
+    numpy_installed = False
+
+try:
     import pandas as pd
+
+    pandas_installed = True
+except ModuleNotFoundError:
+    pandas_installed = False
+
+LOGGER = logging.getLogger('pytesseract')
 
 DEFAULT_ENCODING = 'utf-8'
 LANG_PATTERN = re.compile('^[a-z_]+$')
@@ -60,6 +70,13 @@ OSD_KEYS = {
     'Orientation confidence': ('orientation_conf', float),
     'Script': ('script', str),
     'Script confidence': ('script_conf', float),
+}
+
+EXTENTION_TO_CONFIG = {
+    'box': 'tessedit_create_boxfile=1 batch.nochop makebox',
+    'xml': 'tessedit_create_alto=1',
+    'hocr': 'tessedit_create_hocr=1',
+    'tsv': 'tessedit_create_tsv=1',
 }
 
 TESSERACT_MIN_VERSION = Version('3.05')
@@ -142,7 +159,7 @@ def timeout_manager(proc, seconds=None):
 def run_once(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        if wrapper._result is wrapper:
+        if not kwargs.pop('cached', False) or wrapper._result is wrapper:
             wrapper._result = func(*args, **kwargs)
         return wrapper._result
 
@@ -236,8 +253,9 @@ def run_tesseract(
     timeout=0,
 ):
     cmd_args = []
+    not_windows = not (sys.platform == 'win32')
 
-    if not sys.platform.startswith('win32') and nice != 0:
+    if not_windows and nice != 0:
         cmd_args += ('nice', '-n', str(nice))
 
     cmd_args += (tesseract_cmd, input_filename, output_filename_base)
@@ -246,10 +264,12 @@ def run_tesseract(
         cmd_args += ('-l', lang)
 
     if config:
-        cmd_args += shlex.split(config)
+        cmd_args += shlex.split(config, posix=not_windows)
 
-    if extension and extension not in {'box', 'osd', 'tsv', 'xml'}:
-        cmd_args.append(extension)
+    for _extension in extension.split():
+        if _extension not in {'box', 'osd', 'tsv', 'xml'}:
+            cmd_args.append(_extension)
+    LOGGER.debug('%r', cmd_args)
 
     try:
         proc = subprocess.Popen(cmd_args, **subprocess_args())
@@ -264,6 +284,51 @@ def run_tesseract(
             raise TesseractError(proc.returncode, get_errors(error_string))
 
 
+def _read_output(filename: str, return_bytes: bool = False):
+    with open(filename, 'rb') as output_file:
+        if return_bytes:
+            return output_file.read()
+        return output_file.read().decode(DEFAULT_ENCODING)
+
+
+def run_and_get_multiple_output(
+    image,
+    extensions: List[str],
+    lang: Optional[str] = None,
+    nice: int = 0,
+    timeout: int = 0,
+    return_bytes: bool = False,
+):
+    config = ' '.join(
+        EXTENTION_TO_CONFIG.get(extension, '') for extension in extensions
+    ).strip()
+    if config:
+        config = f'-c {config}'
+    else:
+        config = ''
+
+    with save(image) as (temp_name, input_filename):
+        kwargs = {
+            'input_filename': input_filename,
+            'output_filename_base': temp_name,
+            'extension': ' '.join(extensions),
+            'lang': lang,
+            'config': config,
+            'nice': nice,
+            'timeout': timeout,
+        }
+
+        run_tesseract(**kwargs)
+
+        return [
+            _read_output(
+                f"{kwargs['output_filename_base']}{extsep}{extension}",
+                True if extension in {'pdf', 'hocr'} else return_bytes,
+            )
+            for extension in extensions
+        ]
+
+
 def run_and_get_output(
     image,
     extension='',
@@ -273,7 +338,6 @@ def run_and_get_output(
     timeout=0,
     return_bytes=False,
 ):
-
     with save(image) as (temp_name, input_filename):
         kwargs = {
             'input_filename': input_filename,
@@ -286,11 +350,10 @@ def run_and_get_output(
         }
 
         run_tesseract(**kwargs)
-        filename = f"{kwargs['output_filename_base']}{extsep}{extension}"
-        with open(filename, 'rb') as output_file:
-            if return_bytes:
-                return output_file.read()
-            return output_file.read().decode(DEFAULT_ENCODING)
+        return _read_output(
+            f"{kwargs['output_filename_base']}{extsep}{extension}",
+            return_bytes,
+        )
 
 
 def file_to_dict(tsv, cell_delimiter, str_col_idx):
@@ -441,6 +504,10 @@ def image_to_pdf_or_hocr(
 
     if extension not in {'pdf', 'hocr'}:
         raise ValueError(f'Unsupported extension: {extension}')
+
+    if extension == 'hocr':
+        config = f'-c tessedit_create_hocr=1 {config.strip()}'
+
     args = [image, extension, lang, config, nice, timeout, True]
 
     return run_and_get_output(*args)
@@ -457,7 +524,7 @@ def image_to_alto_xml(
     Returns the result of a Tesseract OCR run on the provided image to ALTO XML
     """
 
-    if get_tesseract_version() < TESSERACT_ALTO_VERSION:
+    if get_tesseract_version(cached=True) < TESSERACT_ALTO_VERSION:
         raise ALTONotSupported()
 
     config = f'-c tessedit_create_alto=1 {config.strip()}'
@@ -477,7 +544,9 @@ def image_to_boxes(
     """
     Returns string containing recognized characters and their box boundaries
     """
-    config = f'{config.strip()} batch.nochop makebox'
+    config = (
+        f'{config.strip()} -c tessedit_create_boxfile=1 batch.nochop makebox'
+    )
     args = [image, 'box', lang, config, nice, timeout]
 
     return {
@@ -518,7 +587,7 @@ def image_to_data(
     and other information. Requires Tesseract 3.05+
     """
 
-    if get_tesseract_version() < TESSERACT_MIN_VERSION:
+    if get_tesseract_version(cached=True) < TESSERACT_MIN_VERSION:
         raise TSVNotSupported()
 
     config = f'-c tessedit_create_tsv=1 {config.strip()}'
@@ -577,4 +646,4 @@ def main():
 
 
 if __name__ == '__main__':
-    exit(main())
+    raise SystemExit(main())

@@ -30,7 +30,7 @@ interface UsageData {
 /* ================= COMPONENT ================= */
 
 // Use your Render backend URL in production
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://pdf-translator-ai.onrender.com";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);

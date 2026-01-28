@@ -9,15 +9,21 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
 
         {/* Left: Logo / Brand */}
-        <Link
-          href="/"
-          className="flex items-center gap-2 text-sm font-semibold
-            text-gray-100 tracking-wide
-            hover:text-cyan-400 transition"
-        >
-          <span className="text-cyan-400">▸</span>
-          AI PDF Translator
-        </Link>
+          <Link
+            href="/"
+            aria-label="LipiTranslate PDF Translator for Indian Languages"
+            className="flex items-center gap-2 text-sm font-semibold
+              text-gray-100 tracking-wide
+              hover:text-cyan-400 transition"
+          >
+            <span className="text-cyan-400">▸</span>
+            <span className="hidden sm:inline">
+              LipiTranslate – PDF Translator
+            </span>
+            <span className="sm:hidden">
+              LipiTranslate
+            </span>
+          </Link>
 
         {/* Right: Nav + Icons */}
         <div className="flex items-center gap-5 text-sm text-gray-300">
@@ -68,6 +74,13 @@ export default function Navbar() {
           </IconLink>
         </div>
       </div>
+      {/* 🔍 SEO INTERNAL LINKS (HIDDEN BUT VALID) */}
+      <div className="sr-only">
+        <Link href="/convert">OCR PDF Translator</Link>
+        <Link href="/convert">Translate Hindi PDF to English</Link>
+        <Link href="/convert">Gujarati PDF Translation</Link>
+        <Link href="/convert">Marathi PDF to English</Link>
+        </div>
     </nav>
   );
 }

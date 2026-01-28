@@ -385,3 +385,8 @@ init_credentials()
 init_usage_data()
 
 logger.info("✅ Admin routes initialized")
+
+
+@admin_router.options("/{path:path}")
+async def admin_preflight_handler(path: str):
+    return {}

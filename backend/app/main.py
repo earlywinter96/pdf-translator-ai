@@ -54,9 +54,14 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        # Production
+        # Production (NEW DOMAIN)
+        "https://www.lipitranslate.in",
+        "https://lipitranslate.in",
+
+        # Old Vercel preview (keep)
         "https://pdf-translator-ai-xgu2.vercel.app",
         "https://www.pdf-translator-ai-xgu2.vercel.app",
+
         # Local development
         "http://localhost:3000",
         "http://localhost:5173",
@@ -73,6 +78,7 @@ app.add_middleware(
         "X-Content-Type-Options"
     ]
 )
+
 
 # ============================================================================
 # CONFIGURATION
