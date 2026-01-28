@@ -13,6 +13,10 @@ import logging
 from typing import Optional
 from fastapi import Response, Request
 
+logger = logging.getLogger(__name__)
+
+admin_router = APIRouter(prefix="", tags=["Admin"])
+
 
 @admin_router.options("/admin/{path:path}")
 async def admin_preflight(path: str):
@@ -23,13 +27,11 @@ async def admin_preflight(path: str):
 
 
 
-logger = logging.getLogger(__name__)
 
 # ============================================================================
 # ADMIN ROUTER
 # ============================================================================
 
-admin_router = APIRouter(prefix="", tags=["Admin"])
 
 # ============================================================================
 # CREDENTIALS STORAGE
@@ -302,7 +304,7 @@ async def reset_usage_statistics(
     if http_request.method != "OPTIONS":
         username = verify_admin_auth(x_admin_auth)
 
-        
+
     # Verify authentication
     username = verify_admin_auth(x_admin_auth)
     
