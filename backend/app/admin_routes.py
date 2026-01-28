@@ -12,6 +12,7 @@ import os
 import logging
 from typing import Optional
 from fastapi import Response, Request
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -22,18 +23,6 @@ logger = logging.getLogger(__name__)
 admin_router = APIRouter(prefix="", tags=["Admin"])
 
 # ============================================================================
-# CORS HEADERS
-# ============================================================================
-
-CORS_HEADERS = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, X-Admin-Auth",
-    "Access-Control-Max-Age": "3600",
-}
-
-
-# ============================================================================
 # CREDENTIALS STORAGE
 # ============================================================================
 
@@ -42,7 +31,6 @@ CREDENTIALS_FILE = "admin_credentials.json"
 def init_credentials():
     """Initialize credentials file with defaults if it doesn't exist"""
     if not os.path.exists(CREDENTIALS_FILE):
-        # Check for environment variables first
         default_username = os.getenv("ADMIN_USERNAME", "admin")
         default_password = os.getenv("ADMIN_PASSWORD", "admin123")
         
@@ -59,14 +47,13 @@ def init_credentials():
 
 def load_credentials():
     """Load admin credentials from file"""
-    init_credentials()  # Ensure file exists
+    init_credentials()
     
     try:
         with open(CREDENTIALS_FILE, 'r') as f:
             return json.load(f)
     except Exception as e:
         logger.error(f"Error loading credentials: {e}")
-        # Fallback to environment variables
         return {
             "username": os.getenv("ADMIN_USERNAME", "admin"),
             "password": os.getenv("ADMIN_PASSWORD", "admin123")
@@ -113,14 +100,11 @@ def verify_admin_auth(x_admin_auth: str = Header(None)):
         )
     
     try:
-        # Decode base64 auth
         decoded = base64.b64decode(x_admin_auth).decode('utf-8')
         username, password = decoded.split(':', 1)
         
-        # Load current credentials
         creds = load_credentials()
         
-        # Verify credentials
         if username != creds['username'] or password != creds['password']:
             logger.warning(f"❌ Invalid credentials attempt for user: {username}")
             raise HTTPException(
@@ -170,10 +154,9 @@ def load_usage_data():
         with open(USAGE_FILE, 'r') as f:
             data = json.load(f)
         
-        # Calculate derived fields
         data["remaining_budget_inr"] = data["budget_limit_inr"] - data["current_usage_inr"]
         data["percentage_used"] = (data["current_usage_inr"] / data["budget_limit_inr"] * 100) if data["budget_limit_inr"] > 0 else 0
-        data["recent_requests"] = data.get("requests", [])[-10:]  # Last 10 requests
+        data["recent_requests"] = data.get("requests", [])[-10:]
         
         return data
     except Exception as e:
@@ -228,18 +211,11 @@ class UsageData(BaseModel):
 # ============================================================================
 
 @admin_router.get("/admin/dashboard")
-async def get_admin_dashboard(
-    x_admin_auth: str = Header(None)
-):
+async def get_admin_dashboard(x_admin_auth: str = Header(None)):
     """Get admin dashboard data"""
     verify_admin_auth(x_admin_auth)
     usage_data = load_usage_data()
-    
-    return Response(
-        content=json.dumps(usage_data),
-        media_type="application/json",
-        headers=CORS_HEADERS
-    )
+    return usage_data
 
 
 @admin_router.post("/admin/change-password")
@@ -248,13 +224,9 @@ async def change_admin_password(
     x_admin_auth: str = Header(None)
 ):
     """Change admin password"""
-    # Verify authentication
     username = verify_admin_auth(x_admin_auth)
-    
-    # Load current credentials
     creds = load_credentials()
     
-    # Verify current password matches (double check)
     if request.current_password != creds['password']:
         logger.warning(f"❌ Password change failed - incorrect current password for user: {username}")
         raise HTTPException(
@@ -262,7 +234,6 @@ async def change_admin_password(
             detail="Current password is incorrect"
         )
     
-    # Validate new password
     if len(request.new_password) < 6:
         logger.warning("❌ Password change failed - password too short")
         raise HTTPException(
@@ -277,7 +248,6 @@ async def change_admin_password(
             detail="New password must be different from current password"
         )
     
-    # Save new password
     success = save_credentials(username, request.new_password)
     
     if not success:
@@ -289,27 +259,17 @@ async def change_admin_password(
     
     logger.info(f"🔐 Password changed successfully for user: {username}")
     
-    result = {
+    return {
         "success": True,
         "message": "Password changed successfully. Please login again with your new password."
     }
-    
-    return Response(
-        content=json.dumps(result),
-        media_type="application/json",
-        headers=CORS_HEADERS
-    )
 
 
 @admin_router.post("/admin/reset-usage")
-async def reset_usage_statistics(
-    x_admin_auth: str = Header(None)
-):
+async def reset_usage_statistics(x_admin_auth: str = Header(None)):
     """Reset usage statistics"""
-    # Verify authentication
     username = verify_admin_auth(x_admin_auth)
     
-    # Reset usage data
     success = reset_usage_data()
     
     if not success:
@@ -321,20 +281,14 @@ async def reset_usage_statistics(
     
     logger.info(f"🔄 Usage statistics reset by user: {username}")
     
-    result = {
+    return {
         "success": True,
         "message": "Usage statistics have been reset successfully."
     }
-    
-    return Response(
-        content=json.dumps(result),
-        media_type="application/json",
-        headers=CORS_HEADERS
-    )
 
 
 # ============================================================================
-# UTILITY: Track API Usage (Call this from your translation endpoints)
+# UTILITY: Track API Usage
 # ============================================================================
 
 def track_api_usage(cost_inr: float, request_info: dict = None):
@@ -348,15 +302,12 @@ def track_api_usage(cost_inr: float, request_info: dict = None):
     try:
         usage_data = load_usage_data()
         
-        # Update costs
         usage_data["current_usage_inr"] += cost_inr
         usage_data["total_requests"] += 1
         
-        # Add request to history
         if "requests" not in usage_data:
             usage_data["requests"] = []
         
-        from datetime import datetime
         request_record = {
             "timestamp": datetime.now().isoformat(),
             "cost_inr": cost_inr,
@@ -364,11 +315,8 @@ def track_api_usage(cost_inr: float, request_info: dict = None):
         }
         
         usage_data["requests"].append(request_record)
-        
-        # Keep only last 100 requests
         usage_data["requests"] = usage_data["requests"][-100:]
         
-        # Save updated data
         save_usage_data(usage_data)
         
         logger.info(f"💰 Tracked usage: ₹{cost_inr:.2f} (Total: ₹{usage_data['current_usage_inr']:.2f})")
@@ -381,7 +329,6 @@ def track_api_usage(cost_inr: float, request_info: dict = None):
 # INITIALIZE ON IMPORT
 # ============================================================================
 
-# Initialize credentials and usage data files
 init_credentials()
 init_usage_data()
 
