@@ -15,6 +15,9 @@ PyPDF2>=3.0.1             # Lightweight PDF utilities
 pdf2image==1.17.0         # Convert PDF pages to images
 reportlab==4.2.5          # Generate PDFs (translated output)
 
+razorpay==1.4.1
+
+
 # ===============================
 # OCR (Scanned PDFs)
 # ===============================
