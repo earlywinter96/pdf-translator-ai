@@ -111,12 +111,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://www.lipitranslate.in",
-        "https://lipitranslate.in",
-        "https://pdf-translator-ai.vercel.app",
-        "http://localhost:3000",
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
