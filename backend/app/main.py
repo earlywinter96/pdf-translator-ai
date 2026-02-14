@@ -14,6 +14,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import uuid
+from fastapi import Response
+
 
 # Import improved services
 from app.services.pdf_reader import (
@@ -119,7 +121,9 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
-
+@app.options("/api/check-pdf-pages")
+async def options_check_pdf_pages():
+    return Response(status_code=200)
 
 # Include payment routes
 app.include_router(payment_router)
