@@ -78,9 +78,11 @@ export function usePayment() {
         }
         
         const data = await response.json();
-        storedSessionId = data.session_id;
-        
-        localStorage.setItem('payment_session_id', storedSessionId);
+        storedSessionId = data.session_id ?? null;
+
+        if (storedSessionId) {
+          localStorage.setItem('payment_session_id', storedSessionId);
+        }
         
         console.log('✅ Session created:', storedSessionId);
         setFreePagesRemaining(data.free_pages_remaining);
