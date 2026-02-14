@@ -118,13 +118,9 @@ app.add_middleware(
         "http://localhost:3000",
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
-@app.options("/api/check-pdf-pages")
-async def options_check_pdf_pages():
-    return Response(status_code=200)
-
 # Include payment routes
 app.include_router(payment_router)
 
