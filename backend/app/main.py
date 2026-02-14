@@ -111,11 +111,17 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=[
+        "https://www.lipitranslate.in",
+        "https://lipitranslate.in",
+    ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
 # Include payment routes
 app.include_router(payment_router)
 
@@ -229,10 +235,6 @@ async def check_pdf_pages(file: UploadFile = File(...)):
         # Cleanup temp file
         if os.path.exists(temp_path):
             os.remove(temp_path)
-            
-@app.options("/api/check-pdf-pages")
-async def check_pdf_pages_options():
-    return Response(status_code=200)
 
 # ============================================================================
 # TRANSLATION ENDPOINTS
