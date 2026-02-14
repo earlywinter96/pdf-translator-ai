@@ -165,6 +165,7 @@ async def detect_language_endpoint(file: UploadFile = File(...)):
 
 @app.post("/api/check-pdf-pages")
 async def check_pdf_pages(file: UploadFile = File(...)):
+    
     """
     Check PDF page count and language for visualization eligibility
     
@@ -228,7 +229,10 @@ async def check_pdf_pages(file: UploadFile = File(...)):
         # Cleanup temp file
         if os.path.exists(temp_path):
             os.remove(temp_path)
-
+            
+@app.options("/api/check-pdf-pages")
+async def check_pdf_pages_options():
+    return Response(status_code=200)
 
 # ============================================================================
 # TRANSLATION ENDPOINTS
