@@ -109,42 +109,50 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# ============================================================================
+# CORS CONFIGURATION - CRITICAL FOR PRODUCTION
+# ============================================================================
+
+# Allow all origins for now (you can restrict later)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://lipitranslate.in",
-        "https://www.lipitranslate.in",
-        "http://localhost:3000",  # Add for local testing
-        "http://localhost:3001",
-    ],
-    allow_origin_regex=r"https://.*\.lipitranslate\.in|https://.*\.vercel\.app",  # Added Vercel
-    allow_credentials=True,  # Changed to True
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Explicitly list methods
-    allow_headers=["*"],
+    allow_origins=["*"],  # Allow all origins
+    allow_credentials=False,  # Must be False when using "*"
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
     expose_headers=["*"],
-    max_age=3600,  # Cache preflight for 1 hour
 )
+
+# Manual CORS headers for all responses (backup)
+@app.middleware("http")
+async def add_cors_headers(request, call_next):
+    """Add CORS headers to every response"""
+    
+    # Handle OPTIONS preflight
+    if request.method == "OPTIONS":
+        return Response(
+            status_code=200,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+                "Access-Control-Max-Age": "3600",
+            }
+        )
+    
+    # Process normal request
+    response = await call_next(request)
+    
+    # Add CORS headers to response
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    
+    return response
 
 # Include payment routes
 app.include_router(payment_router)
 
-# ============================================================================
-# CORS PREFLIGHT HANDLER (MUST BE BEFORE OTHER ENDPOINTS)
-# ============================================================================
-
-
-
-@app.options("/{full_path:path}")
-async def options_handler(full_path: str):
-    """Handle all OPTIONS requests for CORS preflight"""
-    return Response(
-        status_code=200,
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type, Authorization",
-        }
-    )       
 
 
 # ============================================================================
