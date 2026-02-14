@@ -49,3 +49,4 @@ bcrypt==4.1.2             # Password hashing / auth
 
 langdetect
 pytesseract
+google-genai==0.3.0
