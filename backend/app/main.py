@@ -110,11 +110,16 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://www.lipitranslate.in/"],
+    allow_origins=[
+        "https://www.lipitranslate.in",
+        "https://lipitranslate.in",
+        "http://localhost:3000"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # Include payment routes
 app.include_router(payment_router)
