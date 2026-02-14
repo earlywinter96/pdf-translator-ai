@@ -1,4 +1,4 @@
-#!/Users/HemantSolanki/ai/pdf-translator-ai/backend/venv/bin/python
+#!/Users/HemantSolanki/ai/pdf-translator-ai/backend/venv/bin/python3.11
 # -*- coding: utf-8 -*-
 import re
 import sys

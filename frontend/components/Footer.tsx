@@ -1,63 +1,86 @@
 import Link from "next/link";
-import { Github, Linkedin, Globe } from "lucide-react";
+import DeveloperSignature from "@/components/DeveloperSignature";
+
 
 export default function Footer() {
   return (
-    <footer className="border-t border-white/10 bg-[#020617]/90">
-      <div className="max-w-7xl mx-auto px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-400">
-        {/* Links */}
-        <div className="flex gap-4">
-          <Link href="/privacy" className="hover:text-white transition">Privacy</Link>
-          <Link href="/terms" className="hover:text-white transition">Terms</Link>
-          <Link href="/contact" className="hover:text-white transition">Contact</Link>
+    <footer className="bg-[#020617] border-t border-gray-800 py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          {/* Brand */}
+          <div className="col-span-1 md:col-span-2">
+            <h3 className="text-xl font-bold text-white mb-4">
+              Lipi<span className="text-cyan-500">Translate</span>
+            </h3>
+            <p className="text-gray-400 text-sm">
+              Free AI-powered PDF translation for Gujarati, Hindi, Marathi, and
+              English. OCR support for scanned documents.
+            </p>
+          </div>
+
+          {/* Quick Links */}
+          <div>
+            <h4 className="text-white font-semibold mb-4">Quick Links</h4>
+            <ul className="space-y-2">
+              <li>
+                <Link
+                  href="/convert"
+                  className="text-gray-400 hover:text-white text-sm transition-colors"
+                >
+                  Translate PDF
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/about"
+                  className="text-gray-400 hover:text-white text-sm transition-colors"
+                >
+                  About Us
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/contact"
+                  className="text-gray-400 hover:text-white text-sm transition-colors"
+                >
+                  Contact
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          {/* Legal */}
+          <div>
+            <h4 className="text-white font-semibold mb-4">Legal</h4>
+            <ul className="space-y-2">
+              <li>
+                <Link
+                  href="/privacy"
+                  className="text-gray-400 hover:text-white text-sm transition-colors"
+                >
+                  Privacy Policy
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/terms"
+                  className="text-gray-400 hover:text-white text-sm transition-colors"
+                >
+                  Terms of Service
+                </Link>
+              </li>
+            </ul>
+          </div>
         </div>
 
-        {/* Creator Credit - Highlighted */}
-        <div className="text-center">
-          <span className="text-gray-400">Developed by </span>
-          <a 
-            href="https://my-portfolio2-peach-six.vercel.app/" 
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-white font-semibold hover:text-cyan-400 transition-colors duration-300
-              px-2 py-1 rounded
-              bg-gradient-to-r from-indigo-600/20 to-cyan-600/20
-              border-b-2 border-cyan-500/50 hover:border-cyan-400"
-          >
-            &lt; Hemant Solanki &gt;
-          </a>
-        </div>
+        <div className="mt-8 pt-8 border-t border-gray-800 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-gray-400">
+  <span>
+    © {new Date().getFullYear()} LipiTranslate. All rights reserved.
+  </span>
 
-        {/* Social Links */}
-        <div className="flex gap-4">
-          <a 
-            href="https://github.com/earlywinter96" 
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-white transition"
-            aria-label="GitHub"
-          >
-            <Github size={18} />
-          </a>
-          <a 
-            href="https://www.linkedin.com/in/hemant-solanki-366462199/" 
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-white transition"
-            aria-label="LinkedIn"
-          >
-            <Linkedin size={18} />
-          </a>
-          <a 
-            href="https://my-portfolio2-peach-six.vercel.app/" 
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-white transition"
-            aria-label="Portfolio"
-          >
-            <Globe size={18} />
-          </a>
-        </div>
+  <DeveloperSignature />
+</div>
+    
       </div>
     </footer>
   );

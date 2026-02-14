@@ -1,482 +1,324 @@
 """
-FastAPI PDF Translator - Complete Main Application
----------------------------------------------------
-Production-ready PDF translation service with job tracking, cleanup, and secure admin dashboard
+LipiTranslate - AI-Powered PDF Translation - IMPROVED VERSION
+==============================================================
+Main FastAPI application with enhanced validation, error handling,
+and language detection
 """
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Form
-from fastapi.responses import FileResponse
-from fastapi.middleware.cors import CORSMiddleware
 import os
-import uuid
-import shutil
 import logging
-from typing import Optional
-from contextlib import contextmanager
-import time
+import asyncio
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTasks
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+import uuid
 
+# Import improved services
+from app.services.pdf_reader import (
+    extract_pdf_text_robust,
+    detect_pdf_language,
+    validate_language_match,
+    get_non_blank_pages
+)
+from app.services.hybrid_translator import HybridTranslatorV2
+from app.services.pdf_writer import create_translated_pdf
+from app.sarvam_wrapper import SarvamTranslator
+from app.openai_wrapper import OpenAITranslator
 
-# Relative imports - works when running as: uvicorn app.main:app
-from .models.job import (
-    create_job, 
-    update_job, 
-    complete_job, 
-    fail_job, 
-    get_job, 
-    mark_downloaded, 
+# Import existing modules
+from app.models.job import (
+    create_job,
+    update_job,
+    complete_job,
+    fail_job,
+    get_job,
+    cleanup_old_jobs,
     start_cleanup_scheduler
 )
-from .services.translator import TranslatorService
-from .services.pdf_reader import extract_text_from_pdf
-from .services.chunker import chunk_pages
-from .services.pdf_writer import create_pdf_from_text
+from app.payment import payment_router
 
-# Import admin routes (this includes all password management)
-from .admin_routes import admin_router
+# Load environment variables
+load_dotenv()
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
-
-# ============================================================================
-# APP INITIALIZATION
-# ============================================================================
-
-app = FastAPI(
-    title="PDF Translator AI",
-    description="AI-powered PDF translation for Indian languages with admin dashboard",
-    version="2.0.0"
-)
-
-# ============================================================================
-# CORS CONFIGURATION - UPDATED FOR PRODUCTION
-# ============================================================================
-
-# Define allowed origins
-ALLOWED_ORIGINS = [
-    # Production domains (NEW)
-    "https://www.lipitranslate.in",
-    "https://lipitranslate.in",
-    
-    # Old Vercel preview (keep for backward compatibility)
-    "https://pdf-translator-ai-xgu2.vercel.app",
-    "https://www.pdf-translator-ai-xgu2.vercel.app",
-    
-    # Local development
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:5173",
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
-    allow_headers=[
-        "Accept",
-        "Accept-Language",
-        "Content-Type",
-        "Authorization",
-        "X-Requested-With",
-        "X-Admin-Auth",
-        "Origin",
-        "Access-Control-Request-Method",
-        "Access-Control-Request-Headers",
-    ],
-    expose_headers=[
-        "Content-Disposition",
-        "Content-Type",
-        "Content-Length",
-        "X-Content-Type-Options",
-    ],
-    max_age=3600,  # Cache preflight requests for 1 hour
-)
-
 
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
 
-# Directory Configuration
-UPLOADS_DIR = "uploads"
-OUTPUTS_DIR = "outputs"
+UPLOADS_DIR = os.getenv("UPLOADS_DIR", "uploads")
+OUTPUTS_DIR = os.getenv("OUTPUTS_DIR", "outputs")
+MAX_FILE_SIZE_MB = int(os.getenv("MAX_FILE_SIZE_MB", "25"))
+MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 
-# Language Configuration
-LANGUAGE_MAP = {
-    "gu": ("guj", "Gujarati"),
-    "hi": ("hin", "Hindi"),
-    "mr": ("mar", "Marathi"),
-}
+# Create directories
+os.makedirs(UPLOADS_DIR, exist_ok=True)
+os.makedirs(OUTPUTS_DIR, exist_ok=True)
 
 # ============================================================================
-# STARTUP & SHUTDOWN EVENTS
+# STARTUP & SHUTDOWN
 # ============================================================================
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize application on startup"""
-    # Create directories
-    os.makedirs(UPLOADS_DIR, exist_ok=True)
-    os.makedirs(OUTPUTS_DIR, exist_ok=True)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager"""
+    # Startup
+    logger.info("=" * 70)
+    logger.info("🚀 LipiTranslate Starting Up (IMPROVED)")
+    logger.info("=" * 70)
+    logger.info("📊 Configuration:")
+    logger.info(f"   Uploads: {UPLOADS_DIR}")
+    logger.info(f"   Outputs: {OUTPUTS_DIR}")
+    logger.info(f"   Max file size: {MAX_FILE_SIZE_MB}MB")
+    logger.info(f"   Primary translator: Sarvam AI")
+    logger.info(f"   Fallback translator: OpenAI GPT-4o")
+    logger.info(f"   Features: Language validation, blank page detection")
     
-    # Start cleanup scheduler
+    # Start background schedulers
     start_cleanup_scheduler()
+    # Uncomment when payment session cleanup is implemented
+    # start_session_cleanup_scheduler()
     
-    logger.info("="*70)
-    logger.info("🚀 PDF Translator AI Started Successfully")
-    logger.info("="*70)
-    logger.info(f"📁 Uploads directory: {UPLOADS_DIR}")
-    logger.info(f"📁 Outputs directory: {OUTPUTS_DIR}")
-    logger.info(f"🔐 Admin dashboard: /admin/dashboard")
-    logger.info(f"📚 API docs: /docs")
-    logger.info(f"🌐 CORS enabled for: {', '.join(ALLOWED_ORIGINS[:2])}")
+    logger.info("=" * 70)
+    logger.info("✅ Application ready")
+    logger.info("=" * 70)
     
-    # Check for admin credentials
-    admin_user = os.getenv("ADMIN_USERNAME")
-    admin_hash = os.getenv("ADMIN_PASSWORD_HASH")
+    yield
     
-    if not admin_hash:
-        logger.warning("⚠️  No ADMIN_PASSWORD_HASH set - using default password")
-        logger.warning("⚠️  Run 'python generate_admin_hash.py' to create secure password")
-    else:
-        logger.info(f"✅ Admin user configured: {admin_user or 'admin'}")
-    
-    logger.info("="*70)
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Run on application shutdown"""
-    logger.info("="*70)
-    logger.info("👋 PDF Translator AI Shutting Down...")
-    logger.info("="*70)
+    # Shutdown
+    logger.info("🛑 Application shutting down...")
 
 
 # ============================================================================
-# CUSTOM EXCEPTIONS
+# FASTAPI APP
 # ============================================================================
 
-class JobTimeoutError(Exception):
-    """Raised when job exceeds time limit"""
-    pass
+app = FastAPI(
+    title="LipiTranslate",
+    description="AI-Powered PDF Translation with Enhanced Validation",
+    version="2.1.0",
+    lifespan=lifespan
+)
 
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-class PDFReadError(Exception):
-    """Raised when PDF cannot be read properly"""
-    pass
+# Include payment routes
+app.include_router(payment_router)
 
 
 # ============================================================================
-# BACKGROUND TRANSLATION PROCESSOR
+# LANGUAGE DETECTION ENDPOINT
 # ============================================================================
 
-def process_translation_job(
-    job_id: str,
-    pdf_path: str,
-    language: str,
-    direction: str,
-    mode: str
-):
+@app.post("/api/detect-language")
+async def detect_language_endpoint(file: UploadFile = File(...)):
     """
-    Background task for PDF translation with HARD TIMEOUT (thread-safe)
+    Detect the language of a PDF
     
     Args:
-        job_id: Unique job identifier
-        pdf_path: Path to uploaded PDF
-        language: Source/target language code
-        direction: Translation direction (to_en/from_en)
-        mode: Translation mode (general/government)
+        file: PDF file
+        
+    Returns:
+        Detected language and confidence
     """
-    start_time = time.monotonic()
-    TIME_LIMIT = 600  # 10 minutes
-
-    def check_timeout():
-        """Check if job has exceeded time limit"""
-        if time.monotonic() - start_time > TIME_LIMIT:
-            raise JobTimeoutError("Job exceeded 10 minute time limit")
-
+    # Validate file
+    if not file.filename.endswith('.pdf'):
+        raise HTTPException(400, "Only PDF files are supported")
+    
+    # Save temporary file
+    temp_id = str(uuid.uuid4())
+    temp_path = os.path.join(UPLOADS_DIR, f"temp_{temp_id}.pdf")
+    
     try:
-        logger.info(f"🚀 Starting job: {job_id}")
-        logger.info(f"   PDF: {pdf_path}")
-        logger.info(f"   Language: {language}, Direction: {direction}, Mode: {mode}")
-
-        check_timeout()
-
-        # Step 0: Verify file exists
-        if not os.path.exists(pdf_path):
-            raise Exception(f"PDF not found: {pdf_path}")
-
-        file_size = os.path.getsize(pdf_path)
-        logger.info(f"   Size: {file_size / 1024 / 1024:.2f} MB")
-
-        # Step 1: Extract text from PDF
-        update_job(job_id, 10, "Extracting text from PDF...")
-        logger.info("📄 Step 1: Text extraction...")
-
-        ocr_lang, lang_name = LANGUAGE_MAP.get(language, ("eng", "English"))
-        pages = extract_text_from_pdf(pdf_path, ocr_lang)
-        check_timeout()
-
-        total_chars = sum(len(p) for p in pages)
-        if total_chars < 50:
-            raise PDFReadError("Extracted text too short - PDF may be corrupted or empty")
-
-        logger.info(f"   Extracted {len(pages)} pages, {total_chars} characters")
-        update_job(job_id, 30, f"Extracted text from {len(pages)} pages")
-
-        # Step 2: Chunk pages for translation
-        logger.info("📝 Step 2: Chunking pages...")
-        chunks = chunk_pages(pages)
-        check_timeout()
-
-        logger.info(f"   Created {len(chunks)} chunks")
-        update_job(job_id, 40, f"Processing {len(chunks)} chunks...")
-
-        # Step 3: Set up translator
-        if direction == "to_en":
-            source_lang, target_lang = lang_name, "English"
-        else:
-            source_lang, target_lang = "English", lang_name
-
-        logger.info(f"🌐 Step 3: Translation setup ({source_lang} → {target_lang})")
+        content = await file.read()
+        with open(temp_path, 'wb') as f:
+            f.write(content)
         
-        translator = TranslatorService(
-            source_language=source_lang,
-            target_language=target_lang,
-            mode=mode
-        )
-
-        # Step 4: Translate chunks
-        logger.info("🔄 Step 4: Translating chunks...")
-        translated_chunks = []
-
-        for idx, chunk in enumerate(chunks, start=1):
-            check_timeout()
-
-            progress = 40 + int((idx / len(chunks)) * 50)
-            update_job(job_id, progress, f"Translating chunk {idx}/{len(chunks)}...")
-
-            translated = translator.translate_chunk(chunk)
-            translated_chunks.append(translated)
-
-            logger.info(f"   ✓ Chunk {idx}/{len(chunks)} completed")
-
-        # Step 5: Create output PDF
-        logger.info("📄 Step 5: Generating output PDF...")
-        update_job(job_id, 90, "Generating translated PDF...")
+        # Detect language
+        detected_lang, confidence = detect_pdf_language(temp_path)
         
-        output_path = os.path.join(OUTPUTS_DIR, f"{job_id}_translated.pdf")
+        return {
+            "detected": detected_lang,
+            "confidence": confidence,
+            "message": f"Detected {detected_lang} with {confidence*100:.0f}% confidence"
+        }
+    
+    finally:
+        # Cleanup temp file
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
 
-        create_pdf_from_text(
-            translated_chunks,
-            output_path,
-            "Translated Document"
-        )
 
-        # Mark job as complete
-        complete_job(job_id)
-        logger.info(f"🎉 Job completed successfully: {job_id}")
-
-    except JobTimeoutError as e:
-        logger.error(f"⏰ Job timeout: {job_id}")
-        fail_job(
-            job_id,
-            "Processing took too long (10+ minutes). "
-            "Try a smaller PDF or contact support."
-        )
-
-    except PDFReadError as e:
-        logger.error(f"📄 PDF read error in job {job_id}: {str(e)}")
-        fail_job(job_id, f"PDF read error: {str(e)}")
-
-    except Exception as e:
-        logger.exception(f"❌ Unexpected error in job {job_id}")
-        fail_job(job_id, f"Processing error: {str(e)}")
+@app.post("/api/check-pdf-pages")
+async def check_pdf_pages(file: UploadFile = File(...)):
+    """
+    Check PDF page count and language for visualization eligibility
+    
+    Args:
+        file: PDF file
+        
+    Returns:
+        PDF metadata including page count, language, and visualization availability
+    """
+    # Validate file
+    if not file.filename.endswith('.pdf'):
+        raise HTTPException(400, "Only PDF files are supported")
+    
+    # Save temporary file
+    temp_id = str(uuid.uuid4())
+    temp_path = os.path.join(UPLOADS_DIR, f"temp_{temp_id}.pdf")
+    
+    try:
+        content = await file.read()
+        
+        if len(content) > MAX_FILE_SIZE_BYTES:
+            raise HTTPException(
+                413,
+                f"File too large. Maximum size is {MAX_FILE_SIZE_MB}MB"
+            )
+        
+        with open(temp_path, 'wb') as f:
+            f.write(content)
+        
+        # Extract text to get page count
+        import PyPDF2
+        with open(temp_path, 'rb') as f:
+            pdf_reader = PyPDF2.PdfReader(f)
+            page_count = len(pdf_reader.pages)
+        
+        # Detect language
+        detected_lang, confidence = detect_pdf_language(temp_path)
+        
+        # Check if visualization is available
+        # Only English PDFs with <= 20 pages can be visualized
+        MAX_VIZ_PAGES = 20
+        is_english = detected_lang in ['en', 'eng', 'english']
+        visualization_available = is_english and page_count <= MAX_VIZ_PAGES
+        
+        visualization_note = None
+        if not is_english:
+            visualization_note = "Only English PDFs can be visualized. Please translate to English first."
+        elif page_count > MAX_VIZ_PAGES:
+            visualization_note = f"PDF has {page_count} pages. Visualization is limited to {MAX_VIZ_PAGES} pages."
+        
+        return {
+            "page_count": page_count,
+            "detected_language": detected_lang,
+            "confidence": confidence,
+            "visualization_available": visualization_available,
+            "visualization_note": visualization_note,
+            "file_size": len(content)
+        }
+    
+    finally:
+        # Cleanup temp file
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
 
 
 # ============================================================================
-# PUBLIC API ENDPOINTS
+# TRANSLATION ENDPOINTS
 # ============================================================================
 
-@app.get("/")
-async def root():
-    """Root endpoint - API information"""
-    return {
-        "message": "PDF Translator AI with Admin Dashboard",
-        "version": "2.0.0",
-        "status": "online",
-        "endpoints": {
-            "upload": "/api/upload",
-            "status": "/api/status/{job_id}",
-            "download": "/api/download/{job_id}",
-            "admin_dashboard": "/admin/dashboard",
-            "api_docs": "/docs"
-        },
-        "supported_languages": ["Gujarati (gu)", "Hindi (hi)", "Marathi (mr)"],
-        "cors_enabled": True
-    }
-
-
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    return {
-        "status": "healthy",
-        "service": "pdf-translator-ai",
-        "version": "2.0.0",
-        "openai_configured": bool(os.getenv("OPENAI_API_KEY")),
-        "admin_configured": bool(os.getenv("ADMIN_PASSWORD_HASH")),
-        "cors_origins": len(ALLOWED_ORIGINS)
-    }
-
-
-
-# ============================================================================
-# PDF TRANSLATION ENDPOINTS
-# ============================================================================
-
-@app.post("/api/upload")
-async def upload_pdf(
+@app.post("/api/translate")
+async def translate_pdf(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    language: str = Form("gu"),
-    direction: str = Form("to_en"),
-    mode: str = Form("general")
+    source_language: str = Form(...),
+    target_language: str = Form(...)
 ):
     """
-    Upload PDF for translation
+    Translate a PDF file with language validation
     
     Args:
         file: PDF file to translate
-        language: Language code (gu=Gujarati, hi=Hindi, mr=Marathi)
-        direction: Translation direction (to_en or from_en)
-        mode: Translation mode (general or government)
-    
+        source_language: Source language (gujarati, hindi, marathi, english, etc.)
+        target_language: Target language
+        
     Returns:
-        JSON with job_id and status message
+        Job ID for tracking translation progress
     """
-    logger.info(f"📤 Upload request: {file.filename}")
-    logger.info(f"   Language: {language}, Direction: {direction}, Mode: {mode}")
-    
-    # Validate file type
+    # Validate file
     if not file.filename.endswith('.pdf'):
-        logger.warning(f"❌ Invalid file type: {file.filename}")
-        raise HTTPException(400, "Only PDF files are allowed")
+        raise HTTPException(400, "Only PDF files are supported")
     
-    # Validate language
-    if language not in LANGUAGE_MAP:
-        logger.warning(f"❌ Unsupported language: {language}")
-        raise HTTPException(400, f"Unsupported language: {language}. Use: gu, hi, or mr")
+    # Read file content
+    content = await file.read()
     
-    # Validate direction
-    if direction not in ("to_en", "from_en"):
-        logger.warning(f"❌ Invalid direction: {direction}")
-        raise HTTPException(400, f"Invalid direction: {direction}. Use: to_en or from_en")
+    if len(content) > MAX_FILE_SIZE_BYTES:
+        raise HTTPException(
+            413,
+            f"File too large. Maximum size is {MAX_FILE_SIZE_MB}MB"
+        )
     
-    # Validate mode
-    if mode not in ("general", "government"):
-        logger.warning(f"❌ Invalid mode: {mode}")
-        raise HTTPException(400, f"Invalid mode: {mode}. Use: general or government")
-    
-    # Generate unique job ID
+    # Generate job ID
     job_id = str(uuid.uuid4())
-    pdf_path = os.path.join(UPLOADS_DIR, f"{job_id}.pdf")
     
     # Save uploaded file
-    try:
-        with open(pdf_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        logger.info(f"💾 Saved file: {pdf_path}")
-    except Exception as e:
-        logger.error(f"❌ Failed to save file: {e}")
-        raise HTTPException(500, f"Failed to save file: {str(e)}")
+    input_path = os.path.join(UPLOADS_DIR, f"{job_id}.pdf")
+    with open(input_path, 'wb') as f:
+        f.write(content)
     
-    # Create job entry
-    create_job(job_id, file.filename)
+    # Create job
+    create_job(job_id, file.filename, "translation")
     
-    # Start background translation task
+    # Start translation in background
     background_tasks.add_task(
-        process_translation_job,
-        job_id, pdf_path, language, direction, mode
+        translate_pdf_task,
+        job_id,
+        input_path,
+        source_language,
+        target_language
     )
     
-    logger.info(f"✅ Job created: {job_id}")
+    logger.info(f"📤 Translation job created: {job_id}")
+    logger.info(f"   File: {file.filename}")
+    logger.info(f"   {source_language} → {target_language}")
     
     return {
         "job_id": job_id,
-        "message": "Upload successful. Translation started.",
-        "status": "processing"
+        "status": "processing",
+        "message": "Translation started"
     }
 
 
 @app.get("/api/status/{job_id}")
-async def get_status(job_id: str):
+async def get_translation_status(job_id: str):
     """
     Get translation job status
     
     Args:
-        job_id: Unique job identifier
-    
+        job_id: Job identifier
+        
     Returns:
-        JSON with status, progress, and message
+        Job status and progress
     """
-    logger.info(f"📊 Status request: {job_id}")
-    
     job = get_job(job_id)
+    
     if not job:
-        logger.warning(f"❌ Job not found: {job_id}")
-        raise HTTPException(404, f"Job not found: {job_id}")
+        raise HTTPException(404, "Job not found")
     
     return {
+        "job_id": job_id,
         "status": job["status"],
         "progress": job["progress"],
-        "message": job["message"]
+        "message": job["message"],
+        "output_path": job.get("output_path")
     }
-
-
-@app.get("/api/original/{job_id}")
-async def get_original_pdf(job_id: str):
-    """
-    Download original uploaded PDF
-    
-    Args:
-        job_id: Unique job identifier
-    
-    Returns:
-        Original PDF file
-    """
-    logger.info(f"📥 Original download request: {job_id}")
-    
-    # Check if job exists
-    job = get_job(job_id)
-    if not job:
-        logger.warning(f"❌ Job not found: {job_id}")
-        raise HTTPException(404, f"Job not found: {job_id}")
-    
-    # Build file path
-    original_path = os.path.join(UPLOADS_DIR, f"{job_id}.pdf")
-    
-    # Check if file exists
-    if not os.path.exists(original_path):
-        logger.error(f"❌ Original file not found: {original_path}")
-        if os.path.exists(UPLOADS_DIR):
-            files = os.listdir(UPLOADS_DIR)
-            logger.info(f"📂 Files in uploads: {files}")
-        raise HTTPException(404, "Original file not found")
-    
-    logger.info(f"✅ Sending original file: {original_path}")
-    
-    return FileResponse(
-        original_path,
-        media_type="application/pdf",
-        filename=job.get("original_filename", "original.pdf"),
-        headers={
-            "Content-Disposition": f'attachment; filename="{job.get("original_filename", "original.pdf")}"',
-            "Access-Control-Expose-Headers": "Content-Disposition"
-        }
-    )
 
 
 @app.get("/api/download/{job_id}")
@@ -485,88 +327,61 @@ async def download_translated_pdf(job_id: str):
     Download translated PDF
     
     Args:
-        job_id: Unique job identifier
-    
+        job_id: Job identifier
+        
     Returns:
         Translated PDF file
     """
-    logger.info(f"📥 Download request: {job_id}")
-    
-    # Check if job exists
     job = get_job(job_id)
+    
     if not job:
-        logger.warning(f"❌ Job not found: {job_id}")
-        raise HTTPException(404, f"Job not found: {job_id}")
+        raise HTTPException(404, "Job not found")
     
-    logger.info(f"   Job status: {job['status']}, Progress: {job['progress']}%")
-    
-    # Check if translation completed
     if job["status"] != "completed":
-        logger.warning(f"⏳ Job not completed: {job['status']}")
-        raise HTTPException(
-            400, 
-            f"Translation not completed. Status: {job['status']}, Progress: {job['progress']}%"
-        )
+        raise HTTPException(400, "Translation not completed yet")
     
-    # Build file path
-    output_path = os.path.join(OUTPUTS_DIR, f"{job_id}_translated.pdf")
-    
-    # Check if file exists
-    if not os.path.exists(output_path):
-        logger.error(f"❌ Translated file not found: {output_path}")
-        if os.path.exists(OUTPUTS_DIR):
-            files = os.listdir(OUTPUTS_DIR)
-            logger.info(f"📂 Files in outputs: {files}")
+    output_path = job.get("output_path")
+    if not output_path or not os.path.exists(output_path):
         raise HTTPException(404, "Translated file not found")
     
-    logger.info(f"✅ Sending translated file: {output_path}")
-    
-    # Mark job as downloaded (triggers cleanup after delay)
-    mark_downloaded(job_id)
+    original_filename = job.get("original_filename", "document.pdf")
+    base_name = os.path.splitext(original_filename)[0]
+    download_filename = f"{base_name}_translated.pdf"
     
     return FileResponse(
         output_path,
         media_type="application/pdf",
-        filename=f"translated_{job_id}.pdf",
-        headers={
-            "Content-Disposition": f'attachment; filename="translated_{job_id}.pdf"',
-            "Access-Control-Expose-Headers": "Content-Disposition"
-        }
+        filename=download_filename
     )
 
 
 @app.get("/api/preview/original/{job_id}")
 async def preview_original_pdf(job_id: str):
     """
-    Preview original PDF (inline in browser)
+    Preview original PDF in browser
     
     Args:
-        job_id: Unique job identifier
+        job_id: Job identifier
         
     Returns:
-        PDF for inline viewing
+        Original PDF file for inline viewing
     """
-    logger.info(f"📄 Preview original request: {job_id}")
-    
     job = get_job(job_id)
+    
     if not job:
-        logger.warning(f"❌ Job not found: {job_id}")
-        raise HTTPException(404, f"Job not found: {job_id}")
+        raise HTTPException(404, "Job not found")
     
-    original_path = os.path.join(UPLOADS_DIR, f"{job_id}.pdf")
+    # Original file path
+    input_path = os.path.join(UPLOADS_DIR, f"{job_id}.pdf")
     
-    if not os.path.exists(original_path):
-        logger.error(f"❌ Original file not found: {original_path}")
+    if not os.path.exists(input_path):
         raise HTTPException(404, "Original file not found")
     
-    logger.info(f"✅ Serving original preview: {original_path}")
-    
     return FileResponse(
-        original_path,
+        input_path,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'inline; filename="{job.get("original_filename", "original.pdf")}"',
-            "Access-Control-Expose-Headers": "Content-Disposition",
+            "Content-Disposition": "inline"
         }
     )
 
@@ -574,139 +389,567 @@ async def preview_original_pdf(job_id: str):
 @app.get("/api/preview/translated/{job_id}")
 async def preview_translated_pdf(job_id: str):
     """
-    Preview translated PDF (inline in browser)
+    Preview translated PDF in browser
     
     Args:
-        job_id: Unique job identifier
+        job_id: Job identifier
         
     Returns:
-        Translated PDF for inline viewing
+        Translated PDF file for inline viewing
     """
-    logger.info(f"📄 Preview translated request: {job_id}")
-    
     job = get_job(job_id)
+    
     if not job:
-        logger.warning(f"❌ Job not found: {job_id}")
-        raise HTTPException(404, f"Job not found: {job_id}")
+        raise HTTPException(404, "Job not found")
     
     if job["status"] != "completed":
-        logger.warning(f"⏳ Job not completed: {job['status']}")
-        raise HTTPException(
-            400, 
-            f"Translation not completed. Status: {job['status']}, Progress: {job['progress']}%"
-        )
+        raise HTTPException(400, "Translation not completed yet")
     
-    output_path = os.path.join(OUTPUTS_DIR, f"{job_id}_translated.pdf")
-    
-    if not os.path.exists(output_path):
-        logger.error(f"❌ Translated file not found: {output_path}")
+    output_path = job.get("output_path")
+    if not output_path or not os.path.exists(output_path):
         raise HTTPException(404, "Translated file not found")
-    
-    logger.info(f"✅ Serving translated preview: {output_path}")
     
     return FileResponse(
         output_path,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'inline; filename="translated_{job_id}.pdf"',
-            "Access-Control-Expose-Headers": "Content-Disposition",
+            "Content-Disposition": "inline"
         }
     )
 
 
 # ============================================================================
-# TESTING & DIAGNOSTIC ENDPOINTS
+# BACKGROUND TRANSLATION TASK
 # ============================================================================
 
-@app.get("/api/test-tesseract")
-async def test_tesseract():
+async def translate_pdf_task(
+    job_id: str,
+    pdf_path: str,
+    source_language: str,
+    target_language: str
+):
     """
-    Check if Tesseract OCR is installed and working
+    Background task for PDF translation with enhanced validation
     
-    Returns:
-        Installation status and version info
+    Args:
+        job_id: Job identifier
+        pdf_path: Path to input PDF
+        source_language: Source language
+        target_language: Target language
     """
-    import shutil
-    import subprocess
-    
-    tesseract_path = shutil.which('tesseract')
-    
-    if tesseract_path:
-        try:
-            result = subprocess.run(
-                ['tesseract', '--version'],
-                capture_output=True,
-                text=True,
-                timeout=5
+    try:
+        update_job(job_id, 5, "Detecting PDF language...")
+        
+        # Detect actual PDF language
+        detected_lang, confidence = detect_pdf_language(pdf_path)
+        
+        logger.info(f"📊 Language Detection:")
+        logger.info(f"   Expected: {source_language}")
+        logger.info(f"   Detected: {detected_lang} (confidence: {confidence*100:.0f}%)")
+        
+        # Validate language match
+        validation = validate_language_match(source_language, detected_lang, confidence)
+        
+        if validation["should_warn"]:
+            logger.warning(f"⚠️ {validation['message']}")
+        
+        # Check if already in target language
+        if detected_lang == target_language[:2]:
+            fail_job(
+                job_id,
+                f"⚠️ PDF appears to already be in {target_language}. No translation needed."
             )
-            return {
-                "installed": True,
-                "path": tesseract_path,
-                "version": result.stdout.split('\n')[0]
-            }
-        except Exception as e:
-            return {
-                "installed": False,
-                "error": str(e)
-            }
-    else:
-        return {
-            "installed": False,
-            "error": "tesseract not found in PATH"
-        }
+            return
+        
+        update_job(job_id, 10, "Extracting text from PDF...")
+        
+        # Extract text from PDF with validation
+        page_texts, extraction_stats = extract_pdf_text_robust(
+            pdf_path,
+            source_language,
+            validate_language=source_language
+        )
+        
+        total_pages = len(page_texts)
+        blank_pages = extraction_stats["blank_pages"]
+        non_blank = total_pages - blank_pages
+        
+        logger.info(f"📄 Extraction complete:")
+        logger.info(f"   Total pages: {total_pages}")
+        logger.info(f"   Non-blank pages: {non_blank}")
+        logger.info(f"   Blank pages: {blank_pages}")
+        
+        if non_blank == 0:
+            fail_job(job_id, "No translatable text found in PDF")
+            return
+        
+        # Show language warning in job message if needed
+        if extraction_stats.get("language_warning"):
+            warning = extraction_stats["language_warning"]
+            update_job(
+                job_id,
+                15,
+                f"⚠️ {warning['message']}. Proceeding with translation..."
+            )
+        else:
+            update_job(job_id, 15, f"Extracted {non_blank} pages, starting translation...")
+        
+        # Create translator
+        update_job(job_id, 20, "Initializing translator...")
+        
+        translator = HybridTranslatorV2(
+            source_language=source_language,
+            target_language=target_language,
+            mode="general"
+        )
+        
+        # Translate pages
+        update_job(job_id, 30, "Translating with Sarvam AI...")
+        
+        translated_pages = await translator.translate_chunks(page_texts)
+        
+        update_job(job_id, 80, "Creating translated PDF...")
+        
+        # Create output PDF
+        output_path = os.path.join(OUTPUTS_DIR, f"{job_id}_translated.pdf")
+        create_translated_pdf(
+            translated_pages,
+            output_path,
+            target_language
+        )
+        
+        # Complete job
+        complete_job(job_id, output_path)
+        
+        logger.info(f"✅ Translation completed: {job_id}")
+        
+        # Log statistics
+        stats = translator.get_statistics()
+        logger.info(f"📊 Final Statistics:")
+        logger.info(f"   Sarvam AI: {stats['sarvam_used']} chunks")
+        logger.info(f"   OpenAI: {stats['openai_used']} chunks")
+        logger.info(f"   Blank pages: {stats['blank_pages']}")
+        logger.info(f"   Total cost: ₹{stats['total_cost_inr']:.2f}")
+        logger.info(f"   Success rate: {stats['success_rate']:.1f}%")
+        
+    except Exception as e:
+        logger.error(f"❌ Translation failed: {e}", exc_info=True)
+        fail_job(job_id, f"Translation failed: {str(e)}")
 
 
-@app.get("/test-ocr")
-async def test_ocr():
+# ============================================================================
+# VISUALIZATION ENDPOINTS
+# ============================================================================
+
+@app.post("/api/visualize")
+async def visualize_pdf(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    content_type: str = Form("auto"),
+    output_format: str = Form("json")
+):
     """
-    Test OCR setup and verify language availability
+    Create visualization from PDF (English only)
     
+    Args:
+        file: PDF file to visualize
+        content_type: Type of content (auto, academic, technical, educational, general)
+        output_format: Output format (json or html)
+        
     Returns:
-        OCR status and available languages
+        Job ID for tracking visualization progress
     """
-    from .services.pdf_reader import test_ocr_setup
+    # Validate file
+    if not file.filename.endswith('.pdf'):
+        raise HTTPException(400, "Only PDF files are supported")
     
-    success = test_ocr_setup()
+    # Read file content
+    content = await file.read()
+    
+    if len(content) > MAX_FILE_SIZE_BYTES:
+        raise HTTPException(
+            413,
+            f"File too large. Maximum size is {MAX_FILE_SIZE_MB}MB"
+        )
+    
+    # Save temporary file
+    temp_id = str(uuid.uuid4())
+    temp_path = os.path.join(UPLOADS_DIR, f"temp_{temp_id}.pdf")
+    
+    try:
+        with open(temp_path, 'wb') as f:
+            f.write(content)
+        
+        # Detect language
+        detected_lang, confidence = detect_pdf_language(temp_path)
+        
+        # Check if English
+        is_english = detected_lang in ['en', 'eng', 'english']
+        if not is_english:
+            raise HTTPException(
+                400,
+                f"Only English PDFs can be visualized. Detected language: {detected_lang}. Please translate to English first."
+            )
+        
+        # Check page count
+        import PyPDF2
+        with open(temp_path, 'rb') as f:
+            pdf_reader = PyPDF2.PdfReader(f)
+            page_count = len(pdf_reader.pages)
+        
+        MAX_VIZ_PAGES = 20
+        if page_count > MAX_VIZ_PAGES:
+            raise HTTPException(
+                400,
+                f"PDF has {page_count} pages. Visualization is limited to {MAX_VIZ_PAGES} pages."
+            )
+        
+        # Generate job ID
+        job_id = str(uuid.uuid4())
+        
+        # Save uploaded file
+        input_path = os.path.join(UPLOADS_DIR, f"{job_id}.pdf")
+        with open(input_path, 'wb') as f:
+            f.write(content)
+        
+        # Create job
+        create_job(job_id, file.filename, "visualization")
+        
+        # Start visualization in background
+        # FIXED: Call the correct background task function
+        background_tasks.add_task(
+            visualize_pdf_task,  # ← Changed from visualize_pdf
+            job_id,
+            input_path,
+            content_type,
+            output_format
+        )
+        
+        logger.info(f"📊 Visualization job created: {job_id}")
+        logger.info(f"   File: {file.filename}")
+        logger.info(f"   Pages: {page_count}")
+        logger.info(f"   Content type: {content_type}")
+        
+        return {
+            "job_id": job_id,
+            "status": "processing",
+            "message": "Visualization started"
+        }
+    
+    finally:
+        # Cleanup temp file
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+
+# Background task function (renamed to avoid conflict)
+async def visualize_pdf_task(
+    job_id: str,
+    pdf_path: str,
+    content_type: str,
+    output_format: str
+):
+    """
+    Background task for PDF visualization using Gemini AI
+    
+    Args:
+        job_id: Job identifier
+        pdf_path: Path to PDF file (string path, not UploadFile object)
+        content_type: Content type (auto, academic, technical, etc.)
+        output_format: Output format (json, html)
+    """
+    try:
+        update_job(job_id, 10, "Initializing visualization service...")
+        
+        # Import visualization service
+        from app.services.pdf_visualizer import get_visualizer_service
+        
+        visualizer = get_visualizer_service()
+        
+        update_job(job_id, 20, "Extracting text from PDF...")
+        
+        # Process PDF with real AI analysis
+        # If content_type is 'auto', pass None to let service auto-detect
+        content_type_param = None if content_type == "auto" else content_type
+        
+        update_job(job_id, 40, "Analyzing content with Gemini AI...")
+        
+        result = visualizer.process_pdf(
+            pdf_path=pdf_path,
+            content_type=content_type_param,
+            max_pages=20,
+            output_format=output_format
+        )
+        
+        if not result.get("success"):
+            error_msg = result.get("error", "Visualization failed")
+            fail_job(job_id, error_msg)
+            return
+        
+        update_job(job_id, 80, "Creating visualization output...")
+        
+        # Save visualization data
+        output_path = os.path.join(OUTPUTS_DIR, f"{job_id}_visualization.json")
+        
+        # Save the full result (includes visualization data + metadata)
+        import json
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+        
+        # Complete job
+        complete_job(job_id, output_path)
+        
+        logger.info(f"✅ Visualization completed: {job_id}")
+        logger.info(f"   Content type: {result.get('metadata', {}).get('content_type')}")
+        logger.info(f"   Pages processed: {result.get('metadata', {}).get('pages_processed')}")
+        
+    except Exception as e:
+        logger.error(f"❌ Visualization failed: {e}", exc_info=True)
+        fail_job(job_id, f"Visualization failed: {str(e)}")
+
+
+
+@app.get("/api/visualization/{job_id}")
+async def get_visualization(job_id: str, format: str = "json"):
+    """
+    Get visualization results
+    
+    Args:
+        job_id: Job identifier
+        format: Output format (json or html)
+        
+    Returns:
+        Visualization data or HTML
+    """
+    job = get_job(job_id)
+    
+    if not job:
+        raise HTTPException(404, "Job not found")
+    
+    if job["status"] != "completed":
+        raise HTTPException(400, f"Visualization not completed yet. Status: {job['status']}")
+    
+    output_path = job.get("output_path")
+    if not output_path or not os.path.exists(output_path):
+        raise HTTPException(404, "Visualization file not found")
+    
+    # Read visualization data
+    import json
+    try:
+        with open(output_path, 'r') as f:
+            full_data = json.load(f)
+    except Exception as e:
+        logger.error(f"Failed to read visualization: {e}")
+        raise HTTPException(500, "Failed to read visualization data")
+    
+    # Extract the actual visualization data (handle nested structure)
+    # The file contains: {"success": true, "visualization": {...actual data...}, "metadata": {...}}
+    if "visualization" in full_data:
+        viz_data = full_data["visualization"]
+    else:
+        viz_data = full_data
+    
+    if format == "html":
+        # Return enhanced HTML view
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>{viz_data.get('title', 'PDF Visualization')}</title>
+            <style>
+                * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+                body {{ 
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    padding: 20px;
+                    line-height: 1.6;
+                }}
+                .container {{ 
+                    max-width: 1000px; 
+                    margin: 0 auto; 
+                    background: white; 
+                    padding: 40px; 
+                    border-radius: 12px; 
+                    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                }}
+                h1 {{ 
+                    color: #1a202c; 
+                    border-bottom: 4px solid #8B5CF6; 
+                    padding-bottom: 15px;
+                    margin-bottom: 20px;
+                    font-size: 2em;
+                }}
+                h2 {{ 
+                    color: #8B5CF6; 
+                    margin-top: 35px;
+                    margin-bottom: 15px;
+                    font-size: 1.5em;
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                }}
+                .summary {{ 
+                    background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+                    padding: 20px; 
+                    border-left: 5px solid #8B5CF6; 
+                    margin: 25px 0; 
+                    border-radius: 8px;
+                    font-size: 1.05em;
+                    line-height: 1.7;
+                }}
+                .section {{ margin: 30px 0; }}
+                .item {{ 
+                    background: #f9fafb; 
+                    padding: 18px; 
+                    margin: 12px 0; 
+                    border-left: 4px solid #8B5CF6; 
+                    border-radius: 6px;
+                    transition: transform 0.2s, box-shadow 0.2s;
+                }}
+                .item:hover {{
+                    transform: translateX(5px);
+                    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.15);
+                }}
+                .item strong {{ 
+                    color: #1a202c; 
+                    display: block; 
+                    margin-bottom: 8px;
+                    font-size: 1.1em;
+                }}
+                .item p {{ color: #4a5568; margin: 5px 0; }}
+                .item em {{ color: #718096; font-size: 0.95em; }}
+                .concept {{ background: #fef3c7; border-left-color: #f59e0b; }}
+                .relationship {{ 
+                    background: #dbeafe; 
+                    border-left-color: #3b82f6;
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    flex-wrap: wrap;
+                }}
+                .arrow {{ 
+                    color: #8B5CF6; 
+                    font-weight: bold;
+                    padding: 0 5px;
+                }}
+                .infographic {{ background: #d1fae5; border-left-color: #10b981; }}
+                .structure-item {{ 
+                    background: white;
+                    border: 1px solid #e2e8f0;
+                    padding: 15px;
+                    margin: 10px 0;
+                    border-radius: 6px;
+                }}
+                .structure-item.level-1 {{ margin-left: 0; border-left: 4px solid #8B5CF6; }}
+                .structure-item.level-2 {{ margin-left: 20px; border-left: 4px solid #a78bfa; }}
+                .structure-item.level-3 {{ margin-left: 40px; border-left: 4px solid #c4b5fd; }}
+                .structure-item h4 {{ color: #1a202c; margin-bottom: 8px; }}
+                .structure-item ul {{ margin-left: 20px; color: #4a5568; }}
+                .badge {{ 
+                    display: inline-block;
+                    background: #8B5CF6;
+                    color: white;
+                    padding: 4px 12px;
+                    border-radius: 12px;
+                    font-size: 0.85em;
+                    font-weight: 600;
+                }}
+                .count {{ 
+                    background: #e2e8f0;
+                    color: #4a5568;
+                    padding: 2px 8px;
+                    border-radius: 10px;
+                    font-size: 0.85em;
+                    margin-left: 10px;
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>{viz_data.get('title', 'PDF Visualization')}</h1>
+                
+                <div class="summary">
+                    <strong>📄 Summary</strong><br/><br/>
+                    {viz_data.get('summary', 'No summary available')}
+                </div>
+                
+                {'<div class="section"><h2>🧠 Main Ideas <span class="count">' + str(len(viz_data.get('main_ideas', []))) + '</span></h2>' + ''.join([f'<div class="item"><strong>{idea.get("idea", "")}</strong><p>{idea.get("explanation", "")}</p>{("<em>💡 Visual: " + idea.get("visual_suggestion", "") + "</em>") if idea.get("visual_suggestion") else ""}</div>' for idea in viz_data.get('main_ideas', [])]) + '</div>' if viz_data.get('main_ideas') else ''}
+                
+                {'<div class="section"><h2>💡 Key Concepts <span class="count">' + str(len(viz_data.get('key_concepts', []))) + '</span></h2>' + ''.join([f'<div class="item concept"><strong>{c.get("concept", "")}</strong><p>{c.get("definition", "")}</p>{("<em>" + c.get("importance", "") + "</em>") if c.get("importance") else ""}</div>' for c in viz_data.get('key_concepts', [])]) + '</div>' if viz_data.get('key_concepts') else ''}
+                
+                {'<div class="section"><h2>📊 Key Facts <span class="count">' + str(len(viz_data.get('infographic_elements', []))) + '</span></h2>' + ''.join([f'<div class="item infographic"><strong>{elem.get("type", "fact").title()}</strong><p>{elem.get("content", "")}</p></div>' for elem in viz_data.get('infographic_elements', [])]) + '</div>' if viz_data.get('infographic_elements') else ''}
+                
+                {'<div class="section"><h2>🔗 Connections <span class="count">' + str(len(viz_data.get('connections', []))) + '</span></h2>' + ''.join([f'<div class="item relationship"><span>{conn.get("item1", "")}</span><span class="arrow">→</span><em>{conn.get("connection", "")}</em><span class="arrow">→</span><span>{conn.get("item2", "")}</span></div>' for conn in viz_data.get('connections', [])]) + '</div>' if viz_data.get('connections') else ''}
+                
+                {'<div class="section"><h2>🗂️ Document Structure</h2>' + ''.join([f'<div class="structure-item level-{item.get("level", "1")}"><h4>{item.get("title", "")}</h4>' + ('<ul>' + ''.join([f'<li>{point}</li>' for point in item.get("content", [])]) + '</ul>' if item.get("content") else '') + '</div>' for item in viz_data.get('structure', {}).get('hierarchy', [])]) + '</div>' if viz_data.get('structure', {}).get('hierarchy') else ''}
+            </div>
+        </body>
+        </html>
+        """
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse(content=html_content)
+    
+    else:
+        # Return JSON (send the full structure)
+        return JSONResponse(content={
+            "success": True,
+            "visualization": viz_data,
+            "metadata": full_data.get("metadata", {
+                "job_id": job_id,
+                "format": format
+            })
+        })
+
+
+# ============================================================================
+# HEALTH CHECK
+# ============================================================================
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
     return {
-        "ocr_working": success,
-        "message": "OCR setup verified" if success else "OCR setup failed. Install Tesseract OCR."
+        "status": "healthy",
+        "service": "LipiTranslate",
+        "version": "2.1.0",
+        "features": [
+            "Language validation",
+            "Blank page detection",
+            "Hybrid translation",
+            "PDF preview"
+        ]
+    }
+
+
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {
+        "message": "Welcome to LipiTranslate API (Improved)",
+        "version": "2.1.0",
+        "translator": "Sarvam AI (Primary) + OpenAI (Fallback)",
+        "features": [
+            "✅ Automatic language detection",
+            "✅ Blank page handling",
+            "✅ Smart fallback system",
+            "✅ PDF preview support"
+        ],
+        "docs": "/docs"
     }
 
 
 # ============================================================================
-# CORS TEST ENDPOINT
-# ============================================================================
-
-@app.get("/api/test-cors")
-async def test_cors():
-    """Test CORS configuration"""
-    return {
-        "message": "CORS is working!",
-        "allowed_origins": ALLOWED_ORIGINS,
-        "status": "success"
-    }
-
-
-# ============================================================================
-# INCLUDE ADMIN ROUTES
-# ============================================================================
-# This includes all admin endpoints:
-# - /admin/dashboard (GET) - View dashboard with usage stats
-# - /admin/change-password (POST) - Change admin password
-# - /admin/reset-usage (POST) - Reset usage statistics
-
-app.include_router(admin_router)
-
-
-# ============================================================================
-# RUN SERVER (for development)
+# RUN APPLICATION
 # ============================================================================
 
 if __name__ == "__main__":
     import uvicorn
+    
     uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0", 
+        "main:app",
+        host="0.0.0.0",
         port=8000,
         reload=True,
         log_level="info"

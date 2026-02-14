@@ -1,7 +1,7 @@
 "use client";
 
+import { ThumbsUp, ThumbsDown, Send } from "lucide-react";
 import { useState } from "react";
-import { ThumbsUp, ThumbsDown, MessageSquare, Send, CheckCircle } from "lucide-react";
 
 interface Props {
   jobId: string;
@@ -9,59 +9,26 @@ interface Props {
 
 export default function TranslationFeedback({ jobId }: Props) {
   const [rating, setRating] = useState<"good" | "bad" | null>(null);
-  const [showComment, setShowComment] = useState(false);
-  const [comment, setComment] = useState("");
+  const [feedback, setFeedback] = useState("");
   const [submitted, setSubmitted] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-
-  const handleRating = (value: "good" | "bad") => {
-    setRating(value);
-    if (value === "bad") {
-      setShowComment(true);
-    }
-  };
 
   const handleSubmit = async () => {
     if (!rating) return;
 
-    setSubmitting(true);
-
     try {
-      // Send feedback to backend (implement this endpoint)
-      const feedback = {
-        job_id: jobId,
-        rating,
-        comment: comment.trim() || null,
-        timestamp: new Date().toISOString()
-      };
-
-      // TODO: Implement backend endpoint
-      // await fetch(`${API_BASE}/api/feedback`, {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify(feedback)
-      // });
-
-      console.log("Feedback submitted:", feedback);
-      
-      // For now, just show success
+      // You can implement API endpoint for feedback here
+      console.log("Feedback submitted:", { jobId, rating, feedback });
       setSubmitted(true);
-      
     } catch (error) {
       console.error("Failed to submit feedback:", error);
-      alert("Failed to submit feedback. Please try again.");
-    } finally {
-      setSubmitting(false);
     }
   };
 
   if (submitted) {
     return (
       <div className="rounded-xl bg-green-500/10 border border-green-500/30 p-6 text-center">
-        <CheckCircle className="w-12 h-12 mx-auto text-green-400 mb-3" />
-        <h3 className="text-white font-semibold mb-2">Thank You!</h3>
-        <p className="text-sm text-gray-400">
-          Your feedback helps us improve translation quality.
+        <p className="text-green-400 font-medium">
+          Thank you for your feedback! 🎉
         </p>
       </div>
     );
@@ -69,104 +36,51 @@ export default function TranslationFeedback({ jobId }: Props) {
 
   return (
     <div className="rounded-xl bg-white/5 border border-white/10 p-6 space-y-4">
-      
-      {/* Header */}
-      <div className="text-center">
-        <h3 className="text-white font-semibold mb-1">How was the translation?</h3>
-        <p className="text-xs text-gray-500">Your feedback helps us improve</p>
+      <h3 className="text-white font-semibold text-center">
+        How was the translation?
+      </h3>
+
+      <div className="flex justify-center gap-4">
+        <button
+          onClick={() => setRating("good")}
+          className={`p-4 rounded-lg border transition ${
+            rating === "good"
+              ? "border-green-500 bg-green-500/20 text-green-400"
+              : "border-white/10 text-gray-400 hover:border-green-500/50"
+          }`}
+        >
+          <ThumbsUp className="w-6 h-6" />
+        </button>
+        <button
+          onClick={() => setRating("bad")}
+          className={`p-4 rounded-lg border transition ${
+            rating === "bad"
+              ? "border-red-500 bg-red-500/20 text-red-400"
+              : "border-white/10 text-gray-400 hover:border-red-500/50"
+          }`}
+        >
+          <ThumbsDown className="w-6 h-6" />
+        </button>
       </div>
 
-      {/* Rating Buttons */}
-      {!rating && (
-        <div className="flex gap-3 justify-center">
-          <button
-            onClick={() => handleRating("good")}
-            className="group flex items-center gap-2 px-6 py-3 rounded-lg
-              bg-white/5 border border-white/10
-              hover:bg-green-500/10 hover:border-green-500/30
-              transition"
-          >
-            <ThumbsUp className="w-5 h-5 text-gray-400 group-hover:text-green-400 transition" />
-            <span className="text-sm text-gray-300 group-hover:text-green-300">Good</span>
-          </button>
-
-          <button
-            onClick={() => handleRating("bad")}
-            className="group flex items-center gap-2 px-6 py-3 rounded-lg
-              bg-white/5 border border-white/10
-              hover:bg-red-500/10 hover:border-red-500/30
-              transition"
-          >
-            <ThumbsDown className="w-5 h-5 text-gray-400 group-hover:text-red-400 transition" />
-            <span className="text-sm text-gray-300 group-hover:text-red-300">Needs Work</span>
-          </button>
-        </div>
-      )}
-
-      {/* Selected Rating */}
-      {rating && !submitted && (
-        <div className="text-center space-y-4">
-          <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg ${
-            rating === "good" 
-              ? "bg-green-500/10 border border-green-500/30 text-green-300"
-              : "bg-red-500/10 border border-red-500/30 text-red-300"
-          }`}>
-            {rating === "good" ? (
-              <ThumbsUp className="w-5 h-5" />
-            ) : (
-              <ThumbsDown className="w-5 h-5" />
-            )}
-            <span className="text-sm font-medium">
-              {rating === "good" ? "Glad it helped!" : "We'll do better"}
-            </span>
-          </div>
-
-          {/* Optional Comment */}
-          {rating === "bad" && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-gray-400 justify-center">
-                <MessageSquare className="w-4 h-4" />
-                <span className="text-xs">Tell us what went wrong (optional)</span>
-              </div>
-              
-              <textarea
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder="E.g., Translation was inaccurate, formatting issues, missing text..."
-                className="w-full px-4 py-3 rounded-lg bg-[#020617] border border-white/10
-                  text-sm text-gray-200 placeholder-gray-500
-                  focus:border-cyan-500 focus:outline-none resize-none"
-                rows={3}
-                maxLength={500}
-              />
-              <p className="text-xs text-gray-600 text-right">{comment.length}/500</p>
-            </div>
-          )}
-
-          {/* Submit Button */}
+      {rating && (
+        <>
+          <textarea
+            value={feedback}
+            onChange={(e) => setFeedback(e.target.value)}
+            placeholder="Tell us more (optional)..."
+            className="w-full px-4 py-3 rounded-lg bg-black/50 border border-white/10 text-white placeholder:text-gray-500 focus:border-cyan-500/50 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition resize-none"
+            rows={3}
+          />
           <button
             onClick={handleSubmit}
-            disabled={submitting}
-            className="px-6 py-2 rounded-lg text-sm font-medium
-              bg-cyan-600 text-white hover:bg-cyan-500
-              disabled:opacity-50 disabled:cursor-not-allowed
-              transition flex items-center justify-center gap-2 mx-auto"
+            className="w-full px-6 py-3 rounded-lg bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-medium transition shadow-lg flex items-center justify-center gap-2"
           >
-            {submitting ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Submitting...
-              </>
-            ) : (
-              <>
-                <Send className="w-4 h-4" />
-                Submit Feedback
-              </>
-            )}
+            <Send className="w-4 h-4" />
+            Submit Feedback
           </button>
-        </div>
+        </>
       )}
-
     </div>
   );
 }

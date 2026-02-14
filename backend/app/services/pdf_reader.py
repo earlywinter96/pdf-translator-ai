@@ -1,384 +1,428 @@
+"""
+PDF Text Extraction Service - IMPROVED VERSION
+===============================================
+Robust PDF text extraction with OCR fallback, blank page detection,
+and proper language validation
+"""
+
 import os
 import logging
-from typing import List, Dict, Optional
-from pathlib import Path
-import fitz  # PyMuPDF
-from pdf2image import convert_from_path
+from typing import List, Optional, Tuple
+import PyPDF2
 import pytesseract
-from PIL import Image, ImageEnhance
-import time
+from pdf2image import convert_from_path
+from langdetect import detect, LangDetectException
+import re
 
-# Configure logger
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
-# Environment-based configuration
-OCR_TIMEOUT = int(os.getenv('TESSERACT_TIMEOUT', 180))
-OCR_DPI = int(os.getenv('OCR_DPI', 150))
-MAX_IMAGE_SIZE = int(os.getenv('MAX_IMAGE_SIZE', 1600))
+# ============================================================================
+# LANGUAGE MAPPING
+# ============================================================================
 
-# OCR language mapping
-LANGUAGE_MAP = {
-    'gu': 'guj',  # Gujarati
-    'mr': 'mar',  # Marathi
-    'hi': 'hin',  # Hindi
-    'en': 'eng',  # English
+# Map common language codes to Tesseract language codes
+TESSERACT_LANG_MAP = {
+    "gujarati": "guj",
+    "hindi": "hin", 
+    "marathi": "mar",
+    "tamil": "tam",
+    "telugu": "tel",
+    "kannada": "kan",
+    "malayalam": "mal",
+    "bengali": "ben",
+    "punjabi": "pan",
+    "english": "eng",
+    "en": "eng",
+    "gu": "guj",
+    "hi": "hin",
+    "mr": "mar",
+    "ta": "tam",
+    "te": "tel",
+    "kn": "kan",
+    "ml": "mal",
+    "bn": "ben",
+    "pa": "pan"
 }
 
+# Reverse mapping for display names
+LANG_DISPLAY_NAMES = {
+    "eng": "English",
+    "guj": "Gujarati", 
+    "hin": "Hindi",
+    "mar": "Marathi",
+    "tam": "Tamil",
+    "tel": "Telugu",
+    "kan": "Kannada",
+    "mal": "Malayalam",
+    "ben": "Bengali",
+    "pan": "Punjabi"
+}
 
-class PDFReader:
-    """
-    Thread-safe PDF reader with fast OCR support.
-    Works with FastAPI background tasks and threading.
-    """
-    
-    def __init__(self, pdf_path: str, language: str = 'en'):
-        self.pdf_path = Path(pdf_path)
-        self.language = language
-        self.ocr_lang = LANGUAGE_MAP.get(language, 'eng')
-        self.doc = None
-        
-        if not self.pdf_path.exists():
-            raise FileNotFoundError(f"PDF not found: {pdf_path}")
-        
-        logger.info(f"Initializing PDF reader for: {pdf_path}")
-        logger.info(f"Language: {language} -> OCR: {self.ocr_lang}")
-        logger.info(f"OCR Settings - DPI: {OCR_DPI}, Timeout: {OCR_TIMEOUT}s, Max Size: {MAX_IMAGE_SIZE}px")
-    
-    def open(self) -> int:
-        """Open PDF and return page count."""
-        try:
-            self.doc = fitz.open(self.pdf_path)
-            page_count = len(self.doc)
-            logger.info(f"PDF opened: {page_count} pages")
-            return page_count
-        except Exception as e:
-            logger.error(f"Failed to open PDF: {e}")
-            raise
-    
-    def close(self):
-        """Close PDF document."""
-        if self.doc:
-            self.doc.close()
-            self.doc = None
-            logger.info("PDF closed")
-    
-    def extract_text_from_page(self, page_num: int) -> str:
-        """
-        Extract text from a single page.
-        First tries native text extraction, falls back to OCR if needed.
-        """
-        if not self.doc:
-            raise RuntimeError("PDF not opened. Call open() first.")
-        
-        if page_num < 1 or page_num > len(self.doc):
-            raise ValueError(f"Invalid page number: {page_num}")
-        
-        logger.info(f"📄 Processing page {page_num}/{len(self.doc)}")
-        
-        # Get page (0-indexed internally)
-        page = self.doc[page_num - 1]
-        
-        # Try native text extraction first
-        text = page.get_text().strip()
-        logger.info(f"  Native extraction: {len(text)} chars")
-        
-        # If no text or very little text, use OCR
-        if len(text) < 50:
-            logger.info(f"  🔍 Using OCR (insufficient text)")
-            text = self._ocr_page(page_num)
-        
-        return text
-    
-    def _ocr_page(self, page_num: int) -> str:
-        """
-        Perform FAST OCR on a page - THREAD SAFE (no signals).
-        Uses pytesseract's built-in timeout mechanism.
-        """
-        try:
-            # Step 1: Convert PDF to image
-            logger.info(f"  ⏱️  Converting to image...")
-            start_time = time.time()
-            
-            images = self._convert_page_to_image(page_num)
-            
-            conversion_time = time.time() - start_time
-            logger.info(f"  ✅ Converted in {conversion_time:.1f}s")
-            
-            if not images:
-                logger.error(f"  ❌ No images generated")
-                return ""
-            
-            image = images[0]
-            logger.info(f"  📐 Image size: {image.size}")
-            
-            # Step 2: Preprocess image
-            image = self._fast_preprocess(image)
-            
-            # Step 3: OCR with pytesseract's built-in timeout
-            logger.info(f"  🔤 Running OCR (timeout: {OCR_TIMEOUT}s)...")
-            ocr_start = time.time()
-            
-            # Optimized config for speed
-            custom_config = (
-                f'--oem 1 '  # LSTM only (fastest)
-                f'--psm 3 '  # Automatic page segmentation
-                f'-l {self.ocr_lang} '
-            )
-            
-            try:
-                # Use pytesseract's built-in timeout (works in threads)
-                text = pytesseract.image_to_string(
-                    image,
-                    config=custom_config,
-                    timeout=OCR_TIMEOUT  # This works in background threads
-                )
-            except RuntimeError as e:
-                if "timeout" in str(e).lower():
-                    logger.error(f"  ❌ OCR timeout ({OCR_TIMEOUT}s)")
-                    return ""
-                logger.error(f"  ❌ OCR error: {e}")
-                return ""
-            except Exception as e:
-                logger.error(f"  ❌ OCR error: {e}")
-                return ""
-            
-            ocr_time = time.time() - ocr_start
-            logger.info(f"  ✅ OCR completed in {ocr_time:.1f}s: {len(text)} chars")
-            
-            # Cleanup
-            image.close()
-            del images
-            
-            return text.strip()
-            
-        except Exception as e:
-            logger.error(f"  ❌ OCR failed: {e}")
-            return ""
-    
-    def _convert_page_to_image(self, page_num: int):
-        """Convert PDF page to image with optimizations."""
-        try:
-            return convert_from_path(
-                str(self.pdf_path),
-                dpi=OCR_DPI,
-                first_page=page_num,
-                last_page=page_num,
-                fmt='jpeg',  # JPEG is faster than PNG
-                thread_count=1,
-                grayscale=True,
-                size=(MAX_IMAGE_SIZE, None)
-            )
-        except Exception as e:
-            logger.error(f"  ❌ Image conversion failed: {e}")
-            return []
-    
-    def _fast_preprocess(self, image: Image.Image) -> Image.Image:
-        """Fast image preprocessing for OCR."""
-        try:
-            # Ensure grayscale
-            if image.mode != 'L':
-                image = image.convert('L')
-            
-            # Aggressive resize if too large
-            if image.width > MAX_IMAGE_SIZE or image.height > MAX_IMAGE_SIZE:
-                ratio = min(MAX_IMAGE_SIZE / image.width, MAX_IMAGE_SIZE / image.height)
-                new_size = (int(image.width * ratio), int(image.height * ratio))
-                image = image.resize(new_size, Image.Resampling.LANCZOS)
-                logger.info(f"  📏 Resized to: {image.size}")
-            
-            # Light contrast enhancement for better OCR
-            enhancer = ImageEnhance.Contrast(image)
-            image = enhancer.enhance(1.2)
-            
-            return image
-        except Exception as e:
-            logger.warning(f"  ⚠️ Preprocessing warning: {e}")
-            return image
-    
-    def extract_all_text(self, progress_callback=None) -> List[Dict[str, any]]:
-        """Extract text from all pages with progress reporting."""
-        if not self.doc:
-            raise RuntimeError("PDF not opened. Call open() first.")
-        
-        results = []
-        total_pages = len(self.doc)
-        
-        logger.info(f"🚀 Starting extraction of {total_pages} pages")
-        total_start = time.time()
-        
-        for page_num in range(1, total_pages + 1):
-            try:
-                text = self.extract_text_from_page(page_num)
-                
-                results.append({
-                    'page': page_num,
-                    'text': text,
-                    'char_count': len(text)
-                })
-                
-                if progress_callback:
-                    progress_callback(page_num, total_pages, text)
-                
-            except Exception as e:
-                logger.error(f"❌ Failed to extract page {page_num}: {e}")
-                results.append({
-                    'page': page_num,
-                    'text': '',
-                    'error': str(e)
-                })
-        
-        total_time = time.time() - total_start
-        total_chars = sum(r.get('char_count', 0) for r in results)
-        logger.info(f"✅ Extraction complete: {total_pages} pages, {total_chars} chars in {total_time:.1f}s")
-        
-        if total_pages > 0:
-            logger.info(f"⚡ Average: {total_time/total_pages:.1f}s per page")
-        
-        return results
-    
-    def get_page_count(self) -> int:
-        """Get total number of pages."""
-        if not self.doc:
-            raise RuntimeError("PDF not opened. Call open() first.")
-        return len(self.doc)
-    
-    def get_metadata(self) -> Dict[str, any]:
-        """Get PDF metadata."""
-        if not self.doc:
-            raise RuntimeError("PDF not opened. Call open() first.")
-        
-        metadata = self.doc.metadata
-        file_size = self.pdf_path.stat().st_size
-        
-        return {
-            'title': metadata.get('title', ''),
-            'author': metadata.get('author', ''),
-            'subject': metadata.get('subject', ''),
-            'keywords': metadata.get('keywords', ''),
-            'creator': metadata.get('creator', ''),
-            'producer': metadata.get('producer', ''),
-            'pages': len(self.doc),
-            'file_size_mb': round(file_size / (1024 * 1024), 2),
-            'encrypted': self.doc.is_encrypted
-        }
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
+
+MIN_CHARS_FOR_VALID_PAGE = 50  # Minimum characters to consider a page non-blank
+MIN_CHARS_FOR_OCR_TRIGGER = 100  # If direct extraction gives less, try OCR
+OCR_CONFIDENCE_THRESHOLD = 60  # Minimum OCR confidence (0-100)
 
 
-# BACKWARD COMPATIBILITY FUNCTION - Required by main.py
-def extract_text_from_pdf(pdf_path: str, language: str = 'en') -> List[str]:
+# ============================================================================
+# LANGUAGE DETECTION
+# ============================================================================
+
+def detect_text_language(text: str) -> Tuple[str, float]:
     """
-    Extract text from PDF - BACKWARD COMPATIBLE with existing code.
-    Thread-safe for use in FastAPI background tasks.
+    Detect the language of text
+    
+    Args:
+        text: Text to analyze
+        
+    Returns:
+        Tuple of (language_code, confidence)
+    """
+    if not text or len(text.strip()) < 20:
+        return "unknown", 0.0
+    
+    try:
+        # Use langdetect
+        detected = detect(text)
+        
+        # Count script characters to boost confidence
+        gujarati_chars = len(re.findall(r'[\u0A80-\u0AFF]', text))
+        devanagari_chars = len(re.findall(r'[\u0900-\u097F]', text))
+        latin_chars = len(re.findall(r'[a-zA-Z]', text))
+        
+        total_chars = len(text)
+        
+        # If >70% non-Latin, boost Indian language detection
+        if total_chars > 0:
+            if gujarati_chars / total_chars > 0.7:
+                return "gu", 0.95
+            elif devanagari_chars / total_chars > 0.7:
+                return "hi", 0.90  # Could be Hindi/Marathi
+            elif latin_chars / total_chars > 0.7:
+                return "en", 0.95
+        
+        # Use langdetect result with medium confidence
+        return detected, 0.70
+        
+    except LangDetectException:
+        logger.warning("Language detection failed, defaulting to unknown")
+        return "unknown", 0.0
+
+
+def detect_pdf_language(pdf_path: str, sample_pages: int = 3) -> Tuple[str, float]:
+    """
+    Detect the primary language of a PDF by sampling pages
     
     Args:
         pdf_path: Path to PDF file
-        language: OCR language code (e.g., 'guj', 'hin', 'mar')
+        sample_pages: Number of pages to sample
         
     Returns:
-        List of extracted text per page
+        Tuple of (language_code, confidence)
     """
-    # Convert Tesseract language codes to ISO if needed
-    lang_mapping = {
-        'guj': 'gu',
-        'hin': 'hi',
-        'mar': 'mr',
-        'eng': 'en'
-    }
-    iso_lang = lang_mapping.get(language, language)
-    
-    reader = PDFReader(pdf_path, iso_lang)
-    
     try:
-        reader.open()
-        pages = reader.extract_all_text()
-        
-        # Return list of text strings (compatible with old interface)
-        return [page['text'] for page in pages]
-        
+        with open(pdf_path, 'rb') as file:
+            pdf_reader = PyPDF2.PdfReader(file)
+            total_pages = len(pdf_reader.pages)
+            
+            # Sample pages evenly distributed
+            pages_to_check = min(sample_pages, total_pages)
+            step = max(1, total_pages // pages_to_check)
+            
+            all_text = ""
+            for i in range(0, total_pages, step):
+                if len(all_text) > 1000:  # Enough sample
+                    break
+                page = pdf_reader.pages[i]
+                all_text += page.extract_text() or ""
+            
+            # If no text extracted, try OCR on first page
+            if not all_text.strip():
+                logger.warning("No text extracted for language detection, trying OCR...")
+                try:
+                    # Use OCR with English first to detect language
+                    ocr_text, _ = extract_page_with_ocr(pdf_path, 0, "eng")
+                    if ocr_text.strip():
+                        all_text = ocr_text
+                        logger.info(f"   OCR extracted {len(ocr_text)} chars for language detection")
+                    else:
+                        logger.warning("OCR also failed to extract text")
+                        return "unknown", 0.0
+                except Exception as e:
+                    logger.error(f"OCR language detection failed: {e}")
+                    return "unknown", 0.0
+            
+            if not all_text.strip():
+                logger.warning("No text available for language detection")
+                return "unknown", 0.0
+            
+            lang, confidence = detect_text_language(all_text)
+            
+            logger.info(f"📊 Language Detection Results:")
+            logger.info(f"   Detected: {lang} (confidence: {confidence*100:.0f}%)")
+            logger.info(f"   Sample size: {len(all_text)} chars from {pages_to_check} pages")
+            
+            return lang, confidence
+            
     except Exception as e:
-        logger.error(f"Failed to extract text from PDF: {e}")
-        raise
-    
-    finally:
-        reader.close()
+        logger.error(f"Language detection failed: {e}")
+        return "unknown", 0.0
 
 
-def read_pdf(pdf_path: str, language: str = 'en', progress_callback=None) -> Dict[str, any]:
+# ============================================================================
+# TEXT EXTRACTION
+# ============================================================================
+
+def is_blank_page(text: str) -> bool:
     """
-    Convenience function to read entire PDF with metadata.
+    Check if a page is effectively blank
+    
+    Args:
+        text: Extracted text from page
+        
+    Returns:
+        True if page is blank/minimal content
     """
-    reader = PDFReader(pdf_path, language)
-    
-    try:
-        reader.open()
-        metadata = reader.get_metadata()
-        pages = reader.extract_all_text(progress_callback)
-        
-        return {
-            'success': True,
-            'metadata': metadata,
-            'pages': pages,
-            'total_pages': len(pages),
-            'total_chars': sum(p['char_count'] for p in pages if 'char_count' in p)
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to read PDF: {e}")
-        return {
-            'success': False,
-            'error': str(e)
-        }
-    
-    finally:
-        reader.close()
-
-
-def test_ocr_setup():
-    """Test OCR setup and language availability."""
-    try:
-        version = pytesseract.get_tesseract_version()
-        logger.info(f"✅ Tesseract version: {version}")
-        
-        langs = pytesseract.get_languages()
-        logger.info(f"📚 Available languages: {langs}")
-        
-        required = ['guj', 'mar', 'hin', 'eng']
-        missing = [lang for lang in required if lang not in langs]
-        
-        if missing:
-            logger.warning(f"⚠️  Missing language packs: {missing}")
-            return False
-        
-        logger.info("✅ OCR setup verified")
+    if not text:
         return True
+    
+    # Remove whitespace and common artifacts
+    cleaned = text.strip()
+    cleaned = re.sub(r'\s+', '', cleaned)
+    
+    # Check if meaningful content exists
+    return len(cleaned) < MIN_CHARS_FOR_VALID_PAGE
+
+
+def extract_page_with_ocr(pdf_path: str, page_num: int, ocr_language: str) -> Tuple[str, float]:
+    """
+    Extract text from a page using OCR
+    
+    Args:
+        pdf_path: Path to PDF
+        page_num: Page number (0-indexed)
+        ocr_language: Tesseract language code
+        
+    Returns:
+        Tuple of (extracted_text, confidence)
+    """
+    try:
+        # Convert page to image
+        images = convert_from_path(
+            pdf_path,
+            first_page=page_num + 1,
+            last_page=page_num + 1,
+            dpi=300
+        )
+        
+        if not images:
+            return "", 0.0
+        
+        # OCR with confidence data
+        ocr_data = pytesseract.image_to_data(
+            images[0],
+            lang=ocr_language,
+            output_type=pytesseract.Output.DICT
+        )
+        
+        # Extract text and calculate average confidence
+        text_parts = []
+        confidences = []
+        
+        for i, word in enumerate(ocr_data['text']):
+            if word.strip():
+                text_parts.append(word)
+                conf = int(ocr_data['conf'][i])
+                if conf > 0:  # -1 means no confidence data
+                    confidences.append(conf)
+        
+        text = ' '.join(text_parts)
+        avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
+        
+        return text, avg_confidence
         
     except Exception as e:
-        logger.error(f"❌ OCR setup test failed: {e}")
-        return False
+        logger.error(f"OCR failed for page {page_num + 1}: {e}")
+        return "", 0.0
 
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+def extract_pdf_text_robust(
+    pdf_path: str,
+    ocr_language: str = "eng",
+    validate_language: Optional[str] = None
+) -> Tuple[List[str], dict]:
+    """
+    Extract text from PDF with OCR fallback and validation
     
-    print("🔍 Testing OCR setup...")
-    if test_ocr_setup():
-        print("✅ OCR setup OK")
-    else:
-        print("❌ OCR setup failed")
+    Args:
+        pdf_path: Path to PDF file
+        ocr_language: Language for OCR (user-selected)
+        validate_language: Expected language code for validation
+        
+    Returns:
+        Tuple of (page_texts, metadata_dict)
+    """
+    # Map to Tesseract language code
+    tesseract_lang = TESSERACT_LANG_MAP.get(ocr_language.lower(), "eng")
     
-    import sys
-    if len(sys.argv) > 1:
-        pdf_path = sys.argv[1]
-        language = sys.argv[2] if len(sys.argv) > 2 else 'en'
+    logger.info(f"📖 Starting PDF extraction: {os.path.basename(pdf_path)}")
+    logger.info(f"   OCR Language: {ocr_language} → {tesseract_lang}")
+    
+    # Detect actual PDF language
+    detected_lang, detection_confidence = detect_pdf_language(pdf_path)
+    
+    # Validate if requested
+    language_warning = None
+    if validate_language:
+        expected_codes = [validate_language, validate_language[:2]]
+        if detected_lang not in expected_codes and detected_lang != "unknown":
+            language_warning = {
+                "expected": validate_language,
+                "detected": detected_lang,
+                "confidence": detection_confidence,
+                "message": f"⚠️ PDF appears to be in {detected_lang}, but you selected {validate_language}"
+            }
+            logger.warning(language_warning["message"])
+    
+    # Open PDF
+    try:
+        with open(pdf_path, 'rb') as file:
+            pdf_reader = PyPDF2.PdfReader(file)
+            total_pages = len(pdf_reader.pages)
+            
+            logger.info(f"📄 PDF Info:")
+            logger.info(f"   Total pages: {total_pages}")
+            logger.info(f"   Tesseract: {'✅ Available' if pytesseract else '❌ Not available'}")
+            
+            page_texts = []
+            stats = {
+                "total_pages": total_pages,
+                "blank_pages": 0,
+                "direct_extraction": 0,
+                "ocr_pages": 0,
+                "failed_pages": 0,
+                "total_chars": 0,
+                "language_warning": language_warning
+            }
+            
+            logger.info(f"📖 Extracting text from {total_pages} pages...")
+            
+            for page_num in range(total_pages):
+                page = pdf_reader.pages[page_num]
+                
+                # Try direct extraction first
+                text = page.extract_text() or ""
+                extraction_method = "direct"
+                ocr_confidence = 100.0
+                
+                # If direct extraction gives minimal text, try OCR
+                # Note: For scanned PDFs, direct extraction often returns empty or near-empty strings
+                if len(text.strip()) < MIN_CHARS_FOR_OCR_TRIGGER:
+                    logger.info(f"   Page {page_num + 1}: Direct extraction minimal ({len(text)} chars), trying OCR...")
+                    ocr_text, ocr_confidence = extract_page_with_ocr(pdf_path, page_num, tesseract_lang)
+                    
+                    if ocr_text and len(ocr_text.strip()) > len(text.strip()):
+                        text = ocr_text
+                        extraction_method = "ocr"
+                        stats["ocr_pages"] += 1
+                        logger.info(f"   Page {page_num + 1}: {len(text)} chars (OCR, confidence: {ocr_confidence:.1f}%)")
+                    elif not ocr_text.strip():
+                        # Both direct and OCR failed - truly blank page
+                        logger.info(f"   Page {page_num + 1}: BLANK (both direct and OCR failed)")
+                        page_texts.append("")
+                        stats["blank_pages"] += 1
+                        continue
+                    else:
+                        # Direct extraction was better than OCR
+                        stats["direct_extraction"] += 1
+                        logger.info(f"   Page {page_num + 1}: {len(text)} chars (direct extraction)")
+                else:
+                    # Direct extraction gave good results
+                    stats["direct_extraction"] += 1
+                    logger.info(f"   Page {page_num + 1}: {len(text)} chars (direct extraction)")
+                
+                # Final blank page check after both attempts
+                if is_blank_page(text):
+                    logger.info(f"   Page {page_num + 1}: BLANK after extraction attempts")
+                    page_texts.append("")
+                    stats["blank_pages"] += 1
+                    continue
+                
+                # Warn about low OCR confidence
+                if extraction_method == "ocr" and ocr_confidence < OCR_CONFIDENCE_THRESHOLD:
+                    logger.warning(f"   ⚠️ Low OCR confidence ({ocr_confidence:.1f}%) - results may be inaccurate")
+                
+                page_texts.append(text)
+                stats["total_chars"] += len(text)
+            
+            logger.info("✅ Extraction complete:")
+            logger.info(f"   Total chars: {stats['total_chars']:,}")
+            logger.info(f"   Direct extraction: {stats['direct_extraction']}/{total_pages} pages")
+            logger.info(f"   OCR used: {stats['ocr_pages']}/{total_pages} pages")
+            logger.info(f"   Blank pages: {stats['blank_pages']}/{total_pages} pages")
+            
+            return page_texts, stats
+            
+    except Exception as e:
+        logger.error(f"❌ PDF extraction failed: {e}", exc_info=True)
+        raise
+
+
+# ============================================================================
+# VALIDATION HELPERS
+# ============================================================================
+
+def validate_language_match(
+    expected_lang: str,
+    detected_lang: str,
+    confidence: float
+) -> dict:
+    """
+    Validate if detected language matches expected
+    
+    Args:
+        expected_lang: User-selected language
+        detected_lang: Auto-detected language
+        confidence: Detection confidence
         
-        print(f"\n📖 Reading PDF: {pdf_path}")
-        print(f"🌍 Language: {language}")
+    Returns:
+        Validation result dictionary
+    """
+    # Normalize codes
+    expected_normalized = expected_lang.lower()[:2]
+    detected_normalized = detected_lang.lower()[:2]
+    
+    match = expected_normalized == detected_normalized
+    
+    return {
+        "match": match,
+        "expected": expected_lang,
+        "detected": detected_lang,
+        "confidence": confidence,
+        "should_warn": not match and confidence > 0.7,
+        "message": (
+            f"✅ Language match confirmed: {expected_lang}"
+            if match
+            else f"⚠️ Language mismatch: Expected {expected_lang}, detected {detected_lang}"
+        )
+    }
+
+
+def get_non_blank_pages(page_texts: List[str]) -> List[Tuple[int, str]]:
+    """
+    Get list of non-blank pages with their indices
+    
+    Args:
+        page_texts: List of page texts
         
-        result = read_pdf(pdf_path, language)
-        
-        if result['success']:
-            print(f"✅ Success!")
-            print(f"  Pages: {result['total_pages']}")
-            print(f"  Characters: {result['total_chars']}")
-        else:
-            print(f"❌ Failed: {result['error']}")
+    Returns:
+        List of (page_index, text) tuples for non-blank pages
+    """
+    return [
+        (i, text)
+        for i, text in enumerate(page_texts)
+        if not is_blank_page(text)
+    ]

@@ -1,39 +1,48 @@
-fastapi
-uvicorn
-python-multipart
-pdfplumber
-reportlab
-python-dotenv
-openai
-pytesseract
-pdf2image
-Pillow
-psutil==5.9.8
-# Existing dependencies...
-fastapi
-uvicorn
-pydantic
-
-# FastAPI and server
+# ===============================
+# Core API & Server
+# ===============================
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
-python-multipart==0.0.20
+pydantic>=2.5.0
+python-multipart==0.0.20   # File uploads (PDFs, forms)
 
-# PDF processing
-PyMuPDF==1.24.14
-pdf2image==1.17.0
+# ===============================
+# PDF Processing
+# ===============================
+PyMuPDF==1.24.14           # Fast PDF parsing & text extraction
+pdfplumber>=0.11.0        # Table & layout-based PDF extraction
+PyPDF2>=3.0.1             # Lightweight PDF utilities
+pdf2image==1.17.0         # Convert PDF pages to images
+reportlab==4.2.5          # Generate PDFs (translated output)
 
-# OCR
-pytesseract==0.3.13
-Pillow==11.0.0
+# ===============================
+# OCR (Scanned PDFs)
+# ===============================
+pytesseract==0.3.13       # OCR engine wrapper
+Pillow==11.0.0            # Image processing (required by OCR)
 
-# Translation (optional - only needed if not using mock mode)
-openai==1.59.5
+# ===============================
+# AI / Translation
+# ===============================
+openai==1.59.5            # OpenAI translation / LLM calls
+numpy>=1.26.0             # Required for ML & image ops
+requests==2.32.3  # For Sarvam AI
 
-# Utilities
-python-dotenv==1.0.1
-reportlab==4.2.5
+# ===============================
+# Hybrid / Local Translation Models (Optional)
+# ===============================
+torch           # PyTorch backend
+transformers==4.35.0      # HuggingFace models
+sentencepiece==0.1.99     # Tokenization for Indic models
+sacremoses==0.1.1         # Text normalization
 
-# CORS
-python-multipart==0.0.20
-bcrypt==4.1.2
+# ===============================
+# Networking & Utilities
+# ===============================
+httpx>=0.26.0             # Async HTTP requests
+python-dotenv==1.0.1      # Environment variables (.env)
+psutil==5.9.8             # System & process monitoring
+bcrypt==4.1.2             # Password hashing / auth
+
+langdetect
+pytesseract

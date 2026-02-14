@@ -1,0 +1,42 @@
+fastapi
+uvicorn
+python-multipart
+pdfplumber
+reportlab
+python-dotenv
+openai
+pytesseract
+pdf2image
+Pillow
+psutil==5.9.8
+# Existing dependencies...
+fastapi
+uvicorn
+pydantic
+
+# FastAPI and server
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+
+# PDF processing
+PyMuPDF==1.24.14
+pdf2image==1.17.0
+
+# OCR
+pytesseract==0.3.13
+Pillow==11.0.0
+
+# Translation (optional - only needed if not using mock mode)
+openai==1.59.5
+
+# Utilities
+python-dotenv==1.0.1
+reportlab==4.2.5
+
+# CORS
+python-multipart==0.0.20
+bcrypt==4.1.2
+PyPDF2
+httpx
+numpy

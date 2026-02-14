@@ -1,4 +1,4 @@
-#!/Users/HemantSolanki/ai/pdf-translator-ai/backend/venv/bin/python
+#!/Users/HemantSolanki/ai/pdf-translator-ai/backend/venv/bin/python3.11
 """Extract pdf structure in XML format"""
 
 import logging
