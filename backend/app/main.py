@@ -114,15 +114,37 @@ app.add_middleware(
     allow_origins=[
         "https://lipitranslate.in",
         "https://www.lipitranslate.in",
+        "http://localhost:3000",  # Add for local testing
+        "http://localhost:3001",
     ],
-    allow_origin_regex=r"https://.*\.lipitranslate\.in",
-    allow_credentials=False,
-    allow_methods=["*"],
+    allow_origin_regex=r"https://.*\.lipitranslate\.in|https://.*\.vercel\.app",  # Added Vercel
+    allow_credentials=True,  # Changed to True
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Explicitly list methods
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,  # Cache preflight for 1 hour
 )
 
 # Include payment routes
 app.include_router(payment_router)
+
+# ============================================================================
+# CORS PREFLIGHT HANDLER (MUST BE BEFORE OTHER ENDPOINTS)
+# ============================================================================
+
+
+
+@app.options("/{full_path:path}")
+async def options_handler(full_path: str):
+    """Handle all OPTIONS requests for CORS preflight"""
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        }
+    )       
 
 
 # ============================================================================
@@ -166,6 +188,7 @@ async def detect_language_endpoint(file: UploadFile = File(...)):
         # Cleanup temp file
         if os.path.exists(temp_path):
             os.remove(temp_path)
+     
 
 
 @app.post("/api/check-pdf-pages")
