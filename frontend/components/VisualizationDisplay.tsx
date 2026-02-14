@@ -117,7 +117,7 @@ export default function VisualizationDisplay({ jobId }: VisualizationDisplayProp
   };
 
   const getContentTypeIcon = (type: string) => {
-    const icons: Record<string, JSX.Element> = {
+    const icons: Record<string, React.ReactNode> = {
       academic: <GraduationCap className="w-4 h-4" />,
       technical: <Code className="w-4 h-4" />,
       educational: <BookOpen className="w-4 h-4" />,
@@ -127,7 +127,7 @@ export default function VisualizationDisplay({ jobId }: VisualizationDisplayProp
   };
 
   const SectionHeader = ({ id, icon, title, count }: {
-    id: string; icon: JSX.Element; title: string; count?: number;
+    id: string; icon: React.ReactNode; title: string; count?: number;
   }) => (
     <button
       onClick={() => toggleSection(id)}
