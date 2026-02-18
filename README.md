@@ -1,5 +1,6 @@
 # PDF-Translator-AI 🇮🇳  
-LIVE : https://pdf-translator-ai-xgu2.vercel.app/
+LIVE : (https://www.lipitranslate.in/)
+Built by - Hemant Solanki - " https://my-portfolio2-peach-six.vercel.app/"
 
 
 **AI-powered PDF translation platform for Indian regional languages**
