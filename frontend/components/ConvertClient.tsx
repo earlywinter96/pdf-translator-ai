@@ -36,6 +36,7 @@ export default function ConvertClient() {
      STATE
   ============================================================================ */
   const [jobId, setJobId] = useState<string | null>(null);
+  const [targetLanguage, setTargetLanguage] = useState("English");
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState("");
   const [jobStatus, setJobStatus] = useState<string>("");
@@ -147,8 +148,11 @@ export default function ConvertClient() {
   /* ============================================================================
      HANDLERS
   ============================================================================ */
-  const handleJobCreated = (id: string) => {
+  const handleJobCreated = (id: string, selectedTargetLanguage: string) => {
     setJobId(id);
+    setTargetLanguage(
+      selectedTargetLanguage.charAt(0).toUpperCase() + selectedTargetLanguage.slice(1)
+    );
     setProgress(0);
     setStatusMessage("Starting translation...");
     setJobStatus("processing");
@@ -245,7 +249,7 @@ export default function ConvertClient() {
                 Translate Another
               </button>
             </div>
-            <BilingualPreview jobId={jobId} />
+            <BilingualPreview jobId={jobId} targetLanguage={targetLanguage} />
             <TranslationFeedback jobId={jobId} />
           </div>
         )}

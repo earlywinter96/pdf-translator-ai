@@ -17,7 +17,7 @@ const MAX_FILE_SIZE_MB = 25;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 interface Props {
-  onJobCreated: (jobId: string) => void;
+  onJobCreated: (jobId: string, targetLanguage: string) => void;
 }
 
 interface PaymentInfo {
@@ -128,10 +128,10 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
           setShowPaymentModal(true);
         } else {
           console.log('✅ No payment needed - starting translation');
-          onJobCreated(jobId);
+          onJobCreated(jobId, targetLanguage);
         }
       } else {
-        onJobCreated(jobId);
+        onJobCreated(jobId, targetLanguage);
       }
     } catch (err: unknown) {
       console.error('❌ Upload failed:', err);
@@ -148,7 +148,7 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
   const handlePaymentSuccess = () => {
     if (pendingJobId) {
       console.log('✅ Payment successful - starting translation');
-      onJobCreated(pendingJobId);
+      onJobCreated(pendingJobId, targetLanguage);
     }
   };
 

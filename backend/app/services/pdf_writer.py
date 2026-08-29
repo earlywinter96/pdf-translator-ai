@@ -6,6 +6,7 @@ Creates translated PDFs with proper formatting and blank page handling
 
 import os
 import logging
+from html import escape
 from typing import List, Optional
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -34,25 +35,35 @@ MARGIN_BOTTOM = 0.75 * inch
 DEFAULT_FONT_SIZE = 11
 LINE_SPACING = 1.4
 
+FONTS_DIR = os.path.join(os.path.dirname(__file__), "fonts")
+FONT_FILES = {
+    "NotoSans": "NotoSans-Regular.ttf",
+    "NotoSansDevanagari": "NotoSansDevanagari-Regular.ttf",
+    "NotoSansGujarati": "NotoSansGujarati-Regular.ttf",
+}
+
 
 # ============================================================================
 # FONT REGISTRATION
 # ============================================================================
 
-def register_fonts():
+def register_fonts() -> None:
     """
     Register fonts for different languages
     
-    Note: Uses built-in fonts. For production, register custom fonts
-    for better Indian language support
+    Bundled Noto fonts include the glyphs required for Hindi, Marathi, and
+    Gujarati. Built-in ReportLab fonts such as Helvetica render those glyphs
+    as black squares.
     """
     try:
-        # For now, use built-in fonts
-        # In production, you might want to register fonts like:
-        # - Noto Sans Devanagari (Hindi, Marathi)
-        # - Noto Sans Gujarati
-        # - Noto Sans Tamil, etc.
-        pass
+        for font_name, filename in FONT_FILES.items():
+            if font_name in pdfmetrics.getRegisteredFontNames():
+                continue
+            font_path = os.path.join(FONTS_DIR, filename)
+            if not os.path.exists(font_path):
+                raise FileNotFoundError(f"Required font is missing: {font_path}")
+            pdfmetrics.registerFont(TTFont(font_name, font_path))
+            logger.info("Registered PDF font: %s", font_name)
     except Exception as e:
         logger.warning(f"Font registration warning: {e}")
 
@@ -79,19 +90,19 @@ def get_language_config(language: str) -> dict:
             "direction": "ltr"
         },
         "hindi": {
-            "font": "Helvetica",  # Change to Devanagari font in production
+            "font": "NotoSansDevanagari",
             "font_size": 12,
             "alignment": TA_LEFT,
             "direction": "ltr"
         },
         "gujarati": {
-            "font": "Helvetica",  # Change to Gujarati font in production
+            "font": "NotoSansGujarati",
             "font_size": 12,
             "alignment": TA_LEFT,
             "direction": "ltr"
         },
         "marathi": {
-            "font": "Helvetica",  # Change to Devanagari font in production
+            "font": "NotoSansDevanagari",
             "font_size": 12,
             "alignment": TA_LEFT,
             "direction": "ltr"
@@ -241,7 +252,9 @@ def create_translated_pdf(
             if para_text:
                 try:
                     # Create paragraph
-                    para = Paragraph(para_text, custom_style)
+                    # Paragraph uses an XML-like mini-markup language, so
+                    # escape extracted document text before rendering it.
+                    para = Paragraph(escape(para_text), custom_style)
                     story.append(para)
                 except Exception as e:
                     # If paragraph creation fails, log and skip

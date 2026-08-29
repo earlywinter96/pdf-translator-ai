@@ -5,9 +5,10 @@ import { FileText } from "lucide-react";
 
 interface Props {
   jobId: string;
+  targetLanguage: string;
 }
 
-export default function BilingualPreview({ jobId }: Props) {
+export default function BilingualPreview({ jobId, targetLanguage }: Props) {
   const [activeTab, setActiveTab] = useState<"side-by-side" | "original" | "translated">("side-by-side");
 
   // FIX: Use correct environment variable name
@@ -99,7 +100,7 @@ export default function BilingualPreview({ jobId }: Props) {
                   Translated Document
                 </span>
                 <span className="px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 text-xs font-medium">
-                  English
+                  {targetLanguage}
                 </span>
               </div>
             </div>
