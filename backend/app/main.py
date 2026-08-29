@@ -26,6 +26,11 @@ from app.services.pdf_reader import (
 )
 from app.services.hybrid_translator import HybridTranslatorV2
 from app.services.pdf_writer import create_translated_pdf
+from app.services.layout_pdf_writer import (
+    create_layout_preserved_pdf,
+    extract_text_blocks,
+    has_usable_layout,
+)
 
 # Import existing modules
 from app.models.job import (
@@ -538,10 +543,19 @@ async def translate_pdf_task(
             mode="general"
         )
         
-        # Translate pages
+        # Prefer block-level translation for digital PDFs. This lets us retain
+        # the original pages (backgrounds, tables, images and design) while
+        # replacing only their selectable text. OCR/image-only PDFs continue
+        # through the reliable reflow fallback below.
         update_job(job_id, 30, "Translating with Sarvam AI...")
-        
-        translated_pages = await translator.translate_chunks(page_texts)
+        layout_blocks = extract_text_blocks(pdf_path)
+        use_layout_preservation = has_usable_layout(layout_blocks)
+        if use_layout_preservation:
+            update_job(job_id, 35, "Preserving original layout and translating text...")
+            translated_content = await translator.translate_chunks([block.text for block in layout_blocks])
+        else:
+            logger.info("Layout preservation unavailable; using reflow PDF output")
+            translated_content = await translator.translate_chunks(page_texts)
 
         # Never create a downloadable PDF that silently contains the original
         # text after a translation-provider failure.
@@ -553,15 +567,21 @@ async def translate_pdf_task(
             )
             return
         
-        update_job(job_id, 80, "Creating translated PDF...")
+        update_job(
+            job_id,
+            80,
+            "Rebuilding translated text in the original design..." if use_layout_preservation else "Creating translated PDF...",
+        )
         
         # Create output PDF
         output_path = os.path.join(OUTPUTS_DIR, f"{job_id}_translated.pdf")
-        create_translated_pdf(
-            translated_pages,
-            output_path,
-            target_language
-        )
+        if use_layout_preservation:
+            layout_result = create_layout_preserved_pdf(
+                pdf_path, layout_blocks, translated_content, output_path, target_language
+            )
+            logger.info("Layout-preserved output: %s", layout_result)
+        else:
+            create_translated_pdf(translated_content, output_path, target_language)
         
         # Complete job
         complete_job(job_id, output_path)
@@ -964,7 +984,8 @@ async def health_check():
         "features": [
             "Language validation",
             "Blank page detection",
-            "Hybrid translation",
+            "Sarvam-only translation",
+            "Layout-preserved output for digital PDFs",
             "PDF preview"
         ]
     }

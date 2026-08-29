@@ -7,7 +7,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Upload, FileText, Languages, Zap, AlertCircle } from "lucide-react";
+import { Upload, FileText, Languages, Zap, AlertCircle, LayoutTemplate, ImageIcon, Table2 } from "lucide-react";
 import { useDropzone } from "react-dropzone";
 import { usePayment } from "@/app/usepayment";
 import PaymentModal from "@/components/PaymentModal";
@@ -186,8 +186,22 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
           PDF Translation
         </h1>
         <p className="text-gray-400 max-w-2xl mx-auto">
-          Translate PDFs in 22+ Indian languages with AI-powered accuracy
+          Accurate Sarvam AI translation with your original design preserved
         </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        {[
+          { icon: LayoutTemplate, title: "Same layout", text: "Headings, spacing and page structure stay in place." },
+          { icon: ImageIcon, title: "Images stay", text: "Photos, logos and background artwork are retained." },
+          { icon: Table2, title: "Table-aware", text: "Text is placed back inside its original PDF areas." },
+        ].map(({ icon: Icon, title, text }) => (
+          <div key={title} className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4">
+            <Icon className="mb-2 h-5 w-5 text-cyan-400" />
+            <p className="text-sm font-semibold text-white">{title}</p>
+            <p className="mt-1 text-xs leading-relaxed text-gray-400">{text}</p>
+          </div>
+        ))}
       </div>
 
       {/* Language Selection */}
@@ -372,6 +386,10 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
           </div>
         )}
       </div>
+
+      <p className="text-center text-xs text-gray-500">
+        Best results with digital PDFs. Scanned or image-only documents use the compatible text-output mode.
+      </p>
 
       {/* Error Message */}
       {error && (

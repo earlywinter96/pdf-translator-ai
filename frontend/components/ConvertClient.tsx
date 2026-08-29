@@ -238,7 +238,7 @@ export default function ConvertClient() {
           <div className="space-y-6 text-center">
             <CheckCircle className="w-16 h-16 mx-auto text-green-400" />
             <h2 className="text-white text-2xl font-bold">
-              Translation Complete 🎉
+              Your Design-Preserved Translation Is Ready 🎉
             </h2>
             <div className="flex justify-center gap-3">
               <DownloadButton jobId={jobId} />
