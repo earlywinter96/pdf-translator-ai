@@ -37,11 +37,13 @@ if DEMO_MODE:
 # Currency
 CURRENCY = "INR"
 
-# Free pages limit per session
-FREE_PAGES_LIMIT = 10
+# One page is a product preview. Full-document jobs must be paid before they
+# are released to the translation worker.
+FREE_PAGES_LIMIT = 1
 
-# Pricing (in paise - 1 INR = 100 paise)
-PRICE_PER_PAGE = 100  # ₹1 per page
+# Price in paise. ₹10/page covers Sarvam's character-billed translation cost,
+# PDF processing, Razorpay fees, and a sustainable operating margin.
+PRICE_PER_PAGE = 1000  # ₹10 per paid page
 
 # Business information
 BUSINESS_INFO = {

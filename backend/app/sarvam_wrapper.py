@@ -24,8 +24,9 @@ SARVAM_API_KEY = os.getenv("SARVAM_API_KEY")
 SARVAM_API_URL = os.getenv("SARVAM_API_URL", "https://api.sarvam.ai/translate")
 SARVAM_MODEL = os.getenv("SARVAM_MODEL", "sarvam-translate:v1")
 
-# Cost per 1000 characters (in INR)
-COST_PER_1K_CHARS = 1.40
+# Sarvam Translate V1 list price: ₹20 per 10,000 characters.
+# Keep this metric accurate even while startup credits make current calls free.
+COST_PER_1K_CHARS = 2.00
 
 # Retry configuration
 MAX_RETRIES = 3
