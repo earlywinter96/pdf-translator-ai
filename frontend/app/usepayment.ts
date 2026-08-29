@@ -1,5 +1,53 @@
 import { useState, useEffect } from 'react';
 
+interface RazorpaySuccessResponse {
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
+}
+
+interface RazorpayFailureResponse {
+  error?: { description?: string };
+}
+
+interface RazorpayCheckout {
+  open: () => void;
+  on: (event: 'payment.failed', handler: (response: RazorpayFailureResponse) => void) => void;
+}
+
+interface RazorpayOrder {
+  order_id: string;
+  amount: number;
+  currency: string;
+  key_id: string;
+  business_name: string;
+  description: string;
+  theme?: { color?: string };
+  demo?: boolean;
+}
+
+interface RazorpayOptions {
+  key: string;
+  amount: number;
+  currency: string;
+  name: string;
+  description: string;
+  order_id: string;
+  handler: (response: RazorpaySuccessResponse) => void | Promise<void>;
+  modal: { ondismiss: () => void };
+  theme: { color: string };
+}
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: RazorpayOptions) => RazorpayCheckout;
+  }
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE || 'https://pdf-translator-ai-ggqe.onrender.com';
 
@@ -39,8 +87,8 @@ export function usePayment() {
       await loadPaymentConfig();
       await initializeSession();
       setIsLoading(false);
-    } catch (err: any) {
-      setError(err?.message || 'Failed to initialize payment system');
+    } catch (err: unknown) {
+      setError(errorMessage(err, 'Failed to initialize payment system'));
       setIsLoading(false);
     }
   };
@@ -188,7 +236,7 @@ export function usePayment() {
       throw new Error(err.detail || 'Order creation failed');
     }
 
-    const orderData = await orderResponse.json();
+    const orderData = await orderResponse.json() as RazorpayOrder;
 
     // Demo mode
     if (orderData.demo) {
@@ -197,7 +245,7 @@ export function usePayment() {
     }
 
     // ✅ Razorpay TypeScript-safe usage
-    const RazorpayConstructor = (window as any).Razorpay;
+    const RazorpayConstructor = window.Razorpay;
 
     if (!RazorpayConstructor) {
       throw new Error('Razorpay SDK not loaded');
@@ -212,7 +260,7 @@ export function usePayment() {
         description: orderData.description,
         order_id: orderData.order_id,
 
-        handler: async function (response: any) {
+        handler: async (response: RazorpaySuccessResponse) => {
           try {
             const verifyResponse = await fetch(
               `${API_BASE}/api/payment/verify`,
@@ -231,11 +279,12 @@ export function usePayment() {
               }
             );
 
-            if (verifyResponse.ok) {
-              await refreshSession();
-              resolve(response.razorpay_order_id);
+            const verification = await verifyResponse.json().catch(() => null);
+            if (verifyResponse.ok && verification?.verified) {
+                await refreshSession();
+                resolve(response.razorpay_order_id);
             } else {
-              reject(new Error('Payment verification failed'));
+              reject(new Error(verification?.detail || verification?.message || 'Payment verification failed'));
             }
           } catch (err) {
             reject(err);
@@ -253,7 +302,7 @@ export function usePayment() {
 
       const razorpay = new RazorpayConstructor(options);
 
-      razorpay.on('payment.failed', (response: any) => {
+      razorpay.on('payment.failed', (response: RazorpayFailureResponse) => {
         reject(
           new Error(
             response?.error?.description || 'Payment failed'

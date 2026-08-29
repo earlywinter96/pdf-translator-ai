@@ -202,6 +202,17 @@ def update_job(job_id: str, progress: int, message: str):
     logger.info(f"📊 Job {job_id}: {progress}% - {message}")
 
 
+def set_job_metadata(job_id: str, **metadata) -> bool:
+    """Persist payment and submission metadata without exposing it to clients."""
+    with _lock:
+        if job_id not in JOB_STORE:
+            return False
+        JOB_STORE[job_id].update(metadata)
+        JOB_STORE[job_id]["last_update"] = datetime.now()
+        _save_job_to_disk(job_id, force=True)
+        return True
+
+
 def complete_job(job_id: str, output_path: str = None, visualization_format: str = None):
     """
     Mark job as completed.

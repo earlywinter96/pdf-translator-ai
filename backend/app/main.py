@@ -41,9 +41,12 @@ from app.models.job import (
     fail_job,
     get_job,
     cleanup_old_jobs,
-    start_cleanup_scheduler
+    start_cleanup_scheduler,
+    set_job_metadata,
 )
 from app.payment import payment_router
+from app.payment.payment_config import calculate_payment, FREE_PAGES_LIMIT
+from app.payment.payment_service import get_payment_status, is_payment_verified
 
 # Load environment variables
 load_dotenv()
@@ -316,27 +319,74 @@ async def translate_pdf(
     with open(input_path, 'wb') as f:
         f.write(content)
     
-    # Create job
+    try:
+        import PyPDF2
+        page_count = len(PyPDF2.PdfReader(input_path).pages)
+    except Exception:
+        os.remove(input_path)
+        raise HTTPException(400, "Could not read the uploaded PDF")
+
+    # Create a pending job. Multi-page documents must not reach Sarvam until
+    # Razorpay has verified the matching order server-side.
     create_job(job_id, file.filename, "translation")
-    
-    # Start translation in background
-    background_tasks.add_task(
-        translate_pdf_task,
+    set_job_metadata(
         job_id,
-        input_path,
-        source_language,
-        target_language
+        input_path=input_path,
+        source_language=source_language,
+        target_language=target_language,
+        page_count=page_count,
+        payment_required=page_count > FREE_PAGES_LIMIT,
     )
     
     logger.info(f"📤 Translation job created: {job_id}")
     logger.info(f"   File: {file.filename}")
     logger.info(f"   {source_language} → {target_language}")
     
+    if page_count > FREE_PAGES_LIMIT:
+        quote = calculate_payment(page_count)
+        update_job(job_id, 0, "Payment required before full-document translation")
+        return {
+            "job_id": job_id,
+            "status": "payment_required",
+            "page_count": page_count,
+            "payment": quote,
+            "message": quote["message"],
+        }
+
+    background_tasks.add_task(
+        translate_pdf_task, job_id, input_path, source_language, target_language, FREE_PAGES_LIMIT
+    )
     return {
         "job_id": job_id,
         "status": "processing",
+        "page_count": page_count,
         "message": "Creating your 1-page free preview",
     }
+
+
+@app.post("/api/start-paid-translation/{job_id}")
+async def start_paid_translation(job_id: str, order_id: str, background_tasks: BackgroundTasks):
+    """Start the full job only after the verified Razorpay order is matched."""
+    job = get_job(job_id)
+    payment = get_payment_status(order_id)
+    if not job or not payment:
+        raise HTTPException(404, "Translation job or payment order not found")
+    if payment.get("job_id") != job_id or not is_payment_verified(order_id):
+        raise HTTPException(402, "Verified payment is required before translation")
+    if job.get("payment_started"):
+        return {"job_id": job_id, "status": "processing", "message": "Translation already started"}
+
+    set_job_metadata(job_id, payment_started=True, paid_order_id=order_id)
+    update_job(job_id, 1, "Payment verified. Starting full-document translation...")
+    background_tasks.add_task(
+        translate_pdf_task,
+        job_id,
+        job["input_path"],
+        job["source_language"],
+        job["target_language"],
+        None,
+    )
+    return {"job_id": job_id, "status": "processing", "message": "Payment verified. Translation started."}
 
 
 @app.get("/api/status/{job_id}")
@@ -469,7 +519,8 @@ async def translate_pdf_task(
     job_id: str,
     pdf_path: str,
     source_language: str,
-    target_language: str
+    target_language: str,
+    page_limit: int | None = FREE_PREVIEW_PAGE_LIMIT,
 ):
     """
     Background task for PDF translation with enhanced validation
@@ -488,7 +539,7 @@ async def translate_pdf_task(
         page_texts, extraction_stats = extract_pdf_text_robust(
             pdf_path,
             source_language,
-            max_pages=FREE_PREVIEW_PAGE_LIMIT,
+            max_pages=page_limit,
             detect_language=False,
         )
         
@@ -521,7 +572,7 @@ async def translate_pdf_task(
         # Never send more than the free preview to Sarvam. The old payment
         # check ran only in the frontend after this task had started, allowing
         # every uploaded page to consume credits.
-        preview_page_texts = page_texts[:FREE_PREVIEW_PAGE_LIMIT]
+        preview_page_texts = page_texts if page_limit is None else page_texts[:page_limit]
 
         # Prefer block-level translation for digital PDFs. This lets us retain
         # the original pages (backgrounds, tables, images and design) while
@@ -530,7 +581,7 @@ async def translate_pdf_task(
         update_job(job_id, 30, "Translating with Sarvam AI...")
         layout_blocks = [
             block for block in extract_text_blocks(pdf_path)
-            if block.page_number < FREE_PREVIEW_PAGE_LIMIT
+            if page_limit is None or block.page_number < page_limit
         ]
         use_layout_preservation = has_usable_layout(layout_blocks)
         if use_layout_preservation:
@@ -561,13 +612,13 @@ async def translate_pdf_task(
         if use_layout_preservation:
             layout_result = create_layout_preserved_pdf(
                 pdf_path, layout_blocks, translated_content, output_path, target_language,
-                page_limit=FREE_PREVIEW_PAGE_LIMIT,
+                page_limit=page_limit,
             )
             logger.info("Layout-preserved output: %s", layout_result)
         else:
             create_translated_pdf(translated_content, output_path, target_language)
 
-        if total_pages > FREE_PREVIEW_PAGE_LIMIT:
+        if page_limit is not None and total_pages > page_limit:
             append_payment_required_page(output_path, total_pages)
         
         # Complete job

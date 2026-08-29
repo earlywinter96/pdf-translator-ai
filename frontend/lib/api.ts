@@ -105,6 +105,17 @@ export async function uploadPDFForTranslation({
   return result;
 }
 
+export async function startPaidTranslation(jobId: string, orderId: string) {
+  const res = await fetch(`${API_BASE}/api/start-paid-translation/${jobId}?order_id=${encodeURIComponent(orderId)}`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: 'Could not start translation' }));
+    throw new Error(error.detail || 'Could not start translation');
+  }
+  return res.json();
+}
+
 // Backward compatibility wrapper
 export async function uploadPDF(
   file: File,

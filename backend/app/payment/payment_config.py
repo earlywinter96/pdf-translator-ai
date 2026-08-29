@@ -7,6 +7,9 @@ Razorpay configuration and payment calculation logic
 import os
 import logging
 from typing import Dict, Tuple
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 

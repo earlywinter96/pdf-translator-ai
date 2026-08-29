@@ -12,13 +12,13 @@ import { X, CreditCard, AlertCircle, CheckCircle } from 'lucide-react';
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onPaymentSuccess: () => void;
+  onPaymentSuccess: (orderId: string) => void | Promise<void>;
   pageCount: number;
   paymentAmount: number;
   freePagesUsed: number;
   paidPages: number;
   jobId: string;
-  initiatePayment: (jobId: string, pageCount: number) => Promise<boolean>;
+  initiatePayment: (jobId: string, pageCount: number) => Promise<string | null>;
   isDemoMode?: boolean;
 }
 
@@ -44,16 +44,16 @@ export default function PaymentModal({
     setError(null);
 
     try {
-      const success = await initiatePayment(jobId, pageCount);
+      const orderId = await initiatePayment(jobId, pageCount);
       
-      if (success) {
-        onPaymentSuccess();
+      if (orderId) {
+        await onPaymentSuccess(orderId);
         onClose();
       } else {
         setError('Payment failed or was cancelled');
       }
-    } catch (err: any) {
-      setError(err.message || 'Payment failed');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Payment failed');
     } finally {
       setIsProcessing(false);
     }

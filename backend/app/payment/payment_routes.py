@@ -35,6 +35,7 @@ from .payment_service import (
     verify_webhook_signature,
     handle_payment_webhook
 )
+from app.models.job import get_job
 
 logger = logging.getLogger(__name__)
 
@@ -217,8 +218,14 @@ async def create_order(
     
     update_session_activity(session_id)
     
-    # Calculate payment
-    payment_calc = calculate_payment(request.page_count)
+    job = get_job(request.job_id)
+    if not job or not job.get("payment_required"):
+        raise HTTPException(400, "This job does not require payment")
+    if job.get("payment_started"):
+        raise HTTPException(409, "Translation has already started")
+
+    # Never accept a browser-controlled page count for billing.
+    payment_calc = calculate_payment(int(job["page_count"]))
     
     if not payment_calc["requires_payment"]:
         raise HTTPException(400, "Payment not required for this page count")
@@ -231,7 +238,7 @@ async def create_order(
                 amount_paise=payment_calc["amount"],
                 job_id=request.job_id,
                 session_id=session_id,
-                page_count=request.page_count
+                page_count=int(job["page_count"])
             )
             order["demo"] = True
             order["message"] = "⚠️ DEMO MODE: This is a test payment. No real money will be charged."
@@ -241,7 +248,7 @@ async def create_order(
                 amount_paise=payment_calc["amount"],
                 job_id=request.job_id,
                 session_id=session_id,
-                page_count=request.page_count
+                page_count=int(job["page_count"])
             )
         
         # Associate payment with session
@@ -278,6 +285,10 @@ async def verify_payment(
         raise HTTPException(401, "Invalid or missing session ID")
     
     update_session_activity(session_id)
+
+    payment = get_payment_status(request.order_id)
+    if not payment or payment.get("job_id") != request.job_id:
+        raise HTTPException(400, "Payment order does not match this translation job")
     
     try:
         # In demo mode, auto-verify
@@ -296,11 +307,12 @@ async def verify_payment(
             signature=request.signature
         )
         
-        return PaymentVerifyResponse(
-            verified=is_valid,
-            message=message
-        )
+        if not is_valid:
+            raise HTTPException(400, message)
+        return PaymentVerifyResponse(verified=True, message=message)
     
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Payment verification failed: {e}")
         raise HTTPException(500, f"Payment verification failed: {str(e)}")
