@@ -209,17 +209,17 @@ def append_payment_required_page(output_path: str, total_pages: int) -> None:
         page.draw_rect(panel, color=(0.1, 0.75, 0.85), fill=(0.04, 0.16, 0.24), width=1.2)
         page.insert_textbox(
             fitz.Rect(panel.x0 + 30, panel.y0 + 42, panel.x1 - 30, panel.y0 + 105),
-            "Your free 1-page preview is ready",
+            "Payment required for the remaining pages",
             fontname="hebo", fontsize=21, color=(1, 1, 1), align=1,
         )
         page.insert_textbox(
             fitz.Rect(panel.x0 + 44, panel.y0 + 125, panel.x1 - 44, panel.y0 + 230),
-            f"This document has {total_pages} pages. The remaining pages are locked to protect translation credits.",
+            f"This document has {total_pages} pages. You received a translated first-page preview; the remaining pages are locked.",
             fontname="helv", fontsize=12, color=(0.82, 0.88, 0.92), align=1, lineheight=1.4,
         )
         page.insert_textbox(
             fitz.Rect(panel.x0 + 44, panel.y0 + 250, panel.x1 - 44, panel.y0 + 310),
-            "Full-document translation and secure payment are coming soon.",
+            "Full-document translation will be available after payment is enabled.",
             fontname="hebo", fontsize=13, color=(0.3, 0.88, 0.92), align=1,
         )
         document.save(output_path + ".preview", garbage=4, deflate=True)

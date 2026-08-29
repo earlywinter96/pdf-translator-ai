@@ -252,7 +252,9 @@ def extract_page_with_ocr(pdf_path: str, page_num: int, ocr_language: str) -> Tu
 def extract_pdf_text_robust(
     pdf_path: str,
     ocr_language: str = "eng",
-    validate_language: Optional[str] = None
+    validate_language: Optional[str] = None,
+    max_pages: Optional[int] = None,
+    detect_language: bool = True,
 ) -> Tuple[List[str], dict]:
     """
     Extract text from PDF with OCR fallback and validation
@@ -261,6 +263,8 @@ def extract_pdf_text_robust(
         pdf_path: Path to PDF file
         ocr_language: Language for OCR (user-selected)
         validate_language: Expected language code for validation
+        max_pages: Process only this many leading pages when set
+        detect_language: Run automatic language detection before extraction
         
     Returns:
         Tuple of (page_texts, metadata_dict)
@@ -272,7 +276,9 @@ def extract_pdf_text_robust(
     logger.info(f"   OCR Language: {ocr_language} → {tesseract_lang}")
     
     # Detect actual PDF language
-    detected_lang, detection_confidence = detect_pdf_language(pdf_path)
+    detected_lang, detection_confidence = ("unknown", 0.0)
+    if detect_language:
+        detected_lang, detection_confidence = detect_pdf_language(pdf_path)
     
     # Validate if requested
     language_warning = None
@@ -292,6 +298,7 @@ def extract_pdf_text_robust(
         with open(pdf_path, 'rb') as file:
             pdf_reader = PyPDF2.PdfReader(file)
             total_pages = len(pdf_reader.pages)
+            pages_to_process = min(total_pages, max_pages) if max_pages else total_pages
             
             logger.info(f"📄 PDF Info:")
             logger.info(f"   Total pages: {total_pages}")
@@ -300,6 +307,7 @@ def extract_pdf_text_robust(
             page_texts = []
             stats = {
                 "total_pages": total_pages,
+                "processed_pages": pages_to_process,
                 "blank_pages": 0,
                 "direct_extraction": 0,
                 "ocr_pages": 0,
@@ -308,9 +316,9 @@ def extract_pdf_text_robust(
                 "language_warning": language_warning
             }
             
-            logger.info(f"📖 Extracting text from {total_pages} pages...")
+            logger.info(f"📖 Extracting text from {pages_to_process}/{total_pages} pages...")
             
-            for page_num in range(total_pages):
+            for page_num in range(pages_to_process):
                 page = pdf_reader.pages[page_num]
                 
                 # Try direct extraction first

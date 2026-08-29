@@ -7,7 +7,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Upload, FileText, Languages, Zap, AlertCircle, LayoutTemplate, ImageIcon, Table2, LockKeyhole } from "lucide-react";
+import { Upload, FileText, Languages, Zap, AlertCircle, LayoutTemplate, ImageIcon, Table2 } from "lucide-react";
 import { useDropzone } from "react-dropzone";
 import { uploadPDFForTranslation, SUPPORTED_LANGUAGES, PRIMARY_LANGUAGES, EXTENDED_LANGUAGES } from "@/lib/api";
 
@@ -141,11 +141,6 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
             <p className="mt-1 text-xs leading-relaxed text-gray-400">{text}</p>
           </div>
         ))}
-      </div>
-
-      <div className="flex items-start gap-3 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-100">
-        <LockKeyhole className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
-        <p><span className="font-semibold">Free preview: 1 page only.</span> The remaining pages will show a locked notice. Full-document translation and secure payments are coming soon.</p>
       </div>
 
       {/* Language Selection */}

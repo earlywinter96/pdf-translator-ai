@@ -482,41 +482,19 @@ async def translate_pdf_task(
     """
     translator = None
     try:
-        update_job(job_id, 5, "Detecting PDF language...")
-        
-        # Detect actual PDF language
-        detected_lang, confidence = detect_pdf_language(pdf_path)
-        
-        logger.info(f"📊 Language Detection:")
-        logger.info(f"   Expected: {source_language}")
-        logger.info(f"   Detected: {detected_lang} (confidence: {confidence*100:.0f}%)")
-        
-        # Validate language match
-        validation = validate_language_match(source_language, detected_lang, confidence)
-        
-        if validation["should_warn"]:
-            logger.warning(f"⚠️ {validation['message']}")
-        
-        # Check if already in target language
-        if detected_lang == target_language[:2]:
-            fail_job(
-                job_id,
-                f"⚠️ PDF appears to already be in {target_language}. No translation needed."
-            )
-            return
-        
-        update_job(job_id, 10, "Extracting text from PDF...")
+        update_job(job_id, 10, "Extracting the free preview page...")
         
         # Extract text from PDF with validation
         page_texts, extraction_stats = extract_pdf_text_robust(
             pdf_path,
             source_language,
-            validate_language=source_language
+            max_pages=FREE_PREVIEW_PAGE_LIMIT,
+            detect_language=False,
         )
         
-        total_pages = len(page_texts)
+        total_pages = extraction_stats["total_pages"]
         blank_pages = extraction_stats["blank_pages"]
-        non_blank = total_pages - blank_pages
+        non_blank = sum(1 for page_text in page_texts if page_text.strip())
         
         logger.info(f"📄 Extraction complete:")
         logger.info(f"   Total pages: {total_pages}")
@@ -524,20 +502,13 @@ async def translate_pdf_task(
         logger.info(f"   Blank pages: {blank_pages}")
         
         if non_blank == 0:
-            fail_job(job_id, "No translatable text found in PDF")
+            fail_job(
+                job_id,
+                "We could not read text from page 1. Please upload a clear, text-based PDF or a higher-quality scan."
+            )
             return
         
-        # Show language warning in job message if needed
-        if extraction_stats.get("language_warning"):
-            warning = extraction_stats["language_warning"]
-            update_job(
-                job_id,
-                15,
-                f"⚠️ {warning['message']}. Proceeding with translation..."
-            )
-        else:
-            update_job(job_id, 15, f"Extracted {non_blank} pages, starting translation...")
-        
+        update_job(job_id, 15, "Preview page extracted, starting translation...")
         # Create translator
         update_job(job_id, 20, "Initializing translator...")
         
