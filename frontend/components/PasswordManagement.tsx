@@ -18,7 +18,7 @@ export function PasswordChangeModal({ onClose, onSuccess }: PasswordChangeProps)
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://pdf-translator-ai-ggqe.onrender.com";
 
   // Password strength checker
   const checkPasswordStrength = (password: string) => {

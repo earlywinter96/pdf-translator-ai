@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 SARVAM_API_KEY = os.getenv("SARVAM_API_KEY")
-SARVAM_API_URL = "https://api.sarvam.ai/translate"
-SARVAM_MODEL = "sarvam-translate:v1"
+SARVAM_API_URL = os.getenv("SARVAM_API_URL", "https://api.sarvam.ai/translate")
+SARVAM_MODEL = os.getenv("SARVAM_MODEL", "sarvam-translate:v1")
 
 # Cost per 1000 characters (in INR)
 COST_PER_1K_CHARS = 1.40
@@ -34,7 +34,7 @@ BACKOFF_MULTIPLIER = 2.0
 # Request timeout
 REQUEST_TIMEOUT = 30.0
 
-# Supported languages
+# Sarvam Translate supports all 22 scheduled Indian languages plus English.
 SUPPORTED_LANGUAGES = {
     "bengali": "bn-IN",
     "gujarati": "gu-IN",
@@ -47,6 +47,18 @@ SUPPORTED_LANGUAGES = {
     "tamil": "ta-IN",
     "telugu": "te-IN",
     "english": "en-IN",
+    "assamese": "as-IN",
+    "bodo": "brx-IN",
+    "dogri": "doi-IN",
+    "konkani": "kok-IN",
+    "kashmiri": "ks-IN",
+    "maithili": "mai-IN",
+    "manipuri": "mni-IN",
+    "nepali": "ne-IN",
+    "sanskrit": "sa-IN",
+    "santali": "sat-IN",
+    "sindhi": "sd-IN",
+    "urdu": "ur-IN",
     # Short codes
     "bn": "bn-IN",
     "gu": "gu-IN",
@@ -58,7 +70,10 @@ SUPPORTED_LANGUAGES = {
     "pa": "pa-IN",
     "ta": "ta-IN",
     "te": "te-IN",
-    "en": "en-IN"
+    "en": "en-IN",
+    "as": "as-IN", "brx": "brx-IN", "doi": "doi-IN", "kok": "kok-IN",
+    "ks": "ks-IN", "mai": "mai-IN", "mni": "mni-IN", "ne": "ne-IN",
+    "sa": "sa-IN", "sat": "sat-IN", "sd": "sd-IN", "ur": "ur-IN",
 }
 
 

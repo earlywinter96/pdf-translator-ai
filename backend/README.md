@@ -155,8 +155,9 @@ cp .env.example .env
 Example `.env` configuration:
 
 ```env
-OPENAI_API_KEY=your_api_key
-TRANSLATION_MODEL=gpt-4o
+SARVAM_API_KEY=your_sarvam_api_key
+SARVAM_MODEL=sarvam-translate:v1
+GEMINI_API_KEY=your_gemini_api_key  # visualization only
 DEFAULT_TARGET_LANGUAGE=hi
 MAX_CHUNK_SIZE=2000
 ```

@@ -1,10 +1,12 @@
 // lib/api.ts
 /**
  * API Client Library
- * Updated for Sarvam AI + OpenAI backend
+ * Sarvam AI translation and Gemini visualization backend
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+// Production fallback for LipiTranslate. Override this locally with
+// NEXT_PUBLIC_API_BASE=http://localhost:8000 in frontend/.env.local.
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://pdf-translator-ai-ggqe.onrender.com";
 
 // ============================================================================
 // LANGUAGE MAPPING (Updated for Sarvam AI)
@@ -83,7 +85,7 @@ export async function uploadPDFForTranslation({
     size: `${(file.size / 1024 / 1024).toFixed(2)}MB`,
     source: source_language,
     target: target_language,
-    translator: 'Sarvam AI + OpenAI'
+    translator: 'Sarvam AI'
   });
 
   const res = await fetch(`${API_BASE}/api/translate`, {
@@ -152,7 +154,7 @@ export async function getJobStatus(jobId: string) {
     if (status.progress < 30) {
       status.message = 'Extracting text from PDF...';
     } else if (status.progress < 70) {
-      status.message = 'Translating with AI (Sarvam AI + OpenAI)...';
+      status.message = 'Translating with Sarvam AI...';
     } else {
       status.message = 'Generating translated PDF...';
     }
@@ -259,28 +261,29 @@ export class APIError extends Error {
   constructor(
     message: string,
     public statusCode?: number,
-    public details?: any
+    public details?: unknown
   ) {
     super(message);
     this.name = 'APIError';
   }
 }
 
-export function handleAPIError(error: any): APIError {
+export function handleAPIError(error: unknown): APIError {
   if (error instanceof APIError) {
     return error;
   }
   
-  if (error.response) {
+  if (typeof error === 'object' && error !== null && 'response' in error) {
+    const response = error.response as { data?: { detail?: string }; status?: number };
     return new APIError(
-      error.response.data?.detail || 'API request failed',
-      error.response.status,
-      error.response.data
+      response.data?.detail || 'API request failed',
+      response.status,
+      response.data
     );
   }
   
   return new APIError(
-    error.message || 'Unknown error occurred',
+    error instanceof Error ? error.message : 'Unknown error occurred',
     undefined,
     error
   );

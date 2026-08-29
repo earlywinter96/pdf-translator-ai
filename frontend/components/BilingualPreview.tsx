@@ -11,7 +11,7 @@ export default function BilingualPreview({ jobId }: Props) {
   const [activeTab, setActiveTab] = useState<"side-by-side" | "original" | "translated">("side-by-side");
 
   // FIX: Use correct environment variable name
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://pdf-translator-ai.onrender.com';
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://pdf-translator-ai-ggqe.onrender.com';
   
   // Use preview endpoints instead of download endpoints
   const originalUrl = `${API_BASE}/api/preview/original/${jobId}`;

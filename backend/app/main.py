@@ -26,8 +26,6 @@ from app.services.pdf_reader import (
 )
 from app.services.hybrid_translator import HybridTranslatorV2
 from app.services.pdf_writer import create_translated_pdf
-from app.sarvam_wrapper import SarvamTranslator
-from app.openai_wrapper import OpenAITranslator
 
 # Import existing modules
 from app.models.job import (
@@ -80,7 +78,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"   Outputs: {OUTPUTS_DIR}")
     logger.info(f"   Max file size: {MAX_FILE_SIZE_MB}MB")
     logger.info(f"   Primary translator: Sarvam AI")
-    logger.info(f"   Fallback translator: OpenAI GPT-4o")
+    logger.info(f"   Translation provider: Sarvam AI only")
     logger.info(f"   Features: Language validation, blank page detection")
     
     # Start background schedulers
@@ -473,6 +471,7 @@ async def translate_pdf_task(
         source_language: Source language
         target_language: Target language
     """
+    translator = None
     try:
         update_job(job_id, 5, "Detecting PDF language...")
         
@@ -563,7 +562,7 @@ async def translate_pdf_task(
         stats = translator.get_statistics()
         logger.info(f"📊 Final Statistics:")
         logger.info(f"   Sarvam AI: {stats['sarvam_used']} chunks")
-        logger.info(f"   OpenAI: {stats['openai_used']} chunks")
+        logger.info(f"   Sarvam failures: {stats['sarvam_failed']} chunks")
         logger.info(f"   Blank pages: {stats['blank_pages']}")
         logger.info(f"   Total cost: ₹{stats['total_cost_inr']:.2f}")
         logger.info(f"   Success rate: {stats['success_rate']:.1f}%")
@@ -571,6 +570,9 @@ async def translate_pdf_task(
     except Exception as e:
         logger.error(f"❌ Translation failed: {e}", exc_info=True)
         fail_job(job_id, f"Translation failed: {str(e)}")
+    finally:
+        if translator is not None:
+            await translator.close()
 
 
 # ============================================================================
@@ -965,11 +967,11 @@ async def root():
     return {
         "message": "Welcome to LipiTranslate API (Improved)",
         "version": "2.1.0",
-        "translator": "Sarvam AI (Primary) + OpenAI (Fallback)",
+        "translator": "Sarvam AI",
         "features": [
             "✅ Automatic language detection",
             "✅ Blank page handling",
-            "✅ Smart fallback system",
+            "✅ Sarvam-only translation pipeline",
             "✅ PDF preview support"
         ],
         "docs": "/docs"

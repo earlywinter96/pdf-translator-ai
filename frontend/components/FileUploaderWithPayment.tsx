@@ -20,6 +20,13 @@ interface Props {
   onJobCreated: (jobId: string) => void;
 }
 
+interface PaymentInfo {
+  requires_payment: boolean;
+  free_pages: number;
+  paid_pages: number;
+  amount_inr: number;
+}
+
 export default function FileUploaderWithPayment({ onJobCreated }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [sourceLanguage, setSourceLanguage] = useState("gujarati");
@@ -31,7 +38,7 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
   const [error, setError] = useState<string | null>(null);
   
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentInfo, setPaymentInfo] = useState<any>(null);
+  const [paymentInfo, setPaymentInfo] = useState<PaymentInfo | null>(null);
   const [pendingJobId, setPendingJobId] = useState<string | null>(null);
 
   const {
@@ -96,7 +103,7 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
       console.log('   Source:', sourceLanguage);
       console.log('   Target:', targetLanguage);
       console.log('   Mode:', translationMode);
-      console.log('   Translator: Sarvam AI + OpenAI');
+      console.log('   Translator: Sarvam AI');
       
       // Upload PDF
       const result = await uploadPDFForTranslation({
@@ -126,9 +133,9 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
       } else {
         onJobCreated(jobId);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('❌ Upload failed:', err);
-      setError(err.message || 'Upload failed. Please try again.');
+      setError(err instanceof Error ? err.message : 'Upload failed. Please try again.');
     } finally {
       setIsUploading(false);
     }
@@ -172,7 +179,7 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-cyan-500/10 to-indigo-500/10 border border-cyan-500/20">
           <Zap className="w-4 h-4 text-cyan-400" />
           <span className="text-sm text-cyan-300 font-medium">
-            Powered by Sarvam AI + OpenAI
+            Powered by Sarvam AI
           </span>
         </div>
         <h1 className="text-4xl font-bold text-white">

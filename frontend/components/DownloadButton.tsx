@@ -6,7 +6,7 @@ import { useState } from "react";
 export default function DownloadButton({ jobId }: { jobId: string }) {
   const [isDownloading, setIsDownloading] = useState(false);
   
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://pdf-translator-ai-ggqe.onrender.com";
   
   const handleDownload = async () => {
     try {

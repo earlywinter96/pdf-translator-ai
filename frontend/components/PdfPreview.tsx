@@ -11,8 +11,8 @@ interface Props {
 export default function PdfPreview({ jobId, type = 'translated' }: Props) {
   const [isLoading, setIsLoading] = useState(true);
   
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 
-    "https://pdf-translator-ai.onrender.com";
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE ||
+    "https://pdf-translator-ai-ggqe.onrender.com";
   
   const pdfUrl = type === 'original' 
     ? `${API_BASE}/api/preview/original/${jobId}`

@@ -72,7 +72,7 @@ export default function HomePage() {
             </div>
             <h3 className="text-2xl font-bold text-white mb-3">PDF Translation</h3>
             <p className="text-gray-400 mb-4 leading-relaxed">
-              High-quality translation using <span className="text-cyan-400 font-semibold">Sarvam AI</span> (90%) + OpenAI (10%). 
+              High-quality translation using <span className="text-cyan-400 font-semibold">Sarvam AI</span>.
               Supports 22+ Indian languages with OCR for scanned documents.
             </p>
             <ul className="space-y-2 text-sm text-gray-300">
@@ -90,7 +90,7 @@ export default function HomePage() {
               </li>
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-green-400"></div>
-                <span className="text-green-400 font-medium">99% cost reduction vs OpenAI-only!</span>
+                <span className="text-green-400 font-medium">Built for Indian-language translation</span>
               </li>
             </ul>
             <Link
@@ -143,18 +143,17 @@ export default function HomePage() {
                 Powered by Sarvam AI
               </h2>
               <p className="text-gray-400 max-w-2xl mx-auto">
-                We use Sarvam AI's state-of-the-art translation models for authentic Indian language translation,
-                with OpenAI as a smart fallback for complex content.
+                We use Sarvam AI&apos;s translation model for authentic Indian-language translation.
               </p>
             </div>
             
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="max-w-md mx-auto">
               <div className="bg-white/5 rounded-lg p-6">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center">
                     <Zap className="w-5 h-5 text-cyan-400" />
                   </div>
-                  <h3 className="font-semibold text-white">Sarvam AI (90%)</h3>
+                  <h3 className="font-semibold text-white">Sarvam AI</h3>
                 </div>
                 <ul className="space-y-2 text-sm text-gray-300">
                   <li>• Native speaker quality</li>
@@ -164,20 +163,6 @@ export default function HomePage() {
                 </ul>
               </div>
               
-              <div className="bg-white/5 rounded-lg p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center">
-                    <Shield className="w-5 h-5 text-indigo-400" />
-                  </div>
-                  <h3 className="font-semibold text-white">OpenAI (10%)</h3>
-                </div>
-                <ul className="space-y-2 text-sm text-gray-300">
-                  <li>• Complex content</li>
-                  <li>• Technical terminology</li>
-                  <li>• Reliable fallback</li>
-                  <li>• Quality assurance</li>
-                </ul>
-              </div>
             </div>
           </div>
         </div>
@@ -251,7 +236,7 @@ export default function HomePage() {
               <Brain className="w-10 h-10 text-purple-400 mx-auto mb-3" />
               <h4 className="font-semibold text-white mb-2">AI-Powered</h4>
               <p className="text-sm text-gray-400">
-                Sarvam AI + Google Gemini + OpenAI
+                Sarvam AI + Google Gemini
               </p>
             </div>
           </div>

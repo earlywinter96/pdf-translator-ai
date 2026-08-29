@@ -29,6 +29,8 @@ import {
   Package,
 } from "lucide-react";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://pdf-translator-ai-ggqe.onrender.com";
+
 /* ================= TYPES ================= */
 
 interface PaymentStats {
@@ -86,7 +88,6 @@ interface DashboardData {
 
 /* ================= COMPONENT ================= */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://127.0.0.1:8000";
 
 export default function AdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -1166,7 +1167,6 @@ function PasswordChangeModal({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://127.0.0.1:8000";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
