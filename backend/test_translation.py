@@ -6,7 +6,7 @@ does not contact an external API or require a real API key.
 
 import asyncio
 
-from app.sarvam_wrapper import SUPPORTED_LANGUAGES, validate_language
+from app.sarvam_wrapper import SUPPORTED_LANGUAGES, sanitize_text_for_sarvam, validate_language
 from app.services.hybrid_translator import HybridTranslatorV2
 
 
@@ -14,6 +14,9 @@ class FakeSarvamTranslator:
     """Deterministic Sarvam test double; no other provider is available."""
 
     async def translate(self, text, source_language, target_language):
+        assert "\x00" not in text
+        assert "\x0b" not in text
+        assert "\u200b" not in text
         return {
             "success": True,
             "translated_text": f"[sarvam:{target_language}] {text}",
@@ -28,11 +31,12 @@ async def main() -> None:
     assert validate_language("english") == "en-IN"
     assert validate_language("hi") == "hi-IN"
     assert "ur" in SUPPORTED_LANGUAGES
+    assert sanitize_text_for_sarvam("Hello\x00\x0b\u200b\r\nworld") == "Hello\nworld"
 
     translator = HybridTranslatorV2(
         "english", "hindi", sarvam_translator=FakeSarvamTranslator(), concurrency=2
     )
-    translated = await translator.translate_chunks(["Hello world", "", "Good morning"])
+    translated = await translator.translate_chunks(["Hello\x00\x0b\u200b world", "", "Good morning"])
     stats = translator.get_statistics()
 
     assert translated == ["[sarvam:hindi] Hello world", "", "[sarvam:hindi] Good morning"]

@@ -12,7 +12,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
-from app.sarvam_wrapper import SarvamTranslator
+from app.sarvam_wrapper import SarvamTranslator, sanitize_text_for_sarvam
 
 logger = logging.getLogger(__name__)
 DEFAULT_CONCURRENCY = 4
@@ -102,6 +102,9 @@ class HybridTranslatorV2:
 
         translated_parts: List[str] = []
         for part_index, part in enumerate(self._split_for_sarvam(text), start=1):
+            part = sanitize_text_for_sarvam(part)
+            if not part.strip():
+                continue
             try:
                 result = await self.sarvam.translate(part, self.source_language, self.target_language)
             except Exception as exc:
@@ -119,6 +122,10 @@ class HybridTranslatorV2:
                 return text
             translated_parts.append(result["translated_text"])
             self.stats.total_cost_inr += float(result.get("cost_inr", 0.0))
+
+        if not translated_parts:
+            self.stats.blank_pages += 1
+            return ""
 
         self.stats.sarvam_success += 1
         return "\n\n".join(translated_parts)

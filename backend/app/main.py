@@ -542,6 +542,16 @@ async def translate_pdf_task(
         update_job(job_id, 30, "Translating with Sarvam AI...")
         
         translated_pages = await translator.translate_chunks(page_texts)
+
+        # Never create a downloadable PDF that silently contains the original
+        # text after a translation-provider failure.
+        stats = translator.get_statistics()
+        if stats["sarvam_failed"]:
+            fail_job(
+                job_id,
+                "Translation failed for one or more pages. Please try again with a clean, text-based PDF."
+            )
+            return
         
         update_job(job_id, 80, "Creating translated PDF...")
         
@@ -559,7 +569,6 @@ async def translate_pdf_task(
         logger.info(f"✅ Translation completed: {job_id}")
         
         # Log statistics
-        stats = translator.get_statistics()
         logger.info(f"📊 Final Statistics:")
         logger.info(f"   Sarvam AI: {stats['sarvam_used']} chunks")
         logger.info(f"   Sarvam failures: {stats['sarvam_failed']} chunks")

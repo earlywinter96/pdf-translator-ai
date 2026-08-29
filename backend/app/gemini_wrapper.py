@@ -24,7 +24,13 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+
+# Gemini retired this model. Keep existing deployments working even when they
+# still have the old name configured in Render's environment variables.
+if GEMINI_MODEL.removeprefix("models/") == "gemini-2.0-flash-lite":
+    logger.warning("GEMINI_MODEL gemini-2.0-flash-lite was retired; using gemini-3.5-flash-lite")
+    GEMINI_MODEL = "gemini-3.5-flash-lite"
 
 MAX_PAGES_FOR_VISUALIZATION = int(os.getenv("MAX_PAGES_FOR_VISUALIZATION", "20"))
 

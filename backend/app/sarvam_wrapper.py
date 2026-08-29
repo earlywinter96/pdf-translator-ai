@@ -7,6 +7,7 @@ Enhanced wrapper with better error handling, retry logic, and validation
 import os
 import logging
 import time
+import unicodedata
 from typing import Optional, Dict, Any
 import httpx
 from dotenv import load_dotenv
@@ -75,6 +76,20 @@ SUPPORTED_LANGUAGES = {
     "ks": "ks-IN", "mai": "mai-IN", "mni": "mni-IN", "ne": "ne-IN",
     "sa": "sa-IN", "sat": "sat-IN", "sd": "sd-IN", "ur": "ur-IN",
 }
+
+
+def sanitize_text_for_sarvam(text: str) -> str:
+    """Remove PDF control/format characters that Sarvam rejects.
+
+    PDF extraction can include NUL, vertical-tab, form-feed, and invisible
+    Unicode format characters. Keep normal spaces, tabs, and newlines so
+    document structure is preserved.
+    """
+    normalized = unicodedata.normalize("NFC", text).replace("\r\n", "\n").replace("\r", "\n")
+    return "".join(
+        char for char in normalized
+        if char in {"\n", "\t"} or not unicodedata.category(char).startswith("C")
+    )
 
 
 # ============================================================================
@@ -171,7 +186,9 @@ class SarvamTranslator:
             - success: Whether translation succeeded
             - error: Error message if failed
         """
-        # Validate inputs
+        # PDF extraction can introduce invisible control characters rejected by
+        # the translation endpoint. Sanitize before validation and billing.
+        text = sanitize_text_for_sarvam(text)
         if not text or not text.strip():
             return {
                 "translated_text": "",
