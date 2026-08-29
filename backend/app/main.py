@@ -27,6 +27,7 @@ from app.services.pdf_reader import (
 from app.services.hybrid_translator import HybridTranslatorV2
 from app.services.pdf_writer import create_translated_pdf
 from app.services.layout_pdf_writer import (
+    append_payment_required_page,
     create_layout_preserved_pdf,
     extract_text_blocks,
     has_usable_layout,
@@ -62,6 +63,9 @@ UPLOADS_DIR = os.getenv("UPLOADS_DIR", "uploads")
 OUTPUTS_DIR = os.getenv("OUTPUTS_DIR", "outputs")
 MAX_FILE_SIZE_MB = int(os.getenv("MAX_FILE_SIZE_MB", "25"))
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
+# Public preview protection. This is enforced by the backend before Sarvam is
+# called, so it cannot be bypassed by a browser request.
+FREE_PREVIEW_PAGE_LIMIT = 1
 
 # Create directories
 os.makedirs(UPLOADS_DIR, exist_ok=True)
@@ -331,7 +335,7 @@ async def translate_pdf(
     return {
         "job_id": job_id,
         "status": "processing",
-        "message": "Translation started"
+        "message": "Creating your 1-page free preview",
     }
 
 
@@ -543,19 +547,27 @@ async def translate_pdf_task(
             mode="general"
         )
         
+        # Never send more than the free preview to Sarvam. The old payment
+        # check ran only in the frontend after this task had started, allowing
+        # every uploaded page to consume credits.
+        preview_page_texts = page_texts[:FREE_PREVIEW_PAGE_LIMIT]
+
         # Prefer block-level translation for digital PDFs. This lets us retain
         # the original pages (backgrounds, tables, images and design) while
         # replacing only their selectable text. OCR/image-only PDFs continue
         # through the reliable reflow fallback below.
         update_job(job_id, 30, "Translating with Sarvam AI...")
-        layout_blocks = extract_text_blocks(pdf_path)
+        layout_blocks = [
+            block for block in extract_text_blocks(pdf_path)
+            if block.page_number < FREE_PREVIEW_PAGE_LIMIT
+        ]
         use_layout_preservation = has_usable_layout(layout_blocks)
         if use_layout_preservation:
             update_job(job_id, 35, "Preserving original layout and translating text...")
             translated_content = await translator.translate_chunks([block.text for block in layout_blocks])
         else:
             logger.info("Layout preservation unavailable; using reflow PDF output")
-            translated_content = await translator.translate_chunks(page_texts)
+            translated_content = await translator.translate_chunks(preview_page_texts)
 
         # Never create a downloadable PDF that silently contains the original
         # text after a translation-provider failure.
@@ -577,11 +589,15 @@ async def translate_pdf_task(
         output_path = os.path.join(OUTPUTS_DIR, f"{job_id}_translated.pdf")
         if use_layout_preservation:
             layout_result = create_layout_preserved_pdf(
-                pdf_path, layout_blocks, translated_content, output_path, target_language
+                pdf_path, layout_blocks, translated_content, output_path, target_language,
+                page_limit=FREE_PREVIEW_PAGE_LIMIT,
             )
             logger.info("Layout-preserved output: %s", layout_result)
         else:
             create_translated_pdf(translated_content, output_path, target_language)
+
+        if total_pages > FREE_PREVIEW_PAGE_LIMIT:
+            append_payment_required_page(output_path, total_pages)
         
         # Complete job
         complete_job(job_id, output_path)

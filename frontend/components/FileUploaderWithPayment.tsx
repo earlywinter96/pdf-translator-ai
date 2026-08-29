@@ -7,10 +7,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Upload, FileText, Languages, Zap, AlertCircle, LayoutTemplate, ImageIcon, Table2 } from "lucide-react";
+import { Upload, FileText, Languages, Zap, AlertCircle, LayoutTemplate, ImageIcon, Table2, LockKeyhole } from "lucide-react";
 import { useDropzone } from "react-dropzone";
-import { usePayment } from "@/app/usepayment";
-import PaymentModal from "@/components/PaymentModal";
 import { uploadPDFForTranslation, SUPPORTED_LANGUAGES, PRIMARY_LANGUAGES, EXTENDED_LANGUAGES } from "@/lib/api";
 
 const MAX_FILE_SIZE_MB = 25;
@@ -18,13 +16,6 @@ const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 interface Props {
   onJobCreated: (jobId: string, targetLanguage: string) => void;
-}
-
-interface PaymentInfo {
-  requires_payment: boolean;
-  free_pages: number;
-  paid_pages: number;
-  amount_inr: number;
 }
 
 export default function FileUploaderWithPayment({ onJobCreated }: Props) {
@@ -37,18 +28,6 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentInfo, setPaymentInfo] = useState<PaymentInfo | null>(null);
-  const [pendingJobId, setPendingJobId] = useState<string | null>(null);
-
-  const {
-    sessionId,
-    freePagesRemaining,
-    paymentConfig,
-    checkPaymentRequired,
-    initiatePayment,
-  } = usePayment();
-
   // ============================================================================
   // FILE UPLOAD
   // ============================================================================
@@ -90,11 +69,6 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
       return;
     }
 
-    if (!sessionId) {
-      setError('Payment system not initialized. Please refresh.');
-      return;
-    }
-
     setIsUploading(true);
     setError(null);
 
@@ -113,48 +87,13 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
         mode: translationMode,
       });
 
-      const jobId = result.job_id;
-      setPendingJobId(jobId);
-
-      // Check if payment required
-      const pageCount = result.page_count || 0;
-      
-      if (pageCount > 0) {
-        const paymentCheck = await checkPaymentRequired(pageCount);
-        
-        if (paymentCheck.requires_payment) {
-          console.log('💳 Payment required:', paymentCheck);
-          setPaymentInfo(paymentCheck);
-          setShowPaymentModal(true);
-        } else {
-          console.log('✅ No payment needed - starting translation');
-          onJobCreated(jobId, targetLanguage);
-        }
-      } else {
-        onJobCreated(jobId, targetLanguage);
-      }
+      onJobCreated(result.job_id, targetLanguage);
     } catch (err: unknown) {
       console.error('❌ Upload failed:', err);
       setError(err instanceof Error ? err.message : 'Upload failed. Please try again.');
     } finally {
       setIsUploading(false);
     }
-  };
-
-  // ============================================================================
-  // PAYMENT HANDLERS
-  // ============================================================================
-
-  const handlePaymentSuccess = () => {
-    if (pendingJobId) {
-      console.log('✅ Payment successful - starting translation');
-      onJobCreated(pendingJobId, targetLanguage);
-    }
-  };
-
-  const handlePaymentModalClose = () => {
-    setShowPaymentModal(false);
-    setIsUploading(false);
   };
 
   // ============================================================================
@@ -202,6 +141,11 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
             <p className="mt-1 text-xs leading-relaxed text-gray-400">{text}</p>
           </div>
         ))}
+      </div>
+
+      <div className="flex items-start gap-3 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-100">
+        <LockKeyhole className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
+        <p><span className="font-semibold">Free preview: 1 page only.</span> The remaining pages will show a locked notice. Full-document translation and secure payments are coming soon.</p>
       </div>
 
       {/* Language Selection */}
@@ -399,21 +343,10 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
         </div>
       )}
 
-      {/* Free Pages Info */}
-      {paymentConfig && (
-        <div className="text-center text-sm text-gray-400">
-          You have{" "}
-          <span className="font-semibold text-cyan-400">
-            {freePagesRemaining}
-          </span>{" "}
-          free pages remaining this session
-        </div>
-      )}
-
       {/* Translate Button */}
       <button
         onClick={handleTranslate}
-        disabled={!file || isUploading || !sessionId}
+        disabled={!file || isUploading}
         className="w-full py-4 rounded-xl font-semibold text-white
           bg-gradient-to-r from-indigo-600 to-cyan-600
           hover:from-indigo-500 hover:to-cyan-500
@@ -429,26 +362,11 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
         ) : (
           <>
             <Zap className="w-5 h-5" />
-            <span>Translate PDF</span>
+            <span>Create 1-Page Free Preview</span>
           </>
         )}
       </button>
 
-      {/* Payment Modal */}
-      {showPaymentModal && paymentInfo && pendingJobId && (
-        <PaymentModal
-          isOpen={showPaymentModal}
-          onClose={handlePaymentModalClose}
-          onPaymentSuccess={handlePaymentSuccess}
-          pageCount={paymentInfo.free_pages + paymentInfo.paid_pages}
-          paymentAmount={paymentInfo.amount_inr}
-          freePagesUsed={paymentInfo.free_pages}
-          paidPages={paymentInfo.paid_pages}
-          jobId={pendingJobId}
-          initiatePayment={initiatePayment}
-          isDemoMode={paymentConfig?.demo_mode}
-        />
-      )}
     </div>
   );
 }

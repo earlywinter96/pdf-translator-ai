@@ -116,6 +116,7 @@ def create_layout_preserved_pdf(
     translated_blocks: List[str],
     output_path: str,
     target_language: str,
+    page_limit: int | None = None,
 ) -> dict:
     """Write a translated PDF that retains the original visual design.
 
@@ -129,6 +130,9 @@ def create_layout_preserved_pdf(
     replaced = 0
     overflowed = 0
     try:
+        if page_limit is not None and document.page_count > page_limit:
+            document.delete_pages(page_limit, document.page_count - 1)
+
         for page in document:
             regular_font = _font_path(target_language, False)
             bold_font = _font_path(target_language, True)
@@ -192,3 +196,33 @@ def create_layout_preserved_pdf(
         document.close()
 
     return {"replaced_blocks": replaced, "overflowed_blocks": overflowed}
+
+
+def append_payment_required_page(output_path: str, total_pages: int) -> None:
+    """Append a clear lock screen without sending more text to Sarvam."""
+    document = fitz.open(output_path)
+    try:
+        reference = document[0].rect if document.page_count else fitz.paper_rect("a4")
+        page = document.new_page(width=reference.width, height=reference.height)
+        page.draw_rect(page.rect, color=None, fill=(0.02, 0.09, 0.16), overlay=False)
+        panel = fitz.Rect(48, reference.height * 0.24, reference.width - 48, reference.height * 0.70)
+        page.draw_rect(panel, color=(0.1, 0.75, 0.85), fill=(0.04, 0.16, 0.24), width=1.2)
+        page.insert_textbox(
+            fitz.Rect(panel.x0 + 30, panel.y0 + 42, panel.x1 - 30, panel.y0 + 105),
+            "Your free 1-page preview is ready",
+            fontname="hebo", fontsize=21, color=(1, 1, 1), align=1,
+        )
+        page.insert_textbox(
+            fitz.Rect(panel.x0 + 44, panel.y0 + 125, panel.x1 - 44, panel.y0 + 230),
+            f"This document has {total_pages} pages. The remaining pages are locked to protect translation credits.",
+            fontname="helv", fontsize=12, color=(0.82, 0.88, 0.92), align=1, lineheight=1.4,
+        )
+        page.insert_textbox(
+            fitz.Rect(panel.x0 + 44, panel.y0 + 250, panel.x1 - 44, panel.y0 + 310),
+            "Full-document translation and secure payment are coming soon.",
+            fontname="hebo", fontsize=13, color=(0.3, 0.88, 0.92), align=1,
+        )
+        document.save(output_path + ".preview", garbage=4, deflate=True)
+    finally:
+        document.close()
+    os.replace(output_path + ".preview", output_path)
