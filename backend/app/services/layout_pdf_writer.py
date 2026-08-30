@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from dataclasses import dataclass
 from typing import Iterable, List
 
@@ -41,7 +42,7 @@ def _pdf_color_to_rgb(color: int) -> tuple[float, float, float]:
 
 
 def extract_text_blocks(pdf_path: str) -> List[TextBlock]:
-    """Extract non-empty selectable text blocks in display order.
+    """Extract non-empty selectable text fragments in display order.
 
     This intentionally only supports digital PDFs.  An image-only/scanned PDF
     has no reliable text geometry, so callers can use the normal OCR fallback.
@@ -53,33 +54,25 @@ def extract_text_blocks(pdf_path: str) -> List[TextBlock]:
             for block in page.get_text("dict", sort=True).get("blocks", []):
                 if block.get("type") != 0:
                     continue
-                text = "\n".join(
-                    "".join(span.get("text", "") for span in line.get("spans", []))
-                    for line in block.get("lines", [])
-                ).strip()
-                if not text:
-                    continue
-                first_span = next(
-                    (
-                        span
-                        for line in block.get("lines", [])
-                        for span in line.get("spans", [])
-                        if span.get("text", "").strip()
-                    ),
-                    None,
-                )
-                if first_span is None:
-                    continue
-                blocks.append(
-                    TextBlock(
-                        page_number=page_number,
-                        rect=tuple(block["bbox"]),
-                        text=text,
-                        font_size=float(first_span.get("size", 11)),
-                        color=_pdf_color_to_rgb(int(first_span.get("color", 0))),
-                        is_bold=bool(int(first_span.get("flags", 0)) & 16),
-                    )
-                )
+                # A worksheet often keeps two answer choices in one PDF
+                # block. Redrawing that whole block after translation makes it
+                # spill across columns. Use each positioned span as a text box
+                # so the original column and answer-key geometry is retained.
+                for line in block.get("lines", []):
+                    for span in line.get("spans", []):
+                        text = span.get("text", "").strip()
+                        if not text:
+                            continue
+                        blocks.append(
+                            TextBlock(
+                                page_number=page_number,
+                                rect=tuple(span["bbox"]),
+                                text=text,
+                                font_size=float(span.get("size", 11)),
+                                color=_pdf_color_to_rgb(int(span.get("color", 0))),
+                                is_bold=bool(int(span.get("flags", 0)) & 16),
+                            )
+                        )
     finally:
         document.close()
     return blocks
@@ -108,6 +101,21 @@ def _fit_font_size(rect: fitz.Rect, original_size: float, text: str) -> float:
     if rect.height < original_size * 1.35:
         return max(5.5, min(original_size, rect.height * 0.72))
     return max(6.0, original_size * 0.95)
+
+
+def _preserved_prefix(text: str) -> tuple[str, str]:
+    """Split an answer-choice marker from its translated content."""
+    match = re.match(r"^(\([A-D]\)\s*)", text)
+    return (match.group(1), text[match.end():]) if match else ("", text)
+
+
+def _is_static_label(text: str) -> bool:
+    """Avoid translating answer-key labels and numeric response grids."""
+    compact = text.strip()
+    return bool(
+        re.fullmatch(r"[\d\s.()\[\],:;A-D]+", compact)
+        or compact.upper() in {"ANSWER KEY", "ANSWERS"}
+    )
 
 
 def create_layout_preserved_pdf(
@@ -143,6 +151,8 @@ def create_layout_preserved_pdf(
         # Redact text only. Images and vector graphics are explicitly ignored,
         # which keeps CV photographs, coloured backgrounds and table lines.
         for block, translation in zip(blocks, translated_blocks):
+            if _is_static_label(block.text):
+                continue
             if not translation or translation.strip() == block.text.strip():
                 continue
             rect = fitz.Rect(block.rect)
@@ -152,37 +162,38 @@ def create_layout_preserved_pdf(
             page.apply_redactions(images=0, graphics=0, text=0)
 
         for block, translation in zip(blocks, translated_blocks):
+            prefix, source_content = _preserved_prefix(block.text)
+            if _is_static_label(block.text):
+                continue
             translation = " ".join(translation.split())
-            if not translation or translation == block.text.strip():
+            if prefix:
+                _, translation = _preserved_prefix(translation)
+                # Preserve the source choice marker exactly once. Sarvam
+                # usually returns it too, but the redaction removes the
+                # original PDF text, so it must be part of the replacement.
+                translation = f"{prefix}{translation}"
+            if not translation or translation == source_content.strip():
                 continue
             page = document[block.page_number]
             font_path = _font_path(target_language, block.is_bold)
             font_name = "LipiTranslateBold" if block.is_bold else "LipiTranslateRegular"
             rect = fitz.Rect(block.rect)
-            # A small inset stops glyphs touching original table borders.
-            rect += (1, 0.5, -1, -0.5)
+            # Keep text inside its original visual lane and avoid table lines.
+            rect += (0.5, 0.25, -0.5, -0.25)
             size = _fit_font_size(rect, block.font_size, translation)
             result = page.insert_textbox(
-                rect,
-                translation,
+                rect, translation,
                 fontname=font_name if font_path else ("hebo" if block.is_bold else "helv"),
-                fontfile=font_path,
-                fontsize=size,
-                color=block.color,
-                lineheight=1.05,
-                overlay=True,
+                fontfile=font_path, fontsize=size, color=block.color,
+                lineheight=1.05, overlay=True,
             )
             if result < 0:
                 # Retry smaller before accepting a visibly clipped block.
                 result = page.insert_textbox(
-                    rect,
-                    translation,
+                    rect, translation,
                     fontname=font_name if font_path else ("hebo" if block.is_bold else "helv"),
-                    fontfile=font_path,
-                    fontsize=max(5.0, size * 0.72),
-                    color=block.color,
-                    lineheight=1.0,
-                    overlay=True,
+                    fontfile=font_path, fontsize=max(3.2, size * 0.50), color=block.color,
+                    lineheight=1.05, overlay=True,
                 )
             if result < 0:
                 overflowed += 1

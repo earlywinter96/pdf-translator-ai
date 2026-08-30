@@ -32,6 +32,7 @@ from app.services.layout_pdf_writer import (
     extract_text_blocks,
     has_usable_layout,
 )
+from app.services.discord_notifier import notify_discord
 
 # Import existing modules
 from app.models.job import (
@@ -162,6 +163,13 @@ async def add_cors_headers(request, call_next):
 
 # Include payment routes
 app.include_router(payment_router)
+
+
+@app.post("/api/analytics/visit")
+async def record_site_visit():
+    """Record a privacy-safe site visit without accepting personal data."""
+    asyncio.create_task(notify_discord("LipiTranslate site visit", {"Event": "Visitor opened the site"}))
+    return {"recorded": True}
 
 
 
@@ -341,6 +349,11 @@ async def translate_pdf(
     logger.info(f"📤 Translation job created: {job_id}")
     logger.info(f"   File: {file.filename}")
     logger.info(f"   {source_language} → {target_language}")
+    asyncio.create_task(notify_discord("LipiTranslate PDF upload", {
+        "Pages": page_count,
+        "Direction": f"{source_language} -> {target_language}",
+        "Status": "Payment required" if page_count > FREE_PAGES_LIMIT else "Free preview started",
+    }))
     
     if page_count > FREE_PAGES_LIMIT:
         quote = calculate_payment(page_count)

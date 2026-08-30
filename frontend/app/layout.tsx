@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import VisitTracker from "@/components/VisitTracker";
 import Script from "next/script";
 
 
@@ -79,6 +80,7 @@ export default function RootLayout({
         />
 
         <Navbar />
+        <VisitTracker />
 
         <main className="pt-20 min-h-screen">
           {children}
