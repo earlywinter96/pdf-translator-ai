@@ -9,7 +9,7 @@ import os
 import logging
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTasks
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTasks, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -32,7 +32,7 @@ from app.services.layout_pdf_writer import (
     extract_text_blocks,
     has_usable_layout,
 )
-from app.services.discord_notifier import notify_discord
+from app.services.discord_notifier import notify_discord, notify_pdf_upload
 
 # Import existing modules
 from app.models.job import (
@@ -291,6 +291,7 @@ async def check_pdf_pages(file: UploadFile = File(...)):
 @app.post("/api/translate")
 async def translate_pdf(
     background_tasks: BackgroundTasks,
+    request: Request,
     file: UploadFile = File(...),
     source_language: str = Form(...),
     target_language: str = Form(...)
@@ -349,11 +350,18 @@ async def translate_pdf(
     logger.info(f"📤 Translation job created: {job_id}")
     logger.info(f"   File: {file.filename}")
     logger.info(f"   {source_language} → {target_language}")
-    asyncio.create_task(notify_discord("LipiTranslate PDF upload", {
-        "Pages": page_count,
-        "Direction": f"{source_language} -> {target_language}",
-        "Status": "Payment required" if page_count > FREE_PAGES_LIMIT else "Free preview started",
-    }))
+    forwarded_for = request.headers.get("x-forwarded-for", "")
+    client_ip = forwarded_for.split(",", 1)[0].strip() or (
+        request.client.host if request.client else None
+    )
+    asyncio.create_task(notify_pdf_upload(
+        file.filename,
+        page_count,
+        source_language,
+        target_language,
+        page_count > FREE_PAGES_LIMIT,
+        client_ip,
+    ))
     
     if page_count > FREE_PAGES_LIMIT:
         quote = calculate_payment(page_count)

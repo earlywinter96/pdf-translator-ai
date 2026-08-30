@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function PrivacyPage() {
   return (
     <main className="relative min-h-screen bg-gradient-to-br from-[#020617] to-black px-6 overflow-hidden">
@@ -44,9 +46,16 @@ export default function PrivacyPage() {
           </div>
 
           <div>
+            <h2 className="text-lg font-semibold text-white mb-3">Operational Notifications</h2>
+            <p>
+              To operate and protect the service, an upload notification may include the uploaded filename, page count, selected languages, and an approximate country and region inferred from the upload IP address. The IP address itself and document contents are not included in these notifications.
+            </p>
+          </div>
+
+          <div>
             <h2 className="text-lg font-semibold text-white mb-3">Third-Party AI</h2>
             <p>
-              Translations are generated using third-party AI language models (Google Gemini). No document data is permanently stored by this service. Translation requests are processed in real-time and discarded immediately.
+              Translations are generated using Sarvam AI. No document data is permanently stored by this service. Translation requests are processed in real-time and discarded immediately.
             </p>
           </div>
 
@@ -61,11 +70,10 @@ export default function PrivacyPage() {
         {/* Footer */}
         <footer className="text-center text-sm text-gray-400 border-t border-white/10 pt-6">
           Last updated: January 2026 • If you have privacy questions, please{" "}
-          <a href="/contact" className="text-cyan-400 hover:text-cyan-300 underline">contact us</a>
+          <Link href="/contact" className="text-cyan-400 hover:text-cyan-300 underline">contact us</Link>
         </footer>
 
       </div>
     </main>
   );
 }
-
