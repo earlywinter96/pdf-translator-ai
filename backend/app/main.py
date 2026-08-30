@@ -116,7 +116,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="LipiTranslate",
     description="AI-Powered PDF Translation with Enhanced Validation",
-    version="2.2.0",
+    version="2.3.0",
     lifespan=lifespan
 )
 
@@ -1068,13 +1068,14 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "LipiTranslate",
-        "version": "2.2.0",
+        "version": "2.3.0",
         "features": [
             "Language validation",
             "Blank page detection",
             "Sarvam-only translation",
             "Layout-preserved output for digital PDFs",
             "One-page protected preview",
+            "Preview before payment unlock",
             "PDF preview"
         ]
     }
@@ -1085,7 +1086,7 @@ async def root():
     """Root endpoint"""
     return {
         "message": "Welcome to LipiTranslate API (Improved)",
-        "version": "2.2.0",
+        "version": "2.3.0",
         "translator": "Sarvam AI",
         "features": [
             "✅ Automatic language detection",
