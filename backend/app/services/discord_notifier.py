@@ -63,6 +63,8 @@ async def notify_pdf_upload(
     target_language: str,
     payment_required: bool,
     paid_pages: int,
+    billable_characters: int,
+    amount_inr: float,
     client_ip: str | None,
 ) -> None:
     """Send an upload alert with filename and approximate IP-derived location."""
@@ -72,6 +74,8 @@ async def notify_pdf_upload(
         "Pages": page_count,
         "Direction": f"{source_language} -> {target_language}",
         "Approx. location": location,
+        "Detected characters": f"{billable_characters:,}" if payment_required else "Not required",
+        "Full translation price": f"₹{amount_inr:.0f}" if payment_required else "Free",
         "Status": (
             f"1-page free preview started; {paid_pages} page(s) await payment"
             if payment_required else "Free preview started"

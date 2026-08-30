@@ -75,6 +75,25 @@ FREE_PREVIEW_PAGE_LIMIT = 1
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 os.makedirs(OUTPUTS_DIR, exist_ok=True)
 
+
+def get_billable_character_count(pdf_path: str, source_language: str) -> int:
+    """Count only pages 2+ before payment; this never calls Sarvam AI."""
+    layout_blocks = extract_text_blocks(pdf_path)
+    if has_usable_layout(layout_blocks):
+        return sum(
+            len(block.text)
+            for block in layout_blocks
+            if block.page_number >= FREE_PREVIEW_PAGE_LIMIT
+        )
+
+    page_texts, _ = extract_pdf_text_robust(
+        pdf_path,
+        source_language,
+        max_pages=None,
+        detect_language=False,
+    )
+    return sum(len(page_text) for page_text in page_texts[FREE_PREVIEW_PAGE_LIMIT:])
+
 # ============================================================================
 # STARTUP & SHUTDOWN
 # ============================================================================
@@ -116,7 +135,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="LipiTranslate",
     description="AI-Powered PDF Translation with Enhanced Validation",
-    version="2.3.0",
+    version="2.4.0",
     lifespan=lifespan
 )
 
@@ -335,6 +354,22 @@ async def translate_pdf(
         os.remove(input_path)
         raise HTTPException(400, "Could not read the uploaded PDF")
 
+    try:
+        billable_characters = (
+            get_billable_character_count(input_path, source_language)
+            if page_count > FREE_PAGES_LIMIT else 0
+        )
+    except Exception as exc:
+        logger.error("Could not calculate translation quote: %s", exc)
+        os.remove(input_path)
+        raise HTTPException(422, "We could not read enough text to price this PDF safely. Please upload a clearer PDF.")
+
+    try:
+        quote = calculate_payment(page_count, billable_characters)
+    except ValueError as exc:
+        os.remove(input_path)
+        raise HTTPException(422, str(exc))
+
     # Create a pending job. Multi-page documents must not reach Sarvam until
     # Razorpay has verified the matching order server-side.
     create_job(job_id, file.filename, "translation")
@@ -345,6 +380,8 @@ async def translate_pdf(
         target_language=target_language,
         page_count=page_count,
         payment_required=page_count > FREE_PAGES_LIMIT,
+        billable_characters=billable_characters,
+        payment_quote=quote,
     )
     
     logger.info(f"📤 Translation job created: {job_id}")
@@ -360,12 +397,13 @@ async def translate_pdf(
         source_language,
         target_language,
         page_count > FREE_PAGES_LIMIT,
-        max(0, page_count - FREE_PAGES_LIMIT),
+        quote["paid_pages"],
+        billable_characters,
+        quote["amount_inr"],
         client_ip,
     ))
     
     if page_count > FREE_PAGES_LIMIT:
-        quote = calculate_payment(page_count)
         # The preview consumes only the first page. The rest of the document
         # stays untouched until the matching Razorpay order is verified.
         update_job(job_id, 0, "Creating your free one-page preview before payment...")
@@ -376,7 +414,7 @@ async def translate_pdf(
             "job_id": job_id,
             "status": "processing_preview",
             "page_count": page_count,
-            "payment": quote,
+                "payment": quote,
             "message": "Creating your free one-page preview. Payment is required only for the remaining pages.",
         }
 
@@ -1068,7 +1106,7 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "LipiTranslate",
-        "version": "2.3.0",
+        "version": "2.4.0",
         "features": [
             "Language validation",
             "Blank page detection",
@@ -1076,6 +1114,7 @@ async def health_check():
             "Layout-preserved output for digital PDFs",
             "One-page protected preview",
             "Preview before payment unlock",
+            "Character-protected pricing",
             "PDF preview"
         ]
     }
@@ -1086,7 +1125,7 @@ async def root():
     """Root endpoint"""
     return {
         "message": "Welcome to LipiTranslate API (Improved)",
-        "version": "2.3.0",
+        "version": "2.4.0",
         "translator": "Sarvam AI",
         "features": [
             "✅ Automatic language detection",

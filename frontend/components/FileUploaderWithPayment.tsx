@@ -22,6 +22,8 @@ export interface PaymentQuote {
   free_pages: number;
   paid_pages: number;
   amount_inr: number;
+  billable_characters: number;
+  pricing_model: string;
 }
 
 export default function FileUploaderWithPayment({ onJobCreated }: Props) {
@@ -100,6 +102,8 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
           free_pages: result.payment.free_pages,
           paid_pages: result.payment.paid_pages,
           amount_inr: result.payment.amount_inr,
+          billable_characters: result.payment.billable_characters,
+          pricing_model: result.payment.pricing_model,
         });
       } else {
         onJobCreated(result.job_id, targetLanguage);

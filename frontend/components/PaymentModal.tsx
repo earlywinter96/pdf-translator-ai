@@ -119,7 +119,7 @@ export default function PaymentModal({
             <div className="flex justify-between">
               <span className="text-white font-medium">Total Amount</span>
               <span className="text-2xl font-bold text-cyan-400">
-                ₹{paymentAmount.toFixed(2)}
+                ₹{paymentAmount.toFixed(0)}
               </span>
             </div>
           </div>

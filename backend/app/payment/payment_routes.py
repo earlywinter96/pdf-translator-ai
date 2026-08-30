@@ -230,7 +230,10 @@ async def create_order(
         raise HTTPException(409, "Your free preview is still being created. Please review it before payment.")
 
     # Never accept a browser-controlled page count for billing.
-    payment_calc = calculate_payment(int(job["page_count"]))
+    payment_calc = calculate_payment(
+        int(job["page_count"]),
+        int(job.get("billable_characters", 0)),
+    )
     
     if not payment_calc["requires_payment"]:
         raise HTTPException(400, "Payment not required for this page count")

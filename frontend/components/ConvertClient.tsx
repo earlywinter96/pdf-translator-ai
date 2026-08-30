@@ -270,8 +270,13 @@ export default function ConvertClient() {
               <div className="mx-auto max-w-xl rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-6 text-left">
                 <p className="text-lg font-semibold text-white">Check the first-page translation before you pay</p>
                 <p className="mt-2 text-sm leading-relaxed text-gray-300">
-                  The preview was created using only page 1. The remaining {previewPayment.paid_pages} page{previewPayment.paid_pages === 1 ? "" : "s"} have not been sent for translation. Unlock them for ₹{previewPayment.amount_inr.toFixed(2)} when you are satisfied.
+                  This {previewPayment.free_pages + previewPayment.paid_pages}-page PDF has a free first-page preview. The remaining {previewPayment.paid_pages} page{previewPayment.paid_pages === 1 ? "" : "s"} have not been sent for translation. Unlock the full document for ₹{previewPayment.amount_inr.toFixed(0)} when you are satisfied.
                 </p>
+                {previewPayment.pricing_model === "character_based" && (
+                  <p className="mt-2 text-xs text-cyan-200">
+                    {previewPayment.billable_characters.toLocaleString()} characters detected in the remaining pages.
+                  </p>
+                )}
                 <button
                   onClick={() => setShowPaymentModal(true)}
                   className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-cyan-600 px-5 py-3 font-semibold text-white hover:from-indigo-500 hover:to-cyan-500"

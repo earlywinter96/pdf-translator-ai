@@ -4,6 +4,7 @@ Payment Configuration
 Razorpay configuration and payment calculation logic
 """
 
+import math
 import os
 import logging
 from typing import Dict, Tuple
@@ -44,9 +45,11 @@ CURRENCY = "INR"
 # are released to the translation worker.
 FREE_PAGES_LIMIT = 1
 
-# Price in paise. ₹10/page covers Sarvam's character-billed translation cost,
-# PDF processing, Razorpay fees, and a sustainable operating margin.
-PRICE_PER_PAGE = 1000  # ₹10 per paid page
+# Simple customer pricing with enough margin for Sarvam, Razorpay and PDF work.
+PRICE_PER_PAGE = 1000  # ₹10 for each remaining page in a 2–7 page document
+CHARACTER_BLOCK_SIZE = 10_000
+PRICE_PER_CHARACTER_BLOCK = 4900  # ₹49 per 10,000 billable characters
+MINIMUM_PAID_AMOUNT = 2000  # ₹20 minimum checkout
 
 # Business information
 BUSINESS_INFO = {
@@ -93,7 +96,7 @@ def format_amount(paise: int) -> str:
 # PAYMENT CALCULATION
 # ============================================================================
 
-def calculate_payment(total_pages: int) -> Dict:
+def calculate_payment(total_pages: int, billable_characters: int = 0) -> Dict:
     """
     Calculate payment required for given page count
     
@@ -118,8 +121,30 @@ def calculate_payment(total_pages: int) -> Dict:
     # Pages that need payment
     paid_pages = max(0, total_pages - FREE_PAGES_LIMIT)
     
-    # Calculate amount in paise
-    amount_paise = paid_pages * PRICE_PER_PAGE
+    # 2–7 page documents have a predictable, low page price. Larger files are
+    # protected by the actual text that will be sent to Sarvam after payment.
+    if paid_pages == 0:
+        amount_paise = 0
+        pricing_model = "free_preview"
+    elif total_pages <= 7:
+        amount_paise = max(MINIMUM_PAID_AMOUNT, paid_pages * PRICE_PER_PAGE)
+        pricing_model = "per_remaining_page"
+    else:
+        if billable_characters <= 0:
+            raise ValueError("Billable character count is required for 8+ page documents")
+        raw_amount_paise = math.ceil(
+            billable_characters * PRICE_PER_CHARACTER_BLOCK / CHARACTER_BLOCK_SIZE
+        )
+        # Present one clear checkout price rounded to a familiar ₹x9 amount.
+        # The ₹49 / 10K internal rate leaves margin for Sarvam, Razorpay and
+        # PDF infrastructure even after this customer-friendly rounding.
+        amount_inr = max(MINIMUM_PAID_AMOUNT / 100, raw_amount_paise / 100)
+        amount_paise = (
+            MINIMUM_PAID_AMOUNT
+            if amount_inr <= MINIMUM_PAID_AMOUNT / 100
+            else (int(math.floor(amount_inr / 50 + 0.5)) * 50 - 1) * 100
+        )
+        pricing_model = "character_based"
     
     # Convert to INR
     amount_inr = amount_paise / 100
@@ -128,17 +153,14 @@ def calculate_payment(total_pages: int) -> Dict:
     if paid_pages == 0:
         message = f"Your {total_pages}-page document is covered by the free preview."
     else:
-        preview_label = "page" if free_pages == 1 else "pages"
-        remaining_label = "page" if paid_pages == 1 else "pages"
-        message = (
-            f"{free_pages} {preview_label} free for review; "
-            f"{paid_pages} remaining {remaining_label} cost {format_amount(amount_paise)}"
-        )
+        message = f"Free first-page preview. Full translation: {format_amount(amount_paise)}"
     
     return {
         "total_pages": total_pages,
         "free_pages": free_pages,
         "paid_pages": paid_pages,
+        "billable_characters": billable_characters,
+        "pricing_model": pricing_model,
         "amount": amount_paise,
         "amount_inr": amount_inr,
         "requires_payment": paid_pages > 0,
