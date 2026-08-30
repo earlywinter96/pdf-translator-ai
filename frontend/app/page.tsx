@@ -72,8 +72,8 @@ export default function HomePage() {
             </div>
             <h3 className="text-2xl font-bold text-white mb-3">PDF Translation</h3>
             <p className="text-gray-400 mb-4 leading-relaxed">
-              High-quality translation using <span className="text-cyan-400 font-semibold">Sarvam AI</span>.
-              Supports 22+ Indian languages with OCR for scanned documents.
+              Get a free one-page translation preview to check the accuracy before you pay.
+              Full-document translation is powered by <span className="text-cyan-400 font-semibold">Sarvam AI</span>.
             </p>
             <ul className="space-y-2 text-sm text-gray-300">
               <li className="flex items-center gap-2">
@@ -82,15 +82,15 @@ export default function HomePage() {
               </li>
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-cyan-400"></div>
-                Up to 400 pages with OCR support
+                Original design, tables, and images are preserved for text-based PDFs
               </li>
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-cyan-400"></div>
-                50 free pages per session
+                1 page free to review accuracy — pay only to unlock the remaining pages
               </li>
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-green-400"></div>
-                <span className="text-green-400 font-medium">Built for Indian-language translation</span>
+                <span className="text-green-400 font-medium">Secure payment unlocks full-document translation</span>
               </li>
             </ul>
             <Link
