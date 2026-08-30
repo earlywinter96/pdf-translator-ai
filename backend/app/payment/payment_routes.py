@@ -4,6 +4,8 @@ Payment API Routes
 FastAPI routes for Razorpay payment integration
 """
 
+import asyncio
+
 from fastapi import APIRouter, HTTPException, Header, Request, BackgroundTasks
 from pydantic import BaseModel
 from typing import Optional
@@ -36,6 +38,7 @@ from .payment_service import (
     handle_payment_webhook
 )
 from app.models.job import get_job
+from app.services.discord_notifier import notify_discord
 
 logger = logging.getLogger(__name__)
 
@@ -223,6 +226,8 @@ async def create_order(
         raise HTTPException(400, "This job does not require payment")
     if job.get("payment_started"):
         raise HTTPException(409, "Translation has already started")
+    if job.get("status") != "completed" or not job.get("output_path"):
+        raise HTTPException(409, "Your free preview is still being created. Please review it before payment.")
 
     # Never accept a browser-controlled page count for billing.
     payment_calc = calculate_payment(int(job["page_count"]))
@@ -238,7 +243,7 @@ async def create_order(
                 amount_paise=payment_calc["amount"],
                 job_id=request.job_id,
                 session_id=session_id,
-                page_count=int(job["page_count"])
+                page_count=payment_calc["paid_pages"]
             )
             order["demo"] = True
             order["message"] = "⚠️ DEMO MODE: This is a test payment. No real money will be charged."
@@ -248,11 +253,17 @@ async def create_order(
                 amount_paise=payment_calc["amount"],
                 job_id=request.job_id,
                 session_id=session_id,
-                page_count=int(job["page_count"])
+                page_count=payment_calc["paid_pages"]
             )
         
         # Associate payment with session
         add_payment_to_session(session_id, order["order_id"])
+        asyncio.create_task(notify_discord("LipiTranslate payment checkout opened", {
+            "Job": request.job_id[:8],
+            "Pages to unlock": payment_calc["paid_pages"],
+            "Amount": format_amount(payment_calc["amount"]),
+            "Status": "Awaiting payment",
+        }))
         
         return PaymentOrderResponse(**order)
     
@@ -295,6 +306,10 @@ async def verify_payment(
         if is_demo_mode():
             success = auto_verify_demo_payment(request.order_id)
             if success:
+                asyncio.create_task(notify_discord("LipiTranslate demo payment verified", {
+                    "Job": request.job_id[:8],
+                    "Status": "Ready to start full-document translation",
+                }))
                 return PaymentVerifyResponse(
                     verified=True,
                     message="Demo payment verified (no real transaction)"
@@ -309,6 +324,10 @@ async def verify_payment(
         
         if not is_valid:
             raise HTTPException(400, message)
+        asyncio.create_task(notify_discord("LipiTranslate payment captured", {
+            "Job": request.job_id[:8],
+            "Status": "Payment signature verified",
+        }))
         return PaymentVerifyResponse(verified=True, message=message)
     
     except HTTPException:

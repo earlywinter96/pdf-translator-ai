@@ -7,6 +7,7 @@ import {
   RotateCcw,
   Loader2,
   ArrowLeft,
+  CreditCard,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -16,7 +17,10 @@ import DownloadButton from "@/components/DownloadButton";
 import BilingualPreview from "@/components/BilingualPreview";
 import WaitingTimeFiller from "@/components/WaitingTimeFiller";
 import TranslationFeedback from "@/components/TranslationFeedback";
-import { getJobStatus } from "@/lib/api";
+import PaymentModal from "@/components/PaymentModal";
+import { getJobStatus, startPaidTranslation } from "@/lib/api";
+import { usePayment } from "@/app/usepayment";
+import type { PaymentQuote } from "@/components/FileUploaderWithPayment";
 
 /* ============================================================================
    CONFIG CONSTANTS (SINGLE SOURCE OF TRUTH)
@@ -40,6 +44,10 @@ export default function ConvertClient() {
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState("");
   const [jobStatus, setJobStatus] = useState<string>("");
+  const [previewPayment, setPreviewPayment] = useState<PaymentQuote | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [translationRun, setTranslationRun] = useState(0);
+  const { initiatePayment, paymentConfig } = usePayment();
 
   const [failureCount, setFailureCount] = useState(0);
   const [stuckDetected, setStuckDetected] = useState(false);
@@ -143,13 +151,18 @@ export default function ConvertClient() {
       isActiveRef.current = false;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [jobId]);
+  }, [jobId, translationRun]);
 
   /* ============================================================================
      HANDLERS
   ============================================================================ */
-  const handleJobCreated = (id: string, selectedTargetLanguage: string) => {
+  const handleJobCreated = (
+    id: string,
+    selectedTargetLanguage: string,
+    payment?: PaymentQuote,
+  ) => {
     setJobId(id);
+    setPreviewPayment(payment ?? null);
     setTargetLanguage(
       selectedTargetLanguage.charAt(0).toUpperCase() + selectedTargetLanguage.slice(1)
     );
@@ -162,11 +175,24 @@ export default function ConvertClient() {
     lastProgressUpdateRef.current = Date.now();
   };
 
+  const handlePaymentSuccess = async (orderId: string) => {
+    if (!jobId) return;
+    await startPaidTranslation(jobId, orderId);
+    setShowPaymentModal(false);
+    setPreviewPayment(null);
+    setProgress(1);
+    setStatusMessage("Payment verified. Starting full-document translation...");
+    setJobStatus("processing");
+    setTranslationRun((run) => run + 1);
+  };
+
   const handleReset = () => {
     setJobId(null);
     setProgress(0);
     setStatusMessage("");
     setJobStatus("");
+    setPreviewPayment(null);
+    setShowPaymentModal(false);
     setFailureCount(0);
     setPollCount(0);
     setStuckDetected(false);
@@ -238,19 +264,31 @@ export default function ConvertClient() {
           <div className="space-y-6 text-center">
             <CheckCircle className="w-16 h-16 mx-auto text-green-400" />
             <h2 className="text-white text-2xl font-bold">
-              Your Design-Preserved Translation Is Ready 🎉
+              {previewPayment ? "Your Free 1-Page Preview Is Ready" : "Your Design-Preserved Translation Is Ready 🎉"}
             </h2>
-            <div className="flex justify-center gap-3">
-              <DownloadButton jobId={jobId} />
-              <button
-                onClick={handleReset}
-                className="border px-4 py-2 rounded-lg text-white"
-              >
-                Translate Another
-              </button>
-            </div>
+            {previewPayment ? (
+              <div className="mx-auto max-w-xl rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-6 text-left">
+                <p className="text-lg font-semibold text-white">Check the first-page translation before you pay</p>
+                <p className="mt-2 text-sm leading-relaxed text-gray-300">
+                  The preview was created using only page 1. The remaining {previewPayment.paid_pages} page{previewPayment.paid_pages === 1 ? "" : "s"} have not been sent for translation. Unlock them for ₹{previewPayment.amount_inr.toFixed(2)} when you are satisfied.
+                </p>
+                <button
+                  onClick={() => setShowPaymentModal(true)}
+                  className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-cyan-600 px-5 py-3 font-semibold text-white hover:from-indigo-500 hover:to-cyan-500"
+                >
+                  <CreditCard className="h-5 w-5" /> Unlock {previewPayment.paid_pages} Remaining Page{previewPayment.paid_pages === 1 ? "" : "s"}
+                </button>
+              </div>
+            ) : (
+              <div className="flex justify-center gap-3">
+                <DownloadButton jobId={jobId} />
+                <button onClick={handleReset} className="border px-4 py-2 rounded-lg text-white">
+                  Translate Another
+                </button>
+              </div>
+            )}
             <BilingualPreview jobId={jobId} targetLanguage={targetLanguage} />
-            <TranslationFeedback jobId={jobId} />
+            {!previewPayment && <TranslationFeedback jobId={jobId} />}
           </div>
         )}
 
@@ -267,6 +305,21 @@ export default function ConvertClient() {
           </div>
         )}
       </div>
+
+      {jobId && previewPayment && (
+        <PaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          onPaymentSuccess={handlePaymentSuccess}
+          pageCount={previewPayment.free_pages + previewPayment.paid_pages}
+          paymentAmount={previewPayment.amount_inr}
+          freePagesUsed={previewPayment.free_pages}
+          paidPages={previewPayment.paid_pages}
+          jobId={jobId}
+          initiatePayment={initiatePayment}
+          isDemoMode={paymentConfig?.demo_mode}
+        />
+      )}
     </main>
   );
 }

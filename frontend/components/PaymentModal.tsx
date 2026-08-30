@@ -65,7 +65,7 @@ export default function PaymentModal({
         
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-white/10">
-          <h2 className="text-xl font-semibold text-white">Payment Required</h2>
+          <h2 className="text-xl font-semibold text-white">Unlock Remaining Pages</h2>
           <button
             onClick={onClose}
             disabled={isProcessing}
@@ -101,9 +101,9 @@ export default function PaymentModal({
             </div>
             
             <div className="flex justify-between text-sm">
-              <span className="text-gray-400">Free Pages</span>
+              <span className="text-gray-400">Free Preview</span>
               <span className="text-green-400 font-medium">
-                {freePagesUsed} pages (Free)
+                {freePagesUsed} page{freePagesUsed === 1 ? "" : "s"} (already translated)
               </span>
             </div>
             
@@ -132,7 +132,7 @@ export default function PaymentModal({
             </div>
             <div className="flex items-center gap-2 text-sm text-gray-300">
               <CheckCircle className="w-4 h-4 text-green-400" />
-              <span>Instant translation processing</span>
+              <span>Only the remaining pages are translated after payment</span>
             </div>
             <div className="flex items-center gap-2 text-sm text-gray-300">
               <CheckCircle className="w-4 h-4 text-green-400" />

@@ -9,18 +9,16 @@
 import { useState, useCallback } from "react";
 import { Upload, FileText, Languages, Zap, AlertCircle, LayoutTemplate, ImageIcon, Table2 } from "lucide-react";
 import { useDropzone } from "react-dropzone";
-import { usePayment } from "@/app/usepayment";
-import PaymentModal from "@/components/PaymentModal";
-import { startPaidTranslation, uploadPDFForTranslation, SUPPORTED_LANGUAGES, PRIMARY_LANGUAGES, EXTENDED_LANGUAGES } from "@/lib/api";
+import { uploadPDFForTranslation, SUPPORTED_LANGUAGES, PRIMARY_LANGUAGES, EXTENDED_LANGUAGES } from "@/lib/api";
 
 const MAX_FILE_SIZE_MB = 25;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 interface Props {
-  onJobCreated: (jobId: string, targetLanguage: string) => void;
+  onJobCreated: (jobId: string, targetLanguage: string, payment?: PaymentQuote) => void;
 }
 
-interface PaymentQuote {
+export interface PaymentQuote {
   free_pages: number;
   paid_pages: number;
   amount_inr: number;
@@ -35,11 +33,6 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
   
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [paymentQuote, setPaymentQuote] = useState<PaymentQuote | null>(null);
-  const [pendingJobId, setPendingJobId] = useState<string | null>(null);
-  const [pendingPageCount, setPendingPageCount] = useState(0);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const { initiatePayment, paymentConfig } = usePayment();
   
   // ============================================================================
   // FILE UPLOAD
@@ -100,11 +93,14 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
         mode: translationMode,
       });
 
-      if (result.status === "payment_required") {
-        setPendingJobId(result.job_id);
-        setPendingPageCount(result.page_count);
-        setPaymentQuote(result.payment);
-        setShowPaymentModal(true);
+      if (result.status === "processing_preview") {
+        // The backend has started only page 1. The payment control is shown
+        // after this preview is ready, not immediately after upload.
+        onJobCreated(result.job_id, targetLanguage, {
+          free_pages: result.payment.free_pages,
+          paid_pages: result.payment.paid_pages,
+          amount_inr: result.payment.amount_inr,
+        });
       } else {
         onJobCreated(result.job_id, targetLanguage);
       }
@@ -114,13 +110,6 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
     } finally {
       setIsUploading(false);
     }
-  };
-
-  const handlePaymentSuccess = async (orderId: string) => {
-    if (!pendingJobId) return;
-    await startPaidTranslation(pendingJobId, orderId);
-    setShowPaymentModal(false);
-    onJobCreated(pendingJobId, targetLanguage);
   };
 
   // ============================================================================
@@ -388,21 +377,6 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
           </>
         )}
       </button>
-
-      {showPaymentModal && paymentQuote && pendingJobId && (
-        <PaymentModal
-          isOpen={showPaymentModal}
-          onClose={() => setShowPaymentModal(false)}
-          onPaymentSuccess={handlePaymentSuccess}
-          pageCount={pendingPageCount}
-          paymentAmount={paymentQuote.amount_inr}
-          freePagesUsed={paymentQuote.free_pages}
-          paidPages={paymentQuote.paid_pages}
-          jobId={pendingJobId}
-          initiatePayment={initiatePayment}
-          isDemoMode={paymentConfig?.demo_mode}
-        />
-      )}
 
     </div>
   );

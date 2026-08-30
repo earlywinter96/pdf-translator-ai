@@ -126,9 +126,14 @@ def calculate_payment(total_pages: int) -> Dict:
     
     # Build message
     if paid_pages == 0:
-        message = f"All {total_pages} pages are free!"
+        message = f"Your {total_pages}-page document is covered by the free preview."
     else:
-        message = f"{free_pages} pages free, {paid_pages} pages require payment ({format_amount(amount_paise)})"
+        preview_label = "page" if free_pages == 1 else "pages"
+        remaining_label = "page" if paid_pages == 1 else "pages"
+        message = (
+            f"{free_pages} {preview_label} free for review; "
+            f"{paid_pages} remaining {remaining_label} cost {format_amount(amount_paise)}"
+        )
     
     return {
         "total_pages": total_pages,

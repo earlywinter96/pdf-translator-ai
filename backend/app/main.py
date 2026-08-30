@@ -360,18 +360,24 @@ async def translate_pdf(
         source_language,
         target_language,
         page_count > FREE_PAGES_LIMIT,
+        max(0, page_count - FREE_PAGES_LIMIT),
         client_ip,
     ))
     
     if page_count > FREE_PAGES_LIMIT:
         quote = calculate_payment(page_count)
-        update_job(job_id, 0, "Payment required before full-document translation")
+        # The preview consumes only the first page. The rest of the document
+        # stays untouched until the matching Razorpay order is verified.
+        update_job(job_id, 0, "Creating your free one-page preview before payment...")
+        background_tasks.add_task(
+            translate_pdf_task, job_id, input_path, source_language, target_language, FREE_PAGES_LIMIT
+        )
         return {
             "job_id": job_id,
-            "status": "payment_required",
+            "status": "processing_preview",
             "page_count": page_count,
             "payment": quote,
-            "message": quote["message"],
+            "message": "Creating your free one-page preview. Payment is required only for the remaining pages.",
         }
 
     background_tasks.add_task(
@@ -396,9 +402,15 @@ async def start_paid_translation(job_id: str, order_id: str, background_tasks: B
         raise HTTPException(402, "Verified payment is required before translation")
     if job.get("payment_started"):
         return {"job_id": job_id, "status": "processing", "message": "Translation already started"}
+    if job.get("status") != "completed" or not job.get("output_path"):
+        raise HTTPException(409, "The free preview must finish before full-document translation can start")
 
     set_job_metadata(job_id, payment_started=True, paid_order_id=order_id)
     update_job(job_id, 1, "Payment verified. Starting full-document translation...")
+    asyncio.create_task(notify_discord("LipiTranslate payment verified", {
+        "Job": job_id[:8],
+        "Status": "Full-document translation started",
+    }))
     background_tasks.add_task(
         translate_pdf_task,
         job_id,
@@ -644,6 +656,19 @@ async def translate_pdf_task(
         
         # Complete job
         complete_job(job_id, output_path)
+
+        if page_limit is not None and total_pages > page_limit:
+            asyncio.create_task(notify_discord("LipiTranslate preview ready", {
+                "Job": job_id[:8],
+                "Preview": "First page translated",
+                "Status": f"Awaiting payment for {total_pages - page_limit} remaining page(s)",
+            }))
+        else:
+            asyncio.create_task(notify_discord("LipiTranslate translation complete", {
+                "Job": job_id[:8],
+                "Pages": total_pages,
+                "Status": "Full document ready for download",
+            }))
         
         logger.info(f"✅ Translation completed: {job_id}")
         
@@ -658,6 +683,10 @@ async def translate_pdf_task(
     except Exception as e:
         logger.error(f"❌ Translation failed: {e}", exc_info=True)
         fail_job(job_id, f"Translation failed: {str(e)}")
+        asyncio.create_task(notify_discord("LipiTranslate translation failed", {
+            "Job": job_id[:8],
+            "Status": "Translation failed; check Render logs",
+        }))
     finally:
         if translator is not None:
             await translator.close()
