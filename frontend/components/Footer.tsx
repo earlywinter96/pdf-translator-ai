@@ -75,7 +75,7 @@ export default function Footer() {
 
         <div className="mt-8 pt-8 border-t border-gray-800 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-gray-400">
   <span>
-    © {new Date().getFullYear()} LipiTranslate. All rights reserved.
+    © 2025 LipiTranslate. All rights reserved.
   </span>
 
   <DeveloperSignature />
