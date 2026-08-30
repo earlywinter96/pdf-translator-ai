@@ -46,13 +46,6 @@ export default function PrivacyPage() {
           </div>
 
           <div>
-            <h2 className="text-lg font-semibold text-white mb-3">Operational Notifications</h2>
-            <p>
-              To operate and protect the service, an upload notification may include the uploaded filename, page count, selected languages, and an approximate country and region inferred from the upload IP address. The IP address itself and document contents are not included in these notifications.
-            </p>
-          </div>
-
-          <div>
             <h2 className="text-lg font-semibold text-white mb-3">Third-Party AI</h2>
             <p>
               Translations are generated using Sarvam AI. No document data is permanently stored by this service. Translation requests are processed in real-time and discarded immediately.
