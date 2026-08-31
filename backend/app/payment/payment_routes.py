@@ -99,6 +99,11 @@ class PaymentVerifyResponse(BaseModel):
     message: str
 
 
+class PaymentFunnelEvent(BaseModel):
+    job_id: str
+    event: str
+
+
 # ============================================================================
 # SESSION MANAGEMENT ROUTES
 # ============================================================================
@@ -199,6 +204,27 @@ async def check_pages_payment(
 # ============================================================================
 # PAYMENT ORDER ROUTES
 # ============================================================================
+
+@payment_router.post("/events")
+async def record_payment_funnel_event(event: PaymentFunnelEvent):
+    """Record client-side preview/payment milestones for operational review."""
+    labels = {
+        "preview_viewed": "Free preview viewed",
+        "payment_modal_opened": "Payment options viewed",
+        "payment_modal_dismissed": "Payment options dismissed",
+        "razorpay_dismissed": "Razorpay checkout dismissed",
+        "payment_failed": "Razorpay payment failed",
+    }
+    label = labels.get(event.event)
+    job = get_job(event.job_id)
+    if not label or not job:
+        raise HTTPException(400, "Invalid payment event")
+    asyncio.create_task(notify_discord("LipiTranslate customer funnel", {
+        "Job": event.job_id[:8],
+        "Event": label,
+        "Price shown": f"₹{(job.get('payment_quote') or {}).get('amount_inr', 0):.0f}",
+    }))
+    return {"recorded": True}
 
 @payment_router.post("/create-order", response_model=PaymentOrderResponse)
 async def create_order(

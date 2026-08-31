@@ -47,7 +47,7 @@ export default function ConvertClient() {
   const [previewPayment, setPreviewPayment] = useState<PaymentQuote | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [translationRun, setTranslationRun] = useState(0);
-  const { initiatePayment, paymentConfig } = usePayment();
+  const { initiatePayment, paymentConfig, reportPaymentEvent } = usePayment();
 
   const [failureCount, setFailureCount] = useState(0);
   const [stuckDetected, setStuckDetected] = useState(false);
@@ -278,7 +278,10 @@ export default function ConvertClient() {
                   </p>
                 )}
                 <button
-                  onClick={() => setShowPaymentModal(true)}
+                  onClick={() => {
+                    void reportPaymentEvent(jobId, "payment_modal_opened");
+                    setShowPaymentModal(true);
+                  }}
                   className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-cyan-600 px-5 py-3 font-semibold text-white hover:from-indigo-500 hover:to-cyan-500"
                 >
                   <CreditCard className="h-5 w-5" /> Unlock {previewPayment.paid_pages} Remaining Page{previewPayment.paid_pages === 1 ? "" : "s"}
@@ -292,7 +295,7 @@ export default function ConvertClient() {
                 </button>
               </div>
             )}
-            <BilingualPreview jobId={jobId} targetLanguage={targetLanguage} />
+            <BilingualPreview jobId={jobId} targetLanguage={targetLanguage} isPreview={Boolean(previewPayment)} />
             {!previewPayment && <TranslationFeedback jobId={jobId} />}
           </div>
         )}
@@ -315,6 +318,10 @@ export default function ConvertClient() {
         <PaymentModal
           isOpen={showPaymentModal}
           onClose={() => setShowPaymentModal(false)}
+          onCancel={() => {
+            void reportPaymentEvent(jobId, "payment_modal_dismissed");
+            setShowPaymentModal(false);
+          }}
           onPaymentSuccess={handlePaymentSuccess}
           pageCount={previewPayment.free_pages + previewPayment.paid_pages}
           paymentAmount={previewPayment.amount_inr}

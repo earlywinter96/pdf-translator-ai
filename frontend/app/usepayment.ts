@@ -51,6 +51,18 @@ function errorMessage(error: unknown, fallback: string): string {
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE || 'https://pdf-translator-ai-ggqe.onrender.com';
 
+async function reportPaymentEvent(jobId: string, event: string) {
+  try {
+    await fetch(`${API_BASE}/api/payment/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: jobId, event }),
+    });
+  } catch {
+    // Funnel telemetry must never interrupt a customer's payment flow.
+  }
+}
+
 interface PaymentConfig {
   key_id: string;
   demo_mode: boolean;
@@ -292,7 +304,10 @@ export function usePayment() {
         },
 
         modal: {
-          ondismiss: () => resolve(null),
+          ondismiss: () => {
+            void reportPaymentEvent(jobId, 'razorpay_dismissed');
+            resolve(null);
+          },
         },
 
         theme: {
@@ -303,6 +318,7 @@ export function usePayment() {
       const razorpay = new RazorpayConstructor(options);
 
       razorpay.on('payment.failed', (response: RazorpayFailureResponse) => {
+        void reportPaymentEvent(jobId, 'payment_failed');
         reject(
           new Error(
             response?.error?.description || 'Payment failed'
@@ -323,5 +339,6 @@ export function usePayment() {
     checkPaymentRequired,
     initiatePayment,
     refreshSession,
+    reportPaymentEvent,
   };
 }

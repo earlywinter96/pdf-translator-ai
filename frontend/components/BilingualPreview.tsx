@@ -1,14 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FileText } from "lucide-react";
 
 interface Props {
   jobId: string;
   targetLanguage: string;
+  isPreview?: boolean;
 }
 
-export default function BilingualPreview({ jobId, targetLanguage }: Props) {
+export default function BilingualPreview({ jobId, targetLanguage, isPreview = false }: Props) {
   const [activeTab, setActiveTab] = useState<"side-by-side" | "original" | "translated">("side-by-side");
 
   // FIX: Use correct environment variable name
@@ -17,6 +18,15 @@ export default function BilingualPreview({ jobId, targetLanguage }: Props) {
   // Use preview endpoints instead of download endpoints
   const originalUrl = `${API_BASE}/api/preview/original/${jobId}`;
   const translatedUrl = `${API_BASE}/api/preview/translated/${jobId}`;
+
+  useEffect(() => {
+    if (!isPreview) return;
+    void fetch(`${API_BASE}/api/payment/events`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ job_id: jobId, event: "preview_viewed" }),
+    });
+  }, [isPreview, jobId]);
 
   // Debug log
   console.log("🔍 Preview URLs:", { originalUrl, translatedUrl });

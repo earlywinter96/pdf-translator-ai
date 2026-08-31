@@ -12,6 +12,7 @@ import { X, CreditCard, AlertCircle, CheckCircle } from 'lucide-react';
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onCancel: () => void;
   onPaymentSuccess: (orderId: string) => void | Promise<void>;
   pageCount: number;
   paymentAmount: number;
@@ -25,6 +26,7 @@ interface PaymentModalProps {
 export default function PaymentModal({
   isOpen,
   onClose,
+  onCancel,
   onPaymentSuccess,
   pageCount,
   paymentAmount,
@@ -67,7 +69,7 @@ export default function PaymentModal({
         <div className="flex items-center justify-between p-6 border-b border-white/10">
           <h2 className="text-xl font-semibold text-white">Unlock Remaining Pages</h2>
           <button
-            onClick={onClose}
+            onClick={onCancel}
             disabled={isProcessing}
             className="text-gray-400 hover:text-white transition"
           >
@@ -172,7 +174,7 @@ export default function PaymentModal({
 
           {/* Cancel Button */}
           <button
-            onClick={onClose}
+            onClick={onCancel}
             disabled={isProcessing}
             className="w-full py-2 text-sm text-gray-400 hover:text-white transition"
           >

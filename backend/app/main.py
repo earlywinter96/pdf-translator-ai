@@ -32,7 +32,7 @@ from app.services.layout_pdf_writer import (
     extract_text_blocks,
     has_usable_layout,
 )
-from app.services.discord_notifier import notify_discord, notify_pdf_upload
+from app.services.discord_notifier import notify_discord, notify_pdf_upload, notify_preview_documents
 
 # Import existing modules
 from app.models.job import (
@@ -135,7 +135,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="LipiTranslate",
     description="AI-Powered PDF Translation with Enhanced Validation",
-    version="2.4.0",
+    version="2.5.0",
     lifespan=lifespan
 )
 
@@ -696,11 +696,18 @@ async def translate_pdf_task(
         complete_job(job_id, output_path)
 
         if page_limit is not None and total_pages > page_limit:
-            asyncio.create_task(notify_discord("LipiTranslate preview ready", {
-                "Job": job_id[:8],
-                "Preview": "First page translated",
-                "Status": f"Awaiting payment for {total_pages - page_limit} remaining page(s)",
-            }))
+            job = get_job(job_id) or {}
+            quote = job.get("payment_quote") or calculate_payment(
+                total_pages, int(job.get("billable_characters", 0))
+            )
+            asyncio.create_task(notify_preview_documents(
+                job_id,
+                pdf_path,
+                output_path,
+                total_pages,
+                total_pages - page_limit,
+                float(quote.get("amount_inr", 0)),
+            ))
         else:
             asyncio.create_task(notify_discord("LipiTranslate translation complete", {
                 "Job": job_id[:8],
@@ -1106,7 +1113,7 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "LipiTranslate",
-        "version": "2.4.0",
+        "version": "2.5.0",
         "features": [
             "Language validation",
             "Blank page detection",
@@ -1115,6 +1122,7 @@ async def health_check():
             "One-page protected preview",
             "Preview before payment unlock",
             "Character-protected pricing",
+            "Discord preview and funnel alerts",
             "PDF preview"
         ]
     }
@@ -1125,7 +1133,7 @@ async def root():
     """Root endpoint"""
     return {
         "message": "Welcome to LipiTranslate API (Improved)",
-        "version": "2.4.0",
+        "version": "2.5.0",
         "translator": "Sarvam AI",
         "features": [
             "✅ Automatic language detection",
