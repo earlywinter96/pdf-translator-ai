@@ -4,6 +4,7 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import VisitTracker from "@/components/VisitTracker";
+import FaqOrb from "@/components/FaqOrb";
 import Script from "next/script";
 
 
@@ -87,6 +88,7 @@ export default function RootLayout({
         </main>
 
         <Footer />
+        <FaqOrb />
       </body>
     </html>
   );

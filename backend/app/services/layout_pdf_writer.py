@@ -15,8 +15,11 @@ from dataclasses import dataclass
 from typing import Iterable, List
 
 import fitz
+import pytesseract
+from pdf2image import convert_from_path
 
 from app.services.pdf_writer import FONTS_DIR, get_language_config
+from app.services.pdf_reader import TESSERACT_LANG_MAP, prepare_image_for_ocr
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +86,91 @@ def has_usable_layout(blocks: Iterable[TextBlock]) -> bool:
     return sum(len(block.text) for block in blocks) >= 40
 
 
+def extract_ocr_text_blocks(
+    pdf_path: str, source_language: str, max_pages: int | None = None
+) -> List[TextBlock]:
+    """Extract OCR lines with page coordinates for scanned PDFs.
+
+    The previous fallback produced a new blank A4 document. These blocks let
+    us keep the uploaded scan as the canvas and place translated paragraphs in
+    their original visual areas.
+    """
+    document = fitz.open(pdf_path)
+    blocks: List[TextBlock] = []
+    try:
+        language = TESSERACT_LANG_MAP.get(source_language.lower(), "eng")
+        page_count = min(document.page_count, max_pages) if max_pages is not None else document.page_count
+        for page_number in range(page_count):
+            page = document[page_number]
+            image = convert_from_path(
+                pdf_path, first_page=page_number + 1, last_page=page_number + 1, dpi=300
+            )[0]
+            data = pytesseract.image_to_data(
+                prepare_image_for_ocr(image), lang=language, config="--oem 1 --psm 6",
+                output_type=pytesseract.Output.DICT,
+            )
+            # Keep each OCR line separate. On scans Tesseract can classify an
+            # entire page as one paragraph; covering that broad box destroys
+            # the page design. Line-level geometry retains headings, rules,
+            # stamps, artwork, and document spacing.
+            groups: dict[tuple[int, int, int], list[tuple[str, int, int, int, int, float]]] = {}
+            for index, word in enumerate(data["text"]):
+                word = word.strip()
+                confidence = float(data["conf"][index])
+                # Low-confidence OCR is usually scanner noise or a broken
+                # glyph. Never send it to the translator as if it were text.
+                if not word or confidence < 50:
+                    continue
+                key = (
+                    int(data["block_num"][index]), int(data["par_num"][index]),
+                    int(data["line_num"][index]),
+                )
+                groups.setdefault(key, []).append((
+                    word, int(data["left"][index]), int(data["top"][index]),
+                    int(data["width"][index]), int(data["height"][index]), confidence,
+                ))
+
+            scale_x = page.rect.width / image.width
+            scale_y = page.rect.height / image.height
+            for words in groups.values():
+                text = " ".join(word[0] for word in words)
+                left = min(word[1] for word in words)
+                top = min(word[2] for word in words)
+                right = max(word[1] + word[3] for word in words)
+                bottom = max(word[2] + word[4] for word in words)
+                average_height = sum(word[4] for word in words) / len(words)
+                blocks.append(TextBlock(
+                    page_number=page_number,
+                    rect=(left * scale_x, top * scale_y, right * scale_x, bottom * scale_y),
+                    text=text,
+                    font_size=max(7.0, average_height * scale_y * 0.9),
+                    color=(0, 0, 0),
+                    is_bold=False,
+                ))
+    finally:
+        document.close()
+    return blocks
+
+
+def _scan_background_color(page: fitz.Page, rect: fitz.Rect) -> tuple[float, float, float]:
+    """Estimate the local scan background, avoiding conspicuous white boxes."""
+    try:
+        sample = page.get_pixmap(clip=rect, matrix=fitz.Matrix(0.15, 0.15), alpha=False)
+        if sample.width <= 0 or sample.height <= 0:
+            return (1, 1, 1)
+        pixels = sample.samples
+        channels = sample.n
+        values = [pixels[index:index + channels] for index in range(0, len(pixels), channels)]
+        # A median is robust against the dark ink inside the rectangle.
+        color = tuple(sorted(pixel[channel] for pixel in values)[len(values) // 2] / 255 for channel in range(3))
+        # Most scanned government pages are white. Removing near-white JPEG
+        # tint prevents grey replacement bars while preserving genuine colour
+        # artwork on covers and certificates.
+        return tuple(1.0 if component > 0.82 else component for component in color)
+    except Exception:
+        return (1, 1, 1)
+
+
 def _font_path(target_language: str, is_bold: bool) -> str | None:
     font_name = get_language_config(target_language)["font"]
     bundled_fonts = {
@@ -95,12 +183,10 @@ def _font_path(target_language: str, is_bold: bool) -> str | None:
 
 
 def _fit_font_size(rect: fitz.Rect, original_size: float, text: str) -> float:
-    """Use a sensible starting size and leave room for longer Indic text."""
-    # Very small rectangles are commonly labels in tables.  Avoid a size that
-    # looks oversized when a translation expands slightly.
+    """Start at the original visual type size; never silently create tiny text."""
     if rect.height < original_size * 1.35:
-        return max(5.5, min(original_size, rect.height * 0.72))
-    return max(6.0, original_size * 0.95)
+        return max(7.0, min(original_size, rect.height * 0.90))
+    return max(8.0, original_size * 0.98)
 
 
 def _preserved_prefix(text: str) -> tuple[str, str]:
@@ -125,6 +211,7 @@ def create_layout_preserved_pdf(
     output_path: str,
     target_language: str,
     page_limit: int | None = None,
+    scan_overlay: bool = False,
 ) -> dict:
     """Write a translated PDF that retains the original visual design.
 
@@ -148,18 +235,26 @@ def create_layout_preserved_pdf(
                 page.insert_font(fontname="LipiTranslateRegular", fontfile=regular_font)
                 page.insert_font(fontname="LipiTranslateBold", fontfile=bold_font)
 
-        # Redact text only. Images and vector graphics are explicitly ignored,
-        # which keeps CV photographs, coloured backgrounds and table lines.
+        # Digital PDFs can redact only selectable text. A scanned page has no
+        # text layer, so lightly cover OCR text lanes before placing the
+        # translation; the original page artwork remains the canvas.
         for block, translation in zip(blocks, translated_blocks):
             if _is_static_label(block.text):
                 continue
             if not translation or translation.strip() == block.text.strip():
                 continue
             rect = fitz.Rect(block.rect)
-            document[block.page_number].add_redact_annot(rect, fill=False, cross_out=False)
+            if scan_overlay:
+                document[block.page_number].draw_rect(
+                    rect, color=None,
+                    fill=_scan_background_color(document[block.page_number], rect), overlay=True,
+                )
+            else:
+                document[block.page_number].add_redact_annot(rect, fill=False, cross_out=False)
 
-        for page in document:
-            page.apply_redactions(images=0, graphics=0, text=0)
+        if not scan_overlay:
+            for page in document:
+                page.apply_redactions(images=0, graphics=0, text=0)
 
         for block, translation in zip(blocks, translated_blocks):
             prefix, source_content = _preserved_prefix(block.text)
@@ -192,7 +287,7 @@ def create_layout_preserved_pdf(
                 result = page.insert_textbox(
                     rect, translation,
                     fontname=font_name if font_path else ("hebo" if block.is_bold else "helv"),
-                    fontfile=font_path, fontsize=max(3.2, size * 0.50), color=block.color,
+                    fontfile=font_path, fontsize=max(6.5, size * 0.72), color=block.color,
                     lineheight=1.05, overlay=True,
                 )
             if result < 0:

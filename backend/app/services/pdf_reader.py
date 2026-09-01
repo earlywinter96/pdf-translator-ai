@@ -12,6 +12,7 @@ import PyPDF2
 import pytesseract
 from pdf2image import convert_from_path
 from langdetect import detect, LangDetectException
+from PIL import ImageEnhance, ImageOps
 import re
 
 logger = logging.getLogger(__name__)
@@ -22,9 +23,11 @@ logger = logging.getLogger(__name__)
 
 # Map common language codes to Tesseract language codes
 TESSERACT_LANG_MAP = {
-    "gujarati": "guj",
-    "hindi": "hin", 
-    "marathi": "mar",
+    # Keep English enabled for Indian documents that include names, dates,
+    # references, section numbers, and mixed-language headers.
+    "gujarati": "guj+eng",
+    "hindi": "hin+eng",
+    "marathi": "mar+eng",
     "tamil": "tam",
     "telugu": "tel",
     "kannada": "kan",
@@ -33,9 +36,9 @@ TESSERACT_LANG_MAP = {
     "punjabi": "pan",
     "english": "eng",
     "en": "eng",
-    "gu": "guj",
-    "hi": "hin",
-    "mr": "mar",
+    "gu": "guj+eng",
+    "hi": "hin+eng",
+    "mr": "mar+eng",
     "ta": "tam",
     "te": "tel",
     "kn": "kan",
@@ -65,6 +68,12 @@ LANG_DISPLAY_NAMES = {
 MIN_CHARS_FOR_VALID_PAGE = 50  # Minimum characters to consider a page non-blank
 MIN_CHARS_FOR_OCR_TRIGGER = 100  # If direct extraction gives less, try OCR
 OCR_CONFIDENCE_THRESHOLD = 60  # Minimum OCR confidence (0-100)
+
+
+def prepare_image_for_ocr(image):
+    """Improve faint scans while retaining Indic-script dots and matras."""
+    grayscale = ImageOps.autocontrast(image.convert("L"), cutoff=1)
+    return ImageEnhance.Contrast(grayscale).enhance(1.7)
 
 
 # ============================================================================
@@ -221,10 +230,13 @@ def extract_page_with_ocr(pdf_path: str, page_num: int, ocr_language: str) -> Tu
         if not images:
             return "", 0.0
         
-        # OCR with confidence data
+        # Tesseract's automatic page mode frequently misses printed Indian
+        # forms. PSM 6 works better for the page-like blocks users upload.
+        prepared_image = prepare_image_for_ocr(images[0])
         ocr_data = pytesseract.image_to_data(
-            images[0],
+            prepared_image,
             lang=ocr_language,
+            config="--oem 1 --psm 6",
             output_type=pytesseract.Output.DICT
         )
         

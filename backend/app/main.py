@@ -29,6 +29,7 @@ from app.services.pdf_writer import create_translated_pdf
 from app.services.layout_pdf_writer import (
     append_payment_required_page,
     create_layout_preserved_pdf,
+    extract_ocr_text_blocks,
     extract_text_blocks,
     has_usable_layout,
 )
@@ -655,6 +656,18 @@ async def translate_pdf_task(
             if page_limit is None or block.page_number < page_limit
         ]
         use_layout_preservation = has_usable_layout(layout_blocks)
+        scan_overlay = False
+        if not use_layout_preservation:
+            ocr_layout_blocks = [
+                block for block in extract_ocr_text_blocks(
+                    pdf_path, source_language, max_pages=page_limit
+                )
+            ]
+            if has_usable_layout(ocr_layout_blocks):
+                layout_blocks = ocr_layout_blocks
+                use_layout_preservation = True
+                scan_overlay = True
+                logger.info("Using OCR-positioned layout preservation for scanned PDF")
         if use_layout_preservation:
             update_job(job_id, 35, "Preserving original layout and translating text...")
             translated_content = await translator.translate_chunks([block.text for block in layout_blocks])
@@ -683,7 +696,7 @@ async def translate_pdf_task(
         if use_layout_preservation:
             layout_result = create_layout_preserved_pdf(
                 pdf_path, layout_blocks, translated_content, output_path, target_language,
-                page_limit=page_limit,
+                page_limit=page_limit, scan_overlay=scan_overlay,
             )
             logger.info("Layout-preserved output: %s", layout_result)
         else:
