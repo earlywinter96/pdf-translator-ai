@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Bot, Send, X } from "lucide-react";
+import { trackSiteInteraction } from "@/lib/analytics";
 
 const FAQS = [
   {
@@ -46,7 +47,7 @@ export default function FaqOrb() {
             <p className="rounded-xl rounded-tl-sm bg-cyan-500/10 p-3 text-sm leading-relaxed text-gray-200">{answer}</p>
             <div className="flex flex-wrap gap-2">
               {FAQS.map((faq) => (
-                <button key={faq.question} onClick={() => setAnswer(faq.answer)} className="rounded-full border border-cyan-400/25 bg-cyan-500/10 px-3 py-2 text-left text-xs text-cyan-100 transition hover:border-cyan-300 hover:bg-cyan-500/20">
+                <button key={faq.question} onClick={() => { setAnswer(faq.answer); trackSiteInteraction("faq_question"); }} className="rounded-full border border-cyan-400/25 bg-cyan-500/10 px-3 py-2 text-left text-xs text-cyan-100 transition hover:border-cyan-300 hover:bg-cyan-500/20">
                   {faq.question}
                 </button>
               ))}
@@ -55,7 +56,7 @@ export default function FaqOrb() {
           </div>
         </section>
       )}
-      <button onClick={() => setOpen((value) => !value)} className="group flex items-center gap-2 rounded-full border border-cyan-300/60 bg-gradient-to-br from-cyan-300 to-cyan-600 px-2.5 py-2 text-slate-950 shadow-lg shadow-cyan-500/30 transition hover:scale-105" aria-label={open ? "Close FAQ help" : "Open FAQ help"}>
+      <button onClick={() => setOpen((value) => { if (!value) trackSiteInteraction("faq_opened"); return !value; })} className="group flex items-center gap-2 rounded-full border border-cyan-300/60 bg-gradient-to-br from-cyan-300 to-cyan-600 px-2.5 py-2 text-slate-950 shadow-lg shadow-cyan-500/30 transition hover:scale-105" aria-label={open ? "Close FAQ help" : "Open FAQ help"}>
         <span className="relative grid h-9 w-9 place-items-center rounded-full bg-slate-950/15">
           <Bot className="h-5 w-5" />
           <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-cyan-300 bg-emerald-400" />

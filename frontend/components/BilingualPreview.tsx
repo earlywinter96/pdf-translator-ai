@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FileText } from "lucide-react";
+import { ExternalLink, FileText } from "lucide-react";
+import { trackSiteInteraction } from "@/lib/analytics";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://pdf-translator-ai-ggqe.onrender.com";
 
 interface Props {
   jobId: string;
@@ -12,12 +15,14 @@ interface Props {
 export default function BilingualPreview({ jobId, targetLanguage, isPreview = false }: Props) {
   const [activeTab, setActiveTab] = useState<"side-by-side" | "original" | "translated">("side-by-side");
 
-  // FIX: Use correct environment variable name
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://pdf-translator-ai-ggqe.onrender.com';
-  
   // Use preview endpoints instead of download endpoints
   const originalUrl = `${API_BASE}/api/preview/original/${jobId}`;
   const translatedUrl = `${API_BASE}/api/preview/translated/${jobId}`;
+
+  const changeView = (view: "side-by-side" | "original" | "translated") => {
+    setActiveTab(view);
+    trackSiteInteraction("preview_tab_changed");
+  };
 
   useEffect(() => {
     if (!isPreview) return;
@@ -37,7 +42,7 @@ export default function BilingualPreview({ jobId, targetLanguage, isPreview = fa
       {/* View Toggle Tabs */}
       <div className="flex justify-center gap-2 flex-wrap">
         <button
-          onClick={() => setActiveTab("side-by-side")}
+          onClick={() => changeView("side-by-side")}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
             activeTab === "side-by-side"
               ? "bg-cyan-600 text-white"
@@ -47,7 +52,7 @@ export default function BilingualPreview({ jobId, targetLanguage, isPreview = fa
           Side-by-Side
         </button> 
         <button
-          onClick={() => setActiveTab("original")}
+          onClick={() => changeView("original")}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
             activeTab === "original"
               ? "bg-cyan-600 text-white"
@@ -57,7 +62,7 @@ export default function BilingualPreview({ jobId, targetLanguage, isPreview = fa
           Original Only
         </button>
         <button
-          onClick={() => setActiveTab("translated")}
+          onClick={() => changeView("translated")}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
             activeTab === "translated"
               ? "bg-cyan-600 text-white"
@@ -66,6 +71,29 @@ export default function BilingualPreview({ jobId, targetLanguage, isPreview = fa
         >
           Translated Only
         </button>
+      </div>
+
+      {/* Mobile PDF viewers are often cramped. Opening the secure inline URL
+          in a new tab lets the device's native PDF app handle zooming. */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:justify-center lg:hidden">
+        <a
+          href={originalUrl}
+          target="_blank"
+          rel="noreferrer"
+          onClick={() => trackSiteInteraction("preview_open_original")}
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium text-gray-200 hover:bg-white/10"
+        >
+          <ExternalLink className="h-4 w-4" /> Open original full screen
+        </a>
+        <a
+          href={translatedUrl}
+          target="_blank"
+          rel="noreferrer"
+          onClick={() => trackSiteInteraction("preview_open_translated")}
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-cyan-500"
+        >
+          <ExternalLink className="h-4 w-4" /> Open translation full screen
+        </a>
       </div>
 
       {/* Preview Container */}

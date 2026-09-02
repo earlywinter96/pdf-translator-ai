@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import DeveloperSignature from "@/components/DeveloperSignature";
+import { trackSiteInteraction } from "@/lib/analytics";
 
 
 export default function Navbar() {
@@ -32,24 +33,28 @@ export default function Navbar() {
           <div className="hidden md:flex items-center space-x-8">
             <Link
               href="/convert"
+              onClick={() => trackSiteInteraction("nav_translate")}
               className="text-gray-300 hover:text-white transition-colors"
             >
               Translate
             </Link>
             <Link
               href="/about"
+              onClick={() => trackSiteInteraction("nav_about")}
               className="text-gray-300 hover:text-white transition-colors"
             >
               About
             </Link>
             <Link
               href="/contact"
+              onClick={() => trackSiteInteraction("nav_contact")}
               className="text-gray-300 hover:text-white transition-colors"
             >
               Contact
             </Link>
             <Link
               href="/privacy"
+              onClick={() => trackSiteInteraction("nav_privacy")}
               className="text-gray-300 hover:text-white transition-colors"
             >
               Privacy
@@ -73,28 +78,28 @@ export default function Navbar() {
             <Link
               href="/convert"
               className="block text-gray-300 hover:text-white transition-colors"
-              onClick={() => setIsOpen(false)}
+              onClick={() => { setIsOpen(false); trackSiteInteraction("nav_translate"); }}
             >
               Translate
             </Link>
             <Link
               href="/about"
               className="block text-gray-300 hover:text-white transition-colors"
-              onClick={() => setIsOpen(false)}
+              onClick={() => { setIsOpen(false); trackSiteInteraction("nav_about"); }}
             >
               About
             </Link>
             <Link
               href="/contact"
               className="block text-gray-300 hover:text-white transition-colors"
-              onClick={() => setIsOpen(false)}
+              onClick={() => { setIsOpen(false); trackSiteInteraction("nav_contact"); }}
             >
               Contact
             </Link>
             <Link
               href="/privacy"
               className="block text-gray-300 hover:text-white transition-colors"
-              onClick={() => setIsOpen(false)}
+              onClick={() => { setIsOpen(false); trackSiteInteraction("nav_privacy"); }}
             >
               Privacy
             </Link>

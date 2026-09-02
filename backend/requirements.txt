@@ -29,6 +29,7 @@ Pillow==11.0.0            # Image processing (required by OCR)
 # ===============================
 numpy>=1.26.0             # Required for ML & image ops
 requests==2.32.3  # For Sarvam AI
+sarvamai>=0.1.0  # Sarvam Vision Document AI SDK
 
 # ===============================
 # Hybrid / Local Translation Models (Optional)

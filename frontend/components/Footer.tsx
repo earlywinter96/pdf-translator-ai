@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import DeveloperSignature from "@/components/DeveloperSignature";
+import { trackSiteInteraction } from "@/lib/analytics";
 
 
 export default function Footer() {
@@ -25,6 +28,7 @@ export default function Footer() {
               <li>
                 <Link
                   href="/convert"
+                  onClick={() => trackSiteInteraction("footer_translate")}
                   className="text-gray-400 hover:text-white text-sm transition-colors"
                 >
                   Translate PDF
@@ -33,6 +37,7 @@ export default function Footer() {
               <li>
                 <Link
                   href="/about"
+                  onClick={() => trackSiteInteraction("footer_about")}
                   className="text-gray-400 hover:text-white text-sm transition-colors"
                 >
                   About Us
@@ -41,6 +46,7 @@ export default function Footer() {
               <li>
                 <Link
                   href="/contact"
+                  onClick={() => trackSiteInteraction("footer_contact")}
                   className="text-gray-400 hover:text-white text-sm transition-colors"
                 >
                   Contact

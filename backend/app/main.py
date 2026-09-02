@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import uuid
 from fastapi import Response
+from pydantic import BaseModel
 
 
 # Import improved services
@@ -34,6 +35,7 @@ from app.services.layout_pdf_writer import (
     has_usable_layout,
 )
 from app.services.discord_notifier import notify_discord, notify_pdf_upload, notify_preview_documents
+from app.services.sarvam_vision import extract_sarvam_vision_blocks, is_sarvam_vision_enabled
 
 # Import existing modules
 from app.models.job import (
@@ -189,6 +191,40 @@ app.include_router(payment_router)
 async def record_site_visit():
     """Record a privacy-safe site visit without accepting personal data."""
     asyncio.create_task(notify_discord("LipiTranslate site visit", {"Event": "Visitor opened the site"}))
+    return {"recorded": True}
+
+
+class SiteInteractionEvent(BaseModel):
+    event: str
+    page: str = "unknown"
+
+
+SITE_INTERACTION_LABELS = {
+    "nav_translate": "Navigation: Translate",
+    "nav_about": "Navigation: About",
+    "nav_contact": "Navigation: Contact",
+    "nav_privacy": "Navigation: Privacy",
+    "footer_translate": "Footer: Translate PDF",
+    "footer_about": "Footer: About Us",
+    "footer_contact": "Footer: Contact",
+    "faq_opened": "FAQ orb opened",
+    "faq_question": "FAQ question selected",
+    "preview_open_original": "Original preview opened in new tab",
+    "preview_open_translated": "Translated preview opened in new tab",
+    "preview_tab_changed": "Preview display changed",
+}
+
+
+@app.post("/api/analytics/event")
+async def record_site_interaction(event: SiteInteractionEvent):
+    """Send selected anonymous conversion signals to the private Discord log."""
+    label = SITE_INTERACTION_LABELS.get(event.event)
+    if not label:
+        raise HTTPException(400, "Unsupported analytics event")
+    asyncio.create_task(notify_discord("LipiTranslate site interaction", {
+        "Event": label,
+        "Page": event.page[:120],
+    }))
     return {"recorded": True}
 
 
@@ -658,16 +694,38 @@ async def translate_pdf_task(
         use_layout_preservation = has_usable_layout(layout_blocks)
         scan_overlay = False
         if not use_layout_preservation:
-            ocr_layout_blocks = [
-                block for block in extract_ocr_text_blocks(
+            # Sarvam Vision is purpose-built for Indic scans, forms and
+            # tables. It is intentionally used only after a PDF is found to
+            # lack selectable text; otherwise we preserve its native layer.
+            ocr_layout_blocks = await extract_sarvam_vision_blocks(
+                pdf_path, source_language, max_pages=page_limit
+            )
+            if ocr_layout_blocks:
+                logger.info("Using Sarvam Vision OCR-positioned layout preservation")
+                asyncio.create_task(notify_discord("LipiTranslate OCR quality", {
+                    "Job": job_id[:8],
+                    "OCR engine": "Sarvam Vision",
+                    "Pages": page_limit or "Full document",
+                    "Status": "Structured OCR used before translation",
+                }))
+            else:
+                # Vision can be disabled while its account entitlement is
+                # being set up. Keep a local OCR fallback so uploads do not
+                # fail in that period.
+                ocr_layout_blocks = extract_ocr_text_blocks(
                     pdf_path, source_language, max_pages=page_limit
                 )
-            ]
+                if is_sarvam_vision_enabled():
+                    asyncio.create_task(notify_discord("LipiTranslate OCR quality", {
+                        "Job": job_id[:8],
+                        "OCR engine": "Local fallback",
+                        "Status": "Sarvam Vision returned no usable blocks",
+                    }))
             if has_usable_layout(ocr_layout_blocks):
                 layout_blocks = ocr_layout_blocks
                 use_layout_preservation = True
                 scan_overlay = True
-                logger.info("Using OCR-positioned layout preservation for scanned PDF")
+                logger.info("Using OCR-positioned layout preservation for scanned PDF (vision=%s)", is_sarvam_vision_enabled())
         if use_layout_preservation:
             update_job(job_id, 35, "Preserving original layout and translating text...")
             translated_content = await translator.translate_chunks([block.text for block in layout_blocks])
