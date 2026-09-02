@@ -33,6 +33,18 @@ VISION_LANGUAGE_CODES = {
 TERMINAL_STATES = {"completed", "partially_completed", "failed", "rejected"}
 
 
+def _schema_summary(value: Any, depth: int = 0) -> Any:
+    """Log response shape only, never document text or user content."""
+    value = _plain(value)
+    if depth >= 3:
+        return type(value).__name__
+    if isinstance(value, dict):
+        return {str(key): _schema_summary(item, depth + 1) for key, item in value.items()}
+    if isinstance(value, list):
+        return {"list_length": len(value), "item": _schema_summary(value[0], depth + 1) if value else None}
+    return type(value).__name__
+
+
 def is_sarvam_vision_enabled() -> bool:
     return os.getenv("SARVAM_VISION_ENABLED", "false").lower() in {"1", "true", "yes"}
 
@@ -169,7 +181,9 @@ def _vision_blocks_sync(pdf_path: str, source_language: str, max_pages: int | No
                 # ZIP filename convention and provides the exact Vision boxes.
                 payloads: list[dict[str, Any]] = []
                 try:
-                    payloads = _page_payloads(client.doc_ai.get_results(job_id=job_id))
+                    result_response = client.doc_ai.get_results(job_id=job_id)
+                    logger.info("Sarvam Vision results schema for %s: %s", job_id, _schema_summary(result_response))
+                    payloads = _page_payloads(result_response)
                 except Exception as results_error:
                     logger.info("Sarvam Vision results endpoint unavailable for %s: %s", job_id, results_error)
                 if not payloads:
@@ -188,7 +202,9 @@ def _vision_blocks_sync(pdf_path: str, source_language: str, max_pages: int | No
                         )
                         import json
                         for name in metadata_names:
-                            payloads.extend(_page_payloads(json.loads(archive.read(name))))
+                            archive_payload = json.loads(archive.read(name))
+                            logger.info("Sarvam Vision ZIP schema for %s/%s: %s", job_id, name, _schema_summary(archive_payload))
+                            payloads.extend(_page_payloads(archive_payload))
                         if not payloads:
                             logger.warning("Sarvam Vision returned no page metadata for job %s (files: %s)", job_id, archive.namelist())
                 batch_blocks = []

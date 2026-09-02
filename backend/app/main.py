@@ -681,17 +681,25 @@ async def translate_pdf_task(
                     "Status": "Structured OCR used before translation",
                 }))
             else:
-                # Only this last-resort branch calls local Tesseract. It keeps
-                # service available when Vision is disabled or unavailable.
+                # A Vision-enabled account should never silently hand users a
+                # known-low-quality Tesseract overlay. Keep local OCR only
+                # when Vision is intentionally disabled.
+                if is_sarvam_vision_enabled():
+                    fail_job(
+                        job_id,
+                        "High-accuracy OCR could not read this scan yet. Please try again shortly; no payment was taken."
+                    )
+                    asyncio.create_task(notify_discord("LipiTranslate OCR quality", {
+                        "Job": job_id[:8],
+                        "OCR engine": "Sarvam Vision",
+                        "Status": "No positioned blocks returned — preview stopped to avoid poor output",
+                    }))
+                    return
+                # Local OCR is retained for deployments where Vision is
+                # intentionally disabled.
                 ocr_layout_blocks = extract_ocr_text_blocks(
                     pdf_path, source_language, max_pages=page_limit
                 )
-                if is_sarvam_vision_enabled():
-                    asyncio.create_task(notify_discord("LipiTranslate OCR quality", {
-                        "Job": job_id[:8],
-                        "OCR engine": "Local fallback",
-                        "Status": "Sarvam Vision returned no usable blocks",
-                    }))
             if not use_layout_preservation and has_usable_layout(ocr_layout_blocks):
                 layout_blocks = ocr_layout_blocks
                 use_layout_preservation = True
