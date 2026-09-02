@@ -274,7 +274,9 @@ export default function ConvertClient() {
                 </p>
                 {previewPayment.pricing_model === "character_based" && (
                   <p className="mt-2 text-xs text-cyan-200">
-                    {previewPayment.billable_characters.toLocaleString()} characters detected in the remaining pages.
+                    {previewPayment.pricing_basis === "scan_estimate"
+                      ? `Estimated from ${previewPayment.paid_pages} scanned page${previewPayment.paid_pages === 1 ? "" : "s"}. Locked pages are OCR-read only after payment.`
+                      : `${previewPayment.billable_characters.toLocaleString()} characters detected in the remaining pages.`}
                   </p>
                 )}
                 <button

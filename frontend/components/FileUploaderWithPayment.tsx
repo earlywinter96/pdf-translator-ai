@@ -24,6 +24,7 @@ export interface PaymentQuote {
   amount_inr: number;
   billable_characters: number;
   pricing_model: string;
+  pricing_basis?: "detected" | "scan_estimate" | "per_page";
 }
 
 export default function FileUploaderWithPayment({ onJobCreated }: Props) {
@@ -104,6 +105,7 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
           amount_inr: result.payment.amount_inr,
           billable_characters: result.payment.billable_characters,
           pricing_model: result.payment.pricing_model,
+          pricing_basis: result.payment.pricing_basis,
         });
       } else {
         onJobCreated(result.job_id, targetLanguage);

@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 import uuid
 from fastapi import Response
 from pydantic import BaseModel
+import fitz
 
 
 # Import improved services
@@ -73,29 +74,34 @@ MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 # Public preview protection. This is enforced by the backend before Sarvam is
 # called, so it cannot be bypassed by a browser request.
 FREE_PREVIEW_PAGE_LIMIT = 1
+# A quote must never OCR or translate locked pages. For long scanned PDFs we
+# use this conservative page estimate until payment unlocks full OCR.
+SCANNED_PAGE_CHARACTER_ESTIMATE = 2_500
 
 # Create directories
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 os.makedirs(OUTPUTS_DIR, exist_ok=True)
 
 
-def get_billable_character_count(pdf_path: str, source_language: str) -> int:
-    """Count only pages 2+ before payment; this never calls Sarvam AI."""
-    layout_blocks = extract_text_blocks(pdf_path)
-    if has_usable_layout(layout_blocks):
-        return sum(
-            len(block.text)
-            for block in layout_blocks
-            if block.page_number >= FREE_PREVIEW_PAGE_LIMIT
-        )
+def get_billable_character_count(pdf_path: str) -> tuple[int, str]:
+    """Create a quote without OCR-reading locked scan pages.
 
-    page_texts, _ = extract_pdf_text_robust(
-        pdf_path,
-        source_language,
-        max_pages=None,
-        detect_language=False,
-    )
-    return sum(len(page_text) for page_text in page_texts[FREE_PREVIEW_PAGE_LIMIT:])
+    Selectable PDF text can be counted instantly. Image-only/scanned pages
+    instead receive a conservative estimate; their OCR and Sarvam Vision work
+    begins only after a verified payment.
+    """
+    document = fitz.open(pdf_path)
+    try:
+        locked_pages = max(0, document.page_count - FREE_PREVIEW_PAGE_LIMIT)
+        direct_text = "".join(
+            document[index].get_text("text")
+            for index in range(FREE_PREVIEW_PAGE_LIMIT, document.page_count)
+        )
+    finally:
+        document.close()
+    if len(direct_text.strip()) >= 100:
+        return len(direct_text), "detected"
+    return locked_pages * SCANNED_PAGE_CHARACTER_ESTIMATE, "scan_estimate"
 
 # ============================================================================
 # STARTUP & SHUTDOWN
@@ -392,9 +398,9 @@ async def translate_pdf(
         raise HTTPException(400, "Could not read the uploaded PDF")
 
     try:
-        billable_characters = (
-            get_billable_character_count(input_path, source_language)
-            if page_count > FREE_PAGES_LIMIT else 0
+        billable_characters, pricing_basis = (
+            get_billable_character_count(input_path)
+            if page_count > 7 else (0, "per_page")
         )
     except Exception as exc:
         logger.error("Could not calculate translation quote: %s", exc)
@@ -403,6 +409,7 @@ async def translate_pdf(
 
     try:
         quote = calculate_payment(page_count, billable_characters)
+        quote["pricing_basis"] = pricing_basis
     except ValueError as exc:
         os.remove(input_path)
         raise HTTPException(422, str(exc))
@@ -418,6 +425,7 @@ async def translate_pdf(
         page_count=page_count,
         payment_required=page_count > FREE_PAGES_LIMIT,
         billable_characters=billable_characters,
+        pricing_basis=pricing_basis,
         payment_quote=quote,
     )
     
@@ -438,6 +446,7 @@ async def translate_pdf(
         billable_characters,
         quote["amount_inr"],
         client_ip,
+        pricing_basis,
     ))
     
     if page_count > FREE_PAGES_LIMIT:
