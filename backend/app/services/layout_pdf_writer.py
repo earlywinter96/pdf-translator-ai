@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+from html import unescape
 from dataclasses import dataclass
 from typing import Iterable, List
 
@@ -195,6 +196,18 @@ def _preserved_prefix(text: str) -> tuple[str, str]:
     return (match.group(1), text[match.end():]) if match else ("", text)
 
 
+def _normalise_vision_table(text: str) -> str:
+    """Turn Vision's HTML table output into readable rows for PDF drawing."""
+    if "<table" not in text.lower():
+        return text
+    value = re.sub(r"(?i)</tr\s*>", "\n", text)
+    value = re.sub(r"(?i)</t[dh]\s*>", "    ", value)
+    value = re.sub(r"(?i)<br\s*/?>", "\n", value)
+    value = re.sub(r"<[^>]+>", "", value)
+    rows = [" ".join(unescape(row).split()) for row in value.splitlines()]
+    return "\n".join(row for row in rows if row)
+
+
 def _is_static_label(text: str) -> bool:
     """Avoid translating answer-key labels and numeric response grids."""
     compact = text.strip()
@@ -260,7 +273,9 @@ def create_layout_preserved_pdf(
             prefix, source_content = _preserved_prefix(block.text)
             if _is_static_label(block.text):
                 continue
-            translation = " ".join(translation.split())
+            translation = _normalise_vision_table(translation)
+            if "\n" not in translation:
+                translation = " ".join(translation.split())
             if prefix:
                 _, translation = _preserved_prefix(translation)
                 # Preserve the source choice marker exactly once. Sarvam
@@ -276,20 +291,18 @@ def create_layout_preserved_pdf(
             # Keep text inside its original visual lane and avoid table lines.
             rect += (0.5, 0.25, -0.5, -0.25)
             size = _fit_font_size(rect, block.font_size, translation)
-            result = page.insert_textbox(
-                rect, translation,
-                fontname=font_name if font_path else ("hebo" if block.is_bold else "helv"),
-                fontfile=font_path, fontsize=size, color=block.color,
-                lineheight=1.05, overlay=True,
-            )
-            if result < 0:
-                # Retry smaller before accepting a visibly clipped block.
+            result = -1
+            # Tables and long translated cells need a measured shrink loop;
+            # two fixed attempts produced clipped/blank output.
+            while size >= 7.0 and result < 0:
                 result = page.insert_textbox(
                     rect, translation,
                     fontname=font_name if font_path else ("hebo" if block.is_bold else "helv"),
-                    fontfile=font_path, fontsize=max(6.5, size * 0.72), color=block.color,
+                    fontfile=font_path, fontsize=size, color=block.color,
                     lineheight=1.05, overlay=True,
                 )
+                if result < 0:
+                    size = max(6.75, size * 0.82)
             if result < 0:
                 overflowed += 1
                 logger.warning("Translation did not fit text block on page %s: %s", block.page_number + 1, translation[:80])

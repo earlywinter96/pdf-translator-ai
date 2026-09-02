@@ -114,7 +114,10 @@ def _blocks_from_metadata(metadata: dict[str, Any], page: fitz.Page, page_number
         # Vision can return a generated description for large photographic
         # regions. Preserve original photos/artwork rather than translating
         # that description onto the image.
-        if layout_tag in {"image", "figure", "illustration"}:
+        visual_description_prefixes = (
+            "this image", "the image", "there is no text", "image shows", "the picture",
+        )
+        if layout_tag in {"image", "figure", "illustration"} or text.lower().startswith(visual_description_prefixes):
             continue
         rect = _bbox_to_rect(
             item.get("coordinates", item.get("bbox")), page, width, height
