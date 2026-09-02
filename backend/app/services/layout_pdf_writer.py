@@ -208,6 +208,73 @@ def _normalise_vision_table(text: str) -> str:
     return "\n".join(row for row in rows if row)
 
 
+def _vision_table_rows(text: str) -> list[list[str]]:
+    """Extract cells from a Sarvam Vision HTML table without extra packages."""
+    rows: list[list[str]] = []
+    for row in re.findall(r"(?is)<tr[^>]*>(.*?)</tr>", text):
+        cells = []
+        for cell in re.findall(r"(?is)<t[dh][^>]*>(.*?)</t[dh]>", row):
+            value = re.sub(r"<[^>]+>", "", cell)
+            value = " ".join(unescape(value).split())
+            if value:
+                cells.append(value)
+        if cells:
+            rows.append(cells)
+    return rows
+
+
+def _draw_vision_table(
+    page: fitz.Page,
+    rect: fitz.Rect,
+    table_html: str,
+    font_name: str,
+    font_path: str | None,
+    target_language: str,
+) -> bool:
+    """Rebuild Vision's table block as a legible two-column PDF table."""
+    rows = _vision_table_rows(table_html)
+    if len(rows) < 2:
+        return False
+    rect += (0.5, 0.5, -0.5, -0.5)
+    header, data_rows = rows[0], rows[1:]
+    left_edge = rect.x0
+    split = rect.x0 + rect.width * 0.84
+    header_height = min(22, max(15, rect.height * 0.045))
+    page.draw_rect(fitz.Rect(rect.x0, rect.y0, rect.x1, rect.y0 + header_height), color=None, fill=(0.20, 0.43, 0.07), overlay=True)
+    text_kwargs = {
+        "fontname": font_name if font_path else "helv",
+        "fontfile": font_path,
+        "color": (1, 1, 1),
+        "lineheight": 1.0,
+        "overlay": True,
+    }
+    page.insert_textbox(fitz.Rect(left_edge + 4, rect.y0 + 1, split - 3, rect.y0 + header_height - 1), header[0], fontsize=10, **text_kwargs)
+    if len(header) > 1:
+        page.insert_textbox(fitz.Rect(split + 3, rect.y0 + 1, rect.x1 - 4, rect.y0 + header_height - 1), header[-1], fontsize=10, align=2, **text_kwargs)
+
+    # Allocate taller rows to longer translated entries, while retaining the
+    # original table's hierarchy and page-number column.
+    weights = [max(1.0, (len(row[0]) if row else 0) / 43) for row in data_rows]
+    available = rect.height - header_height
+    unit = available / sum(weights)
+    font_size = max(7.0, min(10.5, unit * 0.48))
+    y = rect.y0 + header_height
+    for row, weight in zip(data_rows, weights):
+        row_height = unit * weight
+        row_rect = fitz.Rect(rect.x0, y, rect.x1, y + row_height)
+        left_rect = fitz.Rect(rect.x0 + 4, y + 1, split - 4, y + row_height - 1)
+        right_rect = fitz.Rect(split + 4, y + 1, rect.x1 - 4, y + row_height - 1)
+        page.insert_textbox(left_rect, row[0], fontname=font_name if font_path else "helv", fontfile=font_path, fontsize=font_size, color=(0.08, 0.08, 0.08), lineheight=1.02, overlay=True)
+        if len(row) > 1:
+            number = row[-1]
+            badge = fitz.Rect(max(split + 4, rect.x1 - 35), y + 3, rect.x1 - 5, min(y + row_height - 3, y + 21))
+            page.draw_rect(badge, color=None, fill=(0.88, 0.88, 0.88), overlay=True)
+            page.insert_textbox(right_rect, number, fontname=font_name if font_path else "helv", fontfile=font_path, fontsize=font_size, color=(0.08, 0.08, 0.08), align=2, overlay=True)
+        page.draw_line((rect.x0, y + row_height), (rect.x1, y + row_height), color=(0.0, 0.65, 0.95), width=0.7, overlay=True)
+        y += row_height
+    return True
+
+
 def _is_static_label(text: str) -> bool:
     """Avoid translating answer-key labels and numeric response grids."""
     compact = text.strip()
@@ -273,6 +340,18 @@ def create_layout_preserved_pdf(
             prefix, source_content = _preserved_prefix(block.text)
             if _is_static_label(block.text):
                 continue
+            is_vision_table = "<table" in translation.lower()
+            page = document[block.page_number]
+            font_path = _font_path(target_language, block.is_bold)
+            font_name = "LipiTranslateBold" if block.is_bold else "LipiTranslateRegular"
+            rect = fitz.Rect(block.rect)
+            # Keep text inside its original visual lane and avoid table lines.
+            rect += (0.5, 0.25, -0.5, -0.25)
+            if is_vision_table and _draw_vision_table(
+                page, rect, translation, font_name, font_path, target_language
+            ):
+                replaced += 1
+                continue
             translation = _normalise_vision_table(translation)
             if "\n" not in translation:
                 translation = " ".join(translation.split())
@@ -284,12 +363,6 @@ def create_layout_preserved_pdf(
                 translation = f"{prefix}{translation}"
             if not translation or translation == source_content.strip():
                 continue
-            page = document[block.page_number]
-            font_path = _font_path(target_language, block.is_bold)
-            font_name = "LipiTranslateBold" if block.is_bold else "LipiTranslateRegular"
-            rect = fitz.Rect(block.rect)
-            # Keep text inside its original visual lane and avoid table lines.
-            rect += (0.5, 0.25, -0.5, -0.25)
             size = _fit_font_size(rect, block.font_size, translation)
             result = -1
             # Tables and long translated cells need a measured shrink loop;
