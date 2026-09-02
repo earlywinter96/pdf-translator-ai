@@ -651,6 +651,7 @@ async def translate_pdf_task(
     translator = None
     try:
         update_job(job_id, 10, "Extracting the free preview page...")
+        blank_page_count = 0
         with fitz.open(pdf_path) as source_document:
             total_pages = source_document.page_count
 
@@ -703,6 +704,7 @@ async def translate_pdf_task(
             page_texts, extraction_stats = extract_pdf_text_robust(
                 pdf_path, source_language, max_pages=page_limit, detect_language=False,
             )
+            blank_page_count = extraction_stats["blank_pages"]
             if not any(page_text.strip() for page_text in page_texts):
                 fail_job(job_id, "We could not read text from page 1. Please upload a clearer scan.")
                 return
@@ -754,7 +756,7 @@ async def translate_pdf_task(
         # Complete job
         complete_job(job_id, output_path)
 
-        if page_limit is not None and total_pages > page_limit:
+        if page_limit is not None:
             job = get_job(job_id) or {}
             quote = job.get("payment_quote") or calculate_payment(
                 total_pages, int(job.get("billable_characters", 0))
@@ -764,7 +766,7 @@ async def translate_pdf_task(
                 pdf_path,
                 output_path,
                 total_pages,
-                total_pages - page_limit,
+                max(0, total_pages - page_limit),
                 float(quote.get("amount_inr", 0)),
             ))
         else:
@@ -780,7 +782,7 @@ async def translate_pdf_task(
         logger.info(f"📊 Final Statistics:")
         logger.info(f"   Sarvam AI: {stats['sarvam_used']} chunks")
         logger.info(f"   Sarvam failures: {stats['sarvam_failed']} chunks")
-        logger.info(f"   Blank pages: {stats['blank_pages']}")
+        logger.info(f"   Blank pages: {blank_page_count}")
         logger.info(f"   Total cost: ₹{stats['total_cost_inr']:.2f}")
         logger.info(f"   Success rate: {stats['success_rate']:.1f}%")
         

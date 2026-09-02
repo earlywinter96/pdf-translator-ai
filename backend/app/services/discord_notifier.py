@@ -67,9 +67,9 @@ async def notify_preview_documents(
     fields: dict[str, str | int] = {
         "Job": job_id[:8],
         "Preview": "Original + translated first page attached",
-        "Pages awaiting payment": paid_pages,
-        "Full translation price": f"₹{amount_inr:.0f}",
-        "Status": "Preview ready — awaiting user decision",
+        "Pages awaiting payment": paid_pages if paid_pages else "None — free document",
+        "Full translation price": f"₹{amount_inr:.0f}" if paid_pages else "Free",
+        "Status": "Preview ready — awaiting payment" if paid_pages else "Free first-page translation complete",
     }
     try:
         originals = _first_page_pdf_bytes(original_path)
