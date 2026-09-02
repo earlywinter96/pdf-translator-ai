@@ -651,66 +651,28 @@ async def translate_pdf_task(
     translator = None
     try:
         update_job(job_id, 10, "Extracting the free preview page...")
-        
-        # Extract text from PDF with validation
-        page_texts, extraction_stats = extract_pdf_text_robust(
-            pdf_path,
-            source_language,
-            max_pages=page_limit,
-            detect_language=False,
-        )
-        
-        total_pages = extraction_stats["total_pages"]
-        blank_pages = extraction_stats["blank_pages"]
-        non_blank = sum(1 for page_text in page_texts if page_text.strip())
-        
-        logger.info(f"📄 Extraction complete:")
-        logger.info(f"   Total pages: {total_pages}")
-        logger.info(f"   Non-blank pages: {non_blank}")
-        logger.info(f"   Blank pages: {blank_pages}")
-        
-        if non_blank == 0:
-            fail_job(
-                job_id,
-                "We could not read text from page 1. Please upload a clear, text-based PDF or a higher-quality scan."
-            )
-            return
-        
-        update_job(job_id, 15, "Preview page extracted, starting translation...")
-        # Create translator
-        update_job(job_id, 20, "Initializing translator...")
-        
-        translator = HybridTranslatorV2(
-            source_language=source_language,
-            target_language=target_language,
-            mode="general"
-        )
-        
-        # Never send more than the free preview to Sarvam. The old payment
-        # check ran only in the frontend after this task had started, allowing
-        # every uploaded page to consume credits.
-        preview_page_texts = page_texts if page_limit is None else page_texts[:page_limit]
+        with fitz.open(pdf_path) as source_document:
+            total_pages = source_document.page_count
 
-        # Prefer block-level translation for digital PDFs. This lets us retain
-        # the original pages (backgrounds, tables, images and design) while
-        # replacing only their selectable text. OCR/image-only PDFs continue
-        # through the reliable reflow fallback below.
-        update_job(job_id, 30, "Translating with Sarvam AI...")
+        # First try native PDF geometry. A scanned/image page has almost no
+        # selectable text, so send it to Sarvam Vision before ever invoking
+        # local Tesseract. This is vital for Indic script accuracy.
         layout_blocks = [
             block for block in extract_text_blocks(pdf_path)
             if page_limit is None or block.page_number < page_limit
         ]
         use_layout_preservation = has_usable_layout(layout_blocks)
         scan_overlay = False
+        page_texts: list[str] = []
         if not use_layout_preservation:
-            # Sarvam Vision is purpose-built for Indic scans, forms and
-            # tables. It is intentionally used only after a PDF is found to
-            # lack selectable text; otherwise we preserve its native layer.
             ocr_layout_blocks = await extract_sarvam_vision_blocks(
                 pdf_path, source_language, max_pages=page_limit
             )
-            if ocr_layout_blocks:
-                logger.info("Using Sarvam Vision OCR-positioned layout preservation")
+            if has_usable_layout(ocr_layout_blocks):
+                layout_blocks = ocr_layout_blocks
+                use_layout_preservation = True
+                scan_overlay = True
+                logger.info("Using Sarvam Vision OCR-positioned layout preservation; local Tesseract skipped")
                 asyncio.create_task(notify_discord("LipiTranslate OCR quality", {
                     "Job": job_id[:8],
                     "OCR engine": "Sarvam Vision",
@@ -718,9 +680,8 @@ async def translate_pdf_task(
                     "Status": "Structured OCR used before translation",
                 }))
             else:
-                # Vision can be disabled while its account entitlement is
-                # being set up. Keep a local OCR fallback so uploads do not
-                # fail in that period.
+                # Only this last-resort branch calls local Tesseract. It keeps
+                # service available when Vision is disabled or unavailable.
                 ocr_layout_blocks = extract_ocr_text_blocks(
                     pdf_path, source_language, max_pages=page_limit
                 )
@@ -730,11 +691,29 @@ async def translate_pdf_task(
                         "OCR engine": "Local fallback",
                         "Status": "Sarvam Vision returned no usable blocks",
                     }))
-            if has_usable_layout(ocr_layout_blocks):
+            if not use_layout_preservation and has_usable_layout(ocr_layout_blocks):
                 layout_blocks = ocr_layout_blocks
                 use_layout_preservation = True
                 scan_overlay = True
                 logger.info("Using OCR-positioned layout preservation for scanned PDF (vision=%s)", is_sarvam_vision_enabled())
+
+        # Only use text extraction for the reflow emergency fallback. Layout
+        # and Vision routes already have text blocks and never need Tesseract.
+        if not use_layout_preservation:
+            page_texts, extraction_stats = extract_pdf_text_robust(
+                pdf_path, source_language, max_pages=page_limit, detect_language=False,
+            )
+            if not any(page_text.strip() for page_text in page_texts):
+                fail_job(job_id, "We could not read text from page 1. Please upload a clearer scan.")
+                return
+
+        update_job(job_id, 15, "Preview page extracted, starting translation...")
+        update_job(job_id, 20, "Initializing translator...")
+        translator = HybridTranslatorV2(
+            source_language=source_language, target_language=target_language, mode="general"
+        )
+        update_job(job_id, 30, "Translating with Sarvam AI...")
+        preview_page_texts = page_texts if page_limit is None else page_texts[:page_limit]
         if use_layout_preservation:
             update_job(job_id, 35, "Preserving original layout and translating text...")
             translated_content = await translator.translate_chunks([block.text for block in layout_blocks])
