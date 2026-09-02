@@ -43,6 +43,15 @@ def _value(value: Any, name: str, default: Any = None) -> Any:
     return getattr(value, name, default)
 
 
+def _plain(value: Any) -> Any:
+    """Convert SDK response models to ordinary JSON-compatible objects."""
+    if hasattr(value, "model_dump"):
+        return value.model_dump()
+    if hasattr(value, "to_dict"):
+        return value.to_dict()
+    return value
+
+
 def _bbox_to_rect(bbox: Any, page: fitz.Page, source_width: float, source_height: float) -> tuple[float, float, float, float] | None:
     """Turn Vision JSON bounding-box variants into PDF points."""
     if isinstance(bbox, dict):
@@ -72,10 +81,15 @@ def _bbox_to_rect(bbox: Any, page: fitz.Page, source_width: float, source_height
 
 
 def _blocks_from_metadata(metadata: dict[str, Any], page: fitz.Page, page_number: int) -> list[TextBlock]:
-    width = float(metadata.get("width") or page.rect.width)
-    height = float(metadata.get("height") or page.rect.height)
+    # Document AI JSON has used both a direct page object and a result/page
+    # wrapper across SDK releases. Normalise both before reading blocks.
+    metadata = metadata.get("page", metadata.get("result", metadata))
+    dimensions = metadata.get("dimensions", {})
+    width = float(metadata.get("width") or dimensions.get("width") or page.rect.width)
+    height = float(metadata.get("height") or dimensions.get("height") or page.rect.height)
+    block_container = metadata.get("layout", metadata)
     result: list[TextBlock] = []
-    for item in metadata.get("blocks", []):
+    for item in block_container.get("blocks", []):
         text = str(item.get("text") or "").strip()
         rect = _bbox_to_rect(item.get("bbox"), page, width, height)
         if not text or not rect:
@@ -90,6 +104,22 @@ def _blocks_from_metadata(metadata: dict[str, Any], page: fitz.Page, page_number
             is_bold=str(item.get("type", "")).lower() in {"title", "heading", "header"},
         ))
     return result
+
+
+def _page_payloads(payload: Any) -> list[dict[str, Any]]:
+    """Find Document AI page JSON in SDK responses or downloaded metadata."""
+    payload = _plain(payload)
+    if not isinstance(payload, dict):
+        return []
+    if isinstance(payload.get("pages"), list):
+        return [page for page in payload["pages"] if isinstance(page, dict)]
+    if isinstance(payload.get("result"), dict):
+        return _page_payloads(payload["result"])
+    if isinstance(payload.get("page"), dict):
+        return [payload]
+    if isinstance(payload.get("blocks"), list) or isinstance(payload.get("layout"), dict):
+        return [payload]
+    return []
 
 
 def _vision_blocks_sync(pdf_path: str, source_language: str, max_pages: int | None) -> list[TextBlock]:
@@ -134,16 +164,33 @@ def _vision_blocks_sync(pdf_path: str, source_language: str, max_pages: int | No
                 if state not in {"completed", "partially_completed"}:
                     logger.warning("Sarvam Vision job %s ended as %s", job_id, state)
                     continue
-                download = client.doc_ai.get_download_url(job_id=job_id)
-                response = requests.get(_value(download, "url"), timeout=60)
-                response.raise_for_status()
-                with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
-                    metadata_names = sorted(name for name in archive.namelist() if name.startswith("metadata/") and name.endswith(".json"))
-                    for offset, name in enumerate(metadata_names):
+                # Current Document AI exposes structured result pages directly
+                # through the SDK. Prefer that path; it avoids depending on a
+                # ZIP filename convention and provides the exact Vision boxes.
+                payloads: list[dict[str, Any]] = []
+                try:
+                    payloads = _page_payloads(client.doc_ai.get_results(job_id=job_id))
+                except Exception as results_error:
+                    logger.info("Sarvam Vision results endpoint unavailable for %s: %s", job_id, results_error)
+                if not payloads:
+                    download = client.doc_ai.get_download_url(job_id=job_id)
+                    response = requests.get(_value(download, "url"), timeout=60)
+                    response.raise_for_status()
+                    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+                        metadata_names = sorted(
+                            name for name in archive.namelist()
+                            if name.endswith(".json") and "page_" in name
+                        )
                         import json
-                        metadata = json.loads(archive.read(name))
-                        if start + offset < document.page_count:
-                            all_blocks.extend(_blocks_from_metadata(metadata, document[start + offset], start + offset))
+                        payloads = [json.loads(archive.read(name)) for name in metadata_names]
+                        if not payloads:
+                            logger.warning("Sarvam Vision returned no page metadata for job %s (files: %s)", job_id, archive.namelist())
+                batch_blocks = []
+                for offset, metadata in enumerate(payloads):
+                    if start + offset < document.page_count:
+                        batch_blocks.extend(_blocks_from_metadata(metadata, document[start + offset], start + offset))
+                logger.info("Sarvam Vision job %s produced %s positioned blocks for pages %s-%s", job_id, len(batch_blocks), start + 1, end)
+                all_blocks.extend(batch_blocks)
             except Exception as exc:
                 logger.warning("Sarvam Vision OCR failed for pages %s-%s: %s", start + 1, end, exc)
             finally:
