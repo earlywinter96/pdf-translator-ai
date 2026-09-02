@@ -67,10 +67,13 @@ def _plain(value: Any) -> Any:
 def _bbox_to_rect(bbox: Any, page: fitz.Page, source_width: float, source_height: float) -> tuple[float, float, float, float] | None:
     """Turn Vision JSON bounding-box variants into PDF points."""
     if isinstance(bbox, dict):
-        left = bbox.get("x", bbox.get("left", bbox.get("x0")))
-        top = bbox.get("y", bbox.get("top", bbox.get("y0")))
-        right = bbox.get("right", bbox.get("x1"))
-        bottom = bbox.get("bottom", bbox.get("y1"))
+        if "x2" in bbox or "y2" in bbox:
+            left, top, right, bottom = bbox.get("x1"), bbox.get("y1"), bbox.get("x2"), bbox.get("y2")
+        else:
+            left = bbox.get("x", bbox.get("left", bbox.get("x0")))
+            top = bbox.get("y", bbox.get("top", bbox.get("y0")))
+            right = bbox.get("right", bbox.get("x1"))
+            bottom = bbox.get("bottom", bbox.get("y1"))
         if right is None and left is not None:
             right = left + bbox.get("width", 0)
         if bottom is None and top is not None:
@@ -97,13 +100,25 @@ def _blocks_from_metadata(metadata: dict[str, Any], page: fitz.Page, page_number
     # wrapper across SDK releases. Normalise both before reading blocks.
     metadata = metadata.get("page", metadata.get("result", metadata))
     dimensions = metadata.get("dimensions", {})
-    width = float(metadata.get("width") or dimensions.get("width") or page.rect.width)
-    height = float(metadata.get("height") or dimensions.get("height") or page.rect.height)
+    width = float(
+        metadata.get("width") or metadata.get("image_width") or dimensions.get("width") or page.rect.width
+    )
+    height = float(
+        metadata.get("height") or metadata.get("image_height") or dimensions.get("height") or page.rect.height
+    )
     block_container = metadata.get("layout", metadata)
     result: list[TextBlock] = []
     for item in block_container.get("blocks", []):
         text = str(item.get("text") or "").strip()
-        rect = _bbox_to_rect(item.get("bbox"), page, width, height)
+        layout_tag = str(item.get("layout_tag") or item.get("type") or "").lower()
+        # Vision can return a generated description for large photographic
+        # regions. Preserve original photos/artwork rather than translating
+        # that description onto the image.
+        if layout_tag in {"image", "figure", "illustration"}:
+            continue
+        rect = _bbox_to_rect(
+            item.get("coordinates", item.get("bbox")), page, width, height
+        )
         if not text or not rect:
             continue
         rect_height = rect[3] - rect[1]
@@ -113,7 +128,7 @@ def _blocks_from_metadata(metadata: dict[str, Any], page: fitz.Page, page_number
             text=text,
             font_size=max(8.0, min(24.0, rect_height * 0.82)),
             color=(0, 0, 0),
-            is_bold=str(item.get("type", "")).lower() in {"title", "heading", "header"},
+            is_bold=layout_tag in {"title", "heading", "header"},
         ))
     return result
 
