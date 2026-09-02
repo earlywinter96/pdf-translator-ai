@@ -177,12 +177,18 @@ def _vision_blocks_sync(pdf_path: str, source_language: str, max_pages: int | No
                     response = requests.get(_value(download, "url"), timeout=60)
                     response.raise_for_status()
                     with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+                        # Managed Document AI currently bundles the structured
+                        # result as `<uploaded-file>.json` at the ZIP root,
+                        # while other releases use `metadata/page_*.json`.
+                        # Parse every result JSON (never the manifest) and
+                        # normalise its `result.pages` payload below.
                         metadata_names = sorted(
                             name for name in archive.namelist()
-                            if name.endswith(".json") and "page_" in name
+                            if name.endswith(".json") and not name.rsplit("/", 1)[-1] == "manifest.json"
                         )
                         import json
-                        payloads = [json.loads(archive.read(name)) for name in metadata_names]
+                        for name in metadata_names:
+                            payloads.extend(_page_payloads(json.loads(archive.read(name))))
                         if not payloads:
                             logger.warning("Sarvam Vision returned no page metadata for job %s (files: %s)", job_id, archive.namelist())
                 batch_blocks = []
