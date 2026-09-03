@@ -173,32 +173,6 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
         ))}
       </div>
 
-      <section className="rounded-2xl border border-white/10 bg-slate-950/45 p-5 shadow-lg shadow-black/20">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-base font-semibold text-white">Simple document pricing</p>
-            <p className="mt-1 text-sm text-gray-400">See your first page free. Your exact eligible plan is selected after the PDF is checked.</p>
-          </div>
-          <span className="w-fit rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-300">1-page preview free</span>
-        </div>
-        <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
-          {[
-            ["Starter", "2 pages / 4K chars", "₹5"],
-            ["Basic", "5 pages / 9K chars", "₹19"],
-            ["Standard", "8 pages / 14K chars", "₹29"],
-            ["Plus", "10 pages / 18K chars", "₹39"],
-            ["Full PDF", "Exact price for larger files", "₹49+"],
-          ].map(([name, limits, price]) => (
-            <div key={name} className="rounded-xl border border-white/10 bg-white/[0.035] p-3 transition hover:border-cyan-400/40 hover:bg-cyan-400/[0.06]">
-              <p className="text-sm font-semibold text-white">{name}</p>
-              <p className="mt-1 min-h-8 text-xs leading-relaxed text-gray-500">{limits}</p>
-              <p className="mt-3 text-lg font-bold text-cyan-300">{price}</p>
-            </div>
-          ))}
-        </div>
-        <p className="mt-3 text-xs text-gray-500">A plan is available only when both its page and character limit fit the full document. Larger documents are quoted from their detected text.</p>
-      </section>
-
       {/* Language Selection */}
       <div className="rounded-2xl bg-gradient-to-br from-white/5 to-white/10 border border-white/10 p-6 space-y-4">
         <div className="flex items-center gap-2 text-white font-medium">
