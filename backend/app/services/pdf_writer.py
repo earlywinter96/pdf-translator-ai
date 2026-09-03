@@ -38,8 +38,8 @@ LINE_SPACING = 1.4
 FONTS_DIR = os.path.join(os.path.dirname(__file__), "fonts")
 FONT_FILES = {
     "NotoSans": "NotoSans-Regular.ttf",
-    "NotoSansDevanagari": "NotoSansDevanagari-Regular.ttf",
-    "NotoSansGujarati": "NotoSansGujarati-Regular.ttf",
+    "NotoSansDevanagari": "NotoSansDevanagariWithLatin-Regular.ttf",
+    "NotoSansGujarati": "NotoSansGujaratiWithLatin-Regular.ttf",
 }
 
 

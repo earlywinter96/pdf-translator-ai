@@ -92,16 +92,19 @@ def get_billable_character_count(pdf_path: str) -> tuple[int, str]:
     """
     document = fitz.open(pdf_path)
     try:
-        locked_pages = max(0, document.page_count - FREE_PREVIEW_PAGE_LIMIT)
+        # Packages apply to the complete PDF, including its free preview
+        # page. Count all selectable text so a dense first page cannot slip
+        # into a package that is too small for the eventual Sarvam workload.
+        document_pages = document.page_count
         direct_text = "".join(
             document[index].get_text("text")
-            for index in range(FREE_PREVIEW_PAGE_LIMIT, document.page_count)
+            for index in range(document.page_count)
         )
     finally:
         document.close()
     if len(direct_text.strip()) >= 100:
         return len(direct_text), "detected"
-    return locked_pages * SCANNED_PAGE_CHARACTER_ESTIMATE, "scan_estimate"
+    return document_pages * SCANNED_PAGE_CHARACTER_ESTIMATE, "scan_estimate"
 
 # ============================================================================
 # STARTUP & SHUTDOWN
@@ -681,25 +684,22 @@ async def translate_pdf_task(
                     "Status": "Structured OCR used before translation",
                 }))
             else:
-                # A Vision-enabled account should never silently hand users a
-                # known-low-quality Tesseract overlay. Keep local OCR only
-                # when Vision is intentionally disabled.
-                if is_sarvam_vision_enabled():
-                    fail_job(
-                        job_id,
-                        "High-accuracy OCR could not read this scan yet. Please try again shortly; no payment was taken."
-                    )
-                    asyncio.create_task(notify_discord("LipiTranslate OCR quality", {
-                        "Job": job_id[:8],
-                        "OCR engine": "Sarvam Vision",
-                        "Status": "No positioned blocks returned — preview stopped to avoid poor output",
-                    }))
-                    return
-                # Local OCR is retained for deployments where Vision is
-                # intentionally disabled.
+                # Sarvam Vision is the preferred path. Some artwork-heavy or
+                # low-resolution scans return no usable geometry, however.
+                # In that case use the proven local OCR path rather than
+                # failing a customer's preview. The fallback is explicit in
+                # logs and Discord so quality can be monitored.
                 ocr_layout_blocks = extract_ocr_text_blocks(
                     pdf_path, source_language, max_pages=page_limit
                 )
+                if has_usable_layout(ocr_layout_blocks):
+                    logger.warning("Sarvam Vision produced no usable blocks; using Tesseract OCR fallback")
+                    asyncio.create_task(notify_discord("LipiTranslate OCR quality", {
+                        "Job": job_id[:8],
+                        "OCR engine": "Tesseract fallback",
+                        "Pages": page_limit or "Full document",
+                        "Status": "Sarvam Vision had no usable layout; local OCR used",
+                    }))
             if not use_layout_preservation and has_usable_layout(ocr_layout_blocks):
                 layout_blocks = ocr_layout_blocks
                 use_layout_preservation = True

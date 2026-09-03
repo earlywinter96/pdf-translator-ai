@@ -176,8 +176,11 @@ def _font_path(target_language: str, is_bold: bool) -> str | None:
     font_name = get_language_config(target_language)["font"]
     bundled_fonts = {
         "NotoSans": "NotoSans-Bold.ttf" if is_bold else "NotoSans-Regular.ttf",
-        "NotoSansDevanagari": "NotoSansDevanagari-Bold.ttf" if is_bold else "NotoSansDevanagari-Regular.ttf",
-        "NotoSansGujarati": "NotoSansGujarati-Bold.ttf" if is_bold else "NotoSansGujarati-Regular.ttf",
+        "NotoSansDevanagari": "NotoSansDevanagariWithLatin-Bold.ttf" if is_bold else "NotoSansDevanagariWithLatin-Regular.ttf",
+        # The Gujarati-only Noto files omit Latin glyphs. Sarvam correctly
+        # preserves useful terms such as "CA" and "PDF", so use the bundled
+        # Gujarati + Latin composite rather than rendering those terms as □.
+        "NotoSansGujarati": "NotoSansGujaratiWithLatin-Bold.ttf" if is_bold else "NotoSansGujaratiWithLatin-Regular.ttf",
     }
     filename = bundled_fonts.get(font_name)
     return os.path.join(FONTS_DIR, filename) if filename else None
@@ -188,6 +191,20 @@ def _fit_font_size(rect: fitz.Rect, original_size: float, text: str) -> float:
     if rect.height < original_size * 1.35:
         return max(7.0, min(original_size, rect.height * 0.90))
     return max(8.0, original_size * 0.98)
+
+
+def _expanded_text_rect(page: fitz.Page, rect: fitz.Rect, original_size: float) -> fitz.Rect:
+    """Give an expanded Indic translation room before shrinking its type.
+
+    Digital legal letters often encode each English line as an extremely short
+    PDF span. Hindi, Marathi, and Gujarati need more vertical space. Expand
+    only into immediately blank space, leaving headers, neighbouring columns,
+    and page artwork intact.
+    """
+    padding = max(3.0, original_size * 0.55)
+    top = max(0.0, rect.y0 - padding)
+    bottom = min(page.rect.height, rect.y1 + max(padding, original_size * 1.5))
+    return fitz.Rect(rect.x0, top, rect.x1, bottom)
 
 
 def _preserved_prefix(text: str) -> tuple[str, str]:
@@ -376,6 +393,22 @@ def create_layout_preserved_pdf(
                 )
                 if result < 0:
                     size = max(6.75, size * 0.82)
+            # For digital source PDFs, do a second measured attempt with a
+            # modest vertical expansion before declaring the text missing.
+            # This avoids the old behaviour where translated legal headings
+            # simply disappeared when an Indic sentence was longer.
+            if result < 0 and not scan_overlay:
+                expanded_rect = _expanded_text_rect(page, rect, block.font_size)
+                size = max(7.0, min(block.font_size * 0.88, 10.5))
+                while size >= 6.75 and result < 0:
+                    result = page.insert_textbox(
+                        expanded_rect, translation,
+                        fontname=font_name if font_path else ("hebo" if block.is_bold else "helv"),
+                        fontfile=font_path, fontsize=size, color=block.color,
+                        lineheight=1.0, overlay=True,
+                    )
+                    if result < 0:
+                        size *= 0.82
             if result < 0:
                 overflowed += 1
                 logger.warning("Translation did not fit text block on page %s: %s", block.page_number + 1, translation[:80])

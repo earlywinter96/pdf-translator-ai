@@ -180,7 +180,10 @@ async def check_pages_payment(
     update_session_activity(session_id)
     
     # Calculate payment
-    payment_calc = calculate_payment(request.page_count)
+    # This legacy session endpoint has no uploaded PDF from which to count
+    # text. Use a conservative scan estimate; final checkout always uses the
+    # job's server-side quote and never this browser-provided page count.
+    payment_calc = calculate_payment(request.page_count, request.page_count * 2_500)
     
     # Check if user has free pages remaining
     free_remaining = get_free_pages_remaining(session_id)
@@ -212,6 +215,7 @@ async def record_payment_funnel_event(event: PaymentFunnelEvent):
         "preview_viewed": "Free preview viewed",
         "payment_modal_opened": "Payment options viewed",
         "payment_modal_dismissed": "Payment options dismissed",
+        "razorpay_opened": "Razorpay checkout opened",
         "razorpay_dismissed": "Razorpay checkout dismissed",
         "payment_failed": "Razorpay payment failed",
     }

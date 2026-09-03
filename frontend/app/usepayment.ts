@@ -326,6 +326,7 @@ export function usePayment() {
         );
       });
 
+      void reportPaymentEvent(jobId, 'razorpay_opened');
       razorpay.open();
     });
   };

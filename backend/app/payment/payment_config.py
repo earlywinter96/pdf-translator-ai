@@ -45,11 +45,19 @@ CURRENCY = "INR"
 # are released to the translation worker.
 FREE_PAGES_LIMIT = 1
 
-# Simple customer pricing with enough margin for Sarvam, Razorpay and PDF work.
-PRICE_PER_PAGE = 1000  # ₹10 for each remaining page in a 2–7 page document
+# Customer-facing packages. A package applies only when the *whole document*
+# fits both limits. This prevents a text-heavy PDF from consuming more Sarvam
+# usage than its price can support.
+FREE_CHARACTER_LIMIT = 2_000
+SMALL_DOCUMENT_PACKAGES = (
+    {"id": "starter", "name": "Starter", "max_pages": 2, "max_characters": 4_000, "amount": 500},
+    {"id": "basic", "name": "Basic", "max_pages": 5, "max_characters": 9_000, "amount": 1900},
+    {"id": "standard", "name": "Standard", "max_pages": 8, "max_characters": 14_000, "amount": 2900},
+    {"id": "plus", "name": "Plus", "max_pages": 10, "max_characters": 18_000, "amount": 3900},
+)
 CHARACTER_BLOCK_SIZE = 10_000
-PRICE_PER_CHARACTER_BLOCK = 4900  # ₹49 per 10,000 billable characters
-MINIMUM_PAID_AMOUNT = 2000  # ₹20 minimum checkout
+PRICE_PER_CHARACTER_BLOCK = 4900  # ₹49 per started 10,000 characters
+MINIMUM_FULL_PDF_AMOUNT = 4900  # ₹49 minimum for documents outside packages
 
 # Business information
 BUSINESS_INFO = {
@@ -115,36 +123,49 @@ def calculate_payment(total_pages: int, billable_characters: int = 0) -> Dict:
             "message": str
         }
     """
+    if total_pages < 1:
+        raise ValueError("A document must contain at least one page")
+
     # Pages within free limit
     free_pages = min(total_pages, FREE_PAGES_LIMIT)
     
     # Pages that need payment
     paid_pages = max(0, total_pages - FREE_PAGES_LIMIT)
     
-    # 2–7 page documents have a predictable, low page price. Larger files are
-    # protected by the actual text that will be sent to Sarvam after payment.
     if paid_pages == 0:
         amount_paise = 0
         pricing_model = "free_preview"
-    elif total_pages <= 7:
-        amount_paise = max(MINIMUM_PAID_AMOUNT, paid_pages * PRICE_PER_PAGE)
-        pricing_model = "per_remaining_page"
+        package_id = "free"
+        package_name = "Free preview"
+        package_limit_pages = FREE_PAGES_LIMIT
+        package_limit_characters = FREE_CHARACTER_LIMIT
     else:
         if billable_characters <= 0:
-            raise ValueError("Billable character count is required for 8+ page documents")
-        raw_amount_paise = math.ceil(
-            billable_characters * PRICE_PER_CHARACTER_BLOCK / CHARACTER_BLOCK_SIZE
+            raise ValueError("Billable character count is required to quote this PDF")
+        # Select the page band first, then enforce its character ceiling.
+        # Do not move a dense 5-page file into a larger page package: once it
+        # crosses either limit it receives the protected Full PDF quote.
+        package = next(
+            (item for item in SMALL_DOCUMENT_PACKAGES if total_pages <= item["max_pages"]),
+            None,
         )
-        # Present one clear checkout price rounded to a familiar ₹x9 amount.
-        # The ₹49 / 10K internal rate leaves margin for Sarvam, Razorpay and
-        # PDF infrastructure even after this customer-friendly rounding.
-        amount_inr = max(MINIMUM_PAID_AMOUNT / 100, raw_amount_paise / 100)
-        amount_paise = (
-            MINIMUM_PAID_AMOUNT
-            if amount_inr <= MINIMUM_PAID_AMOUNT / 100
-            else (int(math.floor(amount_inr / 50 + 0.5)) * 50 - 1) * 100
-        )
-        pricing_model = "character_based"
+        if package and billable_characters <= package["max_characters"]:
+            amount_paise = package["amount"]
+            pricing_model = "document_package"
+            package_id = package["id"]
+            package_name = package["name"]
+            package_limit_pages = package["max_pages"]
+            package_limit_characters = package["max_characters"]
+        else:
+            amount_paise = max(
+                MINIMUM_FULL_PDF_AMOUNT,
+                math.ceil(billable_characters / CHARACTER_BLOCK_SIZE) * PRICE_PER_CHARACTER_BLOCK,
+            )
+            pricing_model = "full_pdf_character_based"
+            package_id = "full_pdf"
+            package_name = "Full PDF"
+            package_limit_pages = total_pages
+            package_limit_characters = billable_characters
     
     # Convert to INR
     amount_inr = amount_paise / 100
@@ -153,7 +174,7 @@ def calculate_payment(total_pages: int, billable_characters: int = 0) -> Dict:
     if paid_pages == 0:
         message = f"Your {total_pages}-page document is covered by the free preview."
     else:
-        message = f"Free first-page preview. Full translation: {format_amount(amount_paise)}"
+        message = f"{package_name} full-document translation: {format_amount(amount_paise)}"
     
     return {
         "total_pages": total_pages,
@@ -161,6 +182,10 @@ def calculate_payment(total_pages: int, billable_characters: int = 0) -> Dict:
         "paid_pages": paid_pages,
         "billable_characters": billable_characters,
         "pricing_model": pricing_model,
+        "package_id": package_id,
+        "package_name": package_name,
+        "package_limit_pages": package_limit_pages,
+        "package_limit_characters": package_limit_characters,
         "amount": amount_paise,
         "amount_inr": amount_inr,
         "requires_payment": paid_pages > 0,
@@ -180,7 +205,7 @@ def validate_config():
     logger.info(f"Mode: {'DEMO' if DEMO_MODE else 'PRODUCTION'}")
     logger.info(f"Currency: {CURRENCY}")
     logger.info(f"Free Pages: {FREE_PAGES_LIMIT}")
-    logger.info(f"Price per Page: {format_amount(PRICE_PER_PAGE)}")
+    logger.info("Packages: ₹5 / ₹19 / ₹29 / ₹39, then ₹49 per 10K characters")
     logger.info(f"Business: {BUSINESS_INFO['name']}")
     
     if DEMO_MODE:
@@ -201,15 +226,15 @@ def validate_config():
 
 if __name__ == "__main__":
     # Test payment calculations
-    test_cases = [5, 10, 15, 20, 50, 100]
+    test_cases = [(2, 3_000), (5, 8_000), (8, 12_000), (11, 25_000)]
     
     print("\n" + "=" * 70)
     print("PAYMENT CALCULATION TESTS")
     print("=" * 70)
     
-    for pages in test_cases:
-        calc = calculate_payment(pages)
-        print(f"\n{pages} pages:")
+    for pages, characters in test_cases:
+        calc = calculate_payment(pages, characters)
+        print(f"\n{pages} pages / {characters} chars:")
         print(f"  Free: {calc['free_pages']}, Paid: {calc['paid_pages']}")
         print(f"  Amount: {format_amount(calc['amount'])}")
         print(f"  Message: {calc['message']}")

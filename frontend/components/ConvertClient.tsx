@@ -267,12 +267,22 @@ export default function ConvertClient() {
               {previewPayment ? "Your Free 1-Page Preview Is Ready" : "Your Design-Preserved Translation Is Ready 🎉"}
             </h2>
             {previewPayment ? (
-              <div className="mx-auto max-w-xl rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-6 text-left">
-                <p className="text-lg font-semibold text-white">Check the first-page translation before you pay</p>
+              <div className="mx-auto max-w-xl rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/15 to-indigo-500/10 p-6 text-left shadow-xl shadow-cyan-950/30">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-lg font-semibold text-white">Check the first-page translation before you pay</p>
+                    <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-cyan-300">No hidden processing after preview</p>
+                  </div>
+                  <span className="shrink-0 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-sm font-semibold text-cyan-200">₹{previewPayment.amount_inr.toFixed(0)}</span>
+                </div>
                 <p className="mt-2 text-sm leading-relaxed text-gray-300">
-                  This {previewPayment.free_pages + previewPayment.paid_pages}-page PDF has a free first-page preview. The remaining {previewPayment.paid_pages} page{previewPayment.paid_pages === 1 ? "" : "s"} have not been sent for translation. Unlock the full document for ₹{previewPayment.amount_inr.toFixed(0)} when you are satisfied.
+                  Your {previewPayment.free_pages + previewPayment.paid_pages}-page PDF has a free first-page preview. The remaining pages have not been sent to Sarvam AI. When you are satisfied, unlock the complete document with the <span className="font-semibold text-white">{previewPayment.package_name || "Full PDF"}</span> plan.
                 </p>
-                {previewPayment.pricing_model === "character_based" && (
+                <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl border border-white/10 bg-slate-950/30 p-4 text-sm">
+                  <div><p className="text-gray-500">Document</p><p className="mt-1 font-semibold text-white">{previewPayment.free_pages + previewPayment.paid_pages} pages</p></div>
+                  <div><p className="text-gray-500">Full translation</p><p className="mt-1 font-semibold text-cyan-300">₹{previewPayment.amount_inr.toFixed(0)}</p></div>
+                </div>
+                {previewPayment.pricing_model === "full_pdf_character_based" && (
                   <p className="mt-2 text-xs text-cyan-200">
                     {previewPayment.pricing_basis === "scan_estimate"
                       ? `Estimated from ${previewPayment.paid_pages} scanned page${previewPayment.paid_pages === 1 ? "" : "s"}. Locked pages are OCR-read only after payment.`
@@ -286,7 +296,7 @@ export default function ConvertClient() {
                   }}
                   className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-cyan-600 px-5 py-3 font-semibold text-white hover:from-indigo-500 hover:to-cyan-500"
                 >
-                  <CreditCard className="h-5 w-5" /> Unlock {previewPayment.paid_pages} Remaining Page{previewPayment.paid_pages === 1 ? "" : "s"}
+                  <CreditCard className="h-5 w-5" /> Continue securely with Razorpay
                 </button>
               </div>
             ) : (
@@ -328,8 +338,9 @@ export default function ConvertClient() {
           pageCount={previewPayment.free_pages + previewPayment.paid_pages}
           paymentAmount={previewPayment.amount_inr}
           freePagesUsed={previewPayment.free_pages}
-          paidPages={previewPayment.paid_pages}
           jobId={jobId}
+          packageName={previewPayment.package_name}
+          characterLimit={previewPayment.package_id !== "full_pdf" ? previewPayment.package_limit_characters : undefined}
           initiatePayment={initiatePayment}
           isDemoMode={paymentConfig?.demo_mode}
         />

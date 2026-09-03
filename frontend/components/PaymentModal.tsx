@@ -17,8 +17,9 @@ interface PaymentModalProps {
   pageCount: number;
   paymentAmount: number;
   freePagesUsed: number;
-  paidPages: number;
   jobId: string;
+  packageName?: string;
+  characterLimit?: number;
   initiatePayment: (jobId: string, pageCount: number) => Promise<string | null>;
   isDemoMode?: boolean;
 }
@@ -31,8 +32,9 @@ export default function PaymentModal({
   pageCount,
   paymentAmount,
   freePagesUsed,
-  paidPages,
   jobId,
+  packageName,
+  characterLimit,
   initiatePayment,
   isDemoMode = false,
 }: PaymentModalProps) {
@@ -67,7 +69,7 @@ export default function PaymentModal({
         
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-white/10">
-          <h2 className="text-xl font-semibold text-white">Unlock Remaining Pages</h2>
+          <div><h2 className="text-xl font-semibold text-white">Unlock your full translation</h2><p className="mt-1 text-xs text-cyan-300">Secure checkout powered by Razorpay</p></div>
           <button
             onClick={onCancel}
             disabled={isProcessing}
@@ -112,9 +114,10 @@ export default function PaymentModal({
             <div className="h-px bg-white/10" />
             
             <div className="flex justify-between text-sm">
-              <span className="text-gray-400">Paid Pages</span>
-              <span className="text-white font-medium">{paidPages} pages</span>
+              <span className="text-gray-400">Selected plan</span>
+              <span className="text-white font-medium">{packageName || "Full PDF"}</span>
             </div>
+            {characterLimit ? <div className="flex justify-between text-xs"><span className="text-gray-500">Plan allowance</span><span className="text-gray-300">Up to {characterLimit.toLocaleString()} characters</span></div> : null}
             
             <div className="h-px bg-white/10" />
             
@@ -134,7 +137,7 @@ export default function PaymentModal({
             </div>
             <div className="flex items-center gap-2 text-sm text-gray-300">
               <CheckCircle className="w-4 h-4 text-green-400" />
-              <span>Only the remaining pages are translated after payment</span>
+              <span>All remaining pages are translated only after payment</span>
             </div>
             <div className="flex items-center gap-2 text-sm text-gray-300">
               <CheckCircle className="w-4 h-4 text-green-400" />
@@ -167,7 +170,7 @@ export default function PaymentModal({
             ) : (
               <>
                 <CreditCard className="w-5 h-5" />
-                <span>Proceed to Payment</span>
+                <span>Pay ₹{paymentAmount.toFixed(0)} securely</span>
               </>
             )}
           </button>
