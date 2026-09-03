@@ -401,10 +401,10 @@ async def translate_pdf(
         raise HTTPException(400, "Could not read the uploaded PDF")
 
     try:
-        billable_characters, pricing_basis = (
-            get_billable_character_count(input_path)
-            if page_count > 7 else (0, "per_page")
-        )
+        # Every paid package has a character ceiling, including 2–7 page
+        # documents. Always calculate a server-side count (or the conservative
+        # scanned-page estimate) before selecting a quote.
+        billable_characters, pricing_basis = get_billable_character_count(input_path)
     except Exception as exc:
         logger.error("Could not calculate translation quote: %s", exc)
         os.remove(input_path)
