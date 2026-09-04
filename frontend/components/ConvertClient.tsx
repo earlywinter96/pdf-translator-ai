@@ -72,6 +72,10 @@ export default function ConvertClient() {
   const lastProgressUpdateRef = useRef<number>(Date.now());
   const isActiveRef = useRef<boolean>(false);
   const failureCountRef = useRef<number>(0);
+  // Keep the known-good one-page preview on screen while the paid worker is
+  // producing its separate PDF. Switching the iframe too early makes native
+  // PDF viewers retain the old preview/lock page after payment.
+  const awaitingPaidOutputRef = useRef<boolean>(false);
 
   /* ============================================================================
      POLLING EFFECT
@@ -102,6 +106,12 @@ export default function ConvertClient() {
         // STOP CONDITIONS
         // -------------------------------
         if (data.status === "completed" || data.progress >= 100) {
+          if (awaitingPaidOutputRef.current) {
+            awaitingPaidOutputRef.current = false;
+            // This changes BilingualPreview from ?version=preview to
+            // ?version=paid only after the paid file exists on Render.
+            setPreviewPayment(null);
+          }
           setJobStatus("completed");
           isActiveRef.current = false;
           return;
@@ -185,6 +195,7 @@ export default function ConvertClient() {
     setFailureCount(0);
     setPollCount(0);
     setStuckDetected(false);
+    awaitingPaidOutputRef.current = false;
     lastProgressUpdateRef.current = Date.now();
   };
 
@@ -197,9 +208,11 @@ export default function ConvertClient() {
     if (!Number.isInteger(serverPageLimit) || serverPageLimit <= 1) {
       throw new Error("Payment was verified, but the selected page package could not be started. Please contact support.");
     }
+    // Do not clear previewPayment yet. The polling loop clears it only after
+    // Render reports the separate paid output as completed.
+    awaitingPaidOutputRef.current = true;
     setCompletedPageLimit(serverPageLimit);
     setShowPaymentModal(false);
-    setPreviewPayment(null);
     setProgress(1);
     setStatusMessage("Payment verified. Starting full-document translation...");
     setJobStatus("processing");
@@ -219,6 +232,7 @@ export default function ConvertClient() {
     setFailureCount(0);
     setPollCount(0);
     setStuckDetected(false);
+    awaitingPaidOutputRef.current = false;
   };
 
   /* ============================================================================
