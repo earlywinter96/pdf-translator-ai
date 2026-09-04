@@ -282,6 +282,31 @@ export default function ConvertClient() {
                   <div><p className="text-gray-500">Document</p><p className="mt-1 font-semibold text-white">{previewPayment.free_pages + previewPayment.paid_pages} pages</p></div>
                   <div><p className="text-gray-500">Full translation</p><p className="mt-1 font-semibold text-cyan-300">₹{previewPayment.amount_inr.toFixed(0)}</p></div>
                 </div>
+                <div className="mt-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-white">Transparent plans</p>
+                    <span className="text-xs text-gray-400">Your match: {previewPayment.package_name || "Full PDF"}</span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                    {[
+                      ["Starter", "2 pages", "₹5"],
+                      ["Basic", "5 pages", "₹19"],
+                      ["Standard", "8 pages", "₹29"],
+                      ["Plus", "10 pages", "₹39"],
+                      ["Full PDF", "Larger files", "₹49+"],
+                    ].map(([name, pages, price]) => {
+                      const selected = name === (previewPayment.package_name || "Full PDF");
+                      return (
+                        <div key={name} className={`rounded-lg border p-2.5 ${selected ? "border-cyan-400/70 bg-cyan-400/10" : "border-white/10 bg-white/[0.03]"}`}>
+                          <p className={`text-xs font-semibold ${selected ? "text-cyan-200" : "text-gray-200"}`}>{name}</p>
+                          <p className="mt-1 text-[11px] text-gray-500">{pages}</p>
+                          <p className="mt-1 text-sm font-bold text-white">{price}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500">A plan applies when both its page and text limits fit the full document.</p>
+                </div>
                 {previewPayment.pricing_model === "full_pdf_character_based" && (
                   <p className="mt-2 text-xs text-cyan-200">
                     {previewPayment.pricing_basis === "scan_estimate"

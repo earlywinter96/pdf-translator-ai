@@ -51,12 +51,25 @@ export const metadata: Metadata = {
     siteName: "LipiTranslate",
     type: "website",
     locale: "en_IN",
+    images: [
+      {
+        url: "/lipitranslate-share.png",
+        width: 1254,
+        height: 1254,
+        alt: "LipiTranslate",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "LipiTranslate – PDF & OCR Translator",
     description:
       "AI-powered PDF & OCR translation for Hindi, Marathi, Gujarati & English.",
+    images: ["/lipitranslate-share.png"],
+  },
+  icons: {
+    icon: [{ url: "/icon.png", type: "image/png" }],
+    apple: [{ url: "/icon.png", type: "image/png" }],
   },
   metadataBase: new URL("https://www.lipitranslate.in"),
 };
