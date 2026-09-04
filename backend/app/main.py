@@ -689,6 +689,35 @@ async def preview_translated_pdf(job_id: str):
     )
 
 
+@app.get("/api/preview/paid/{job_id}")
+async def preview_paid_translated_pdf(job_id: str):
+    """Serve only a completed paid package, never the free preview PDF."""
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(404, "Translation job not found")
+    if job.get("status") != "completed":
+        raise HTTPException(409, "Your paid translation is still being generated")
+
+    output_path = job.get("output_path")
+    if (
+        job.get("output_kind") != "paid_unlock"
+        or not output_path
+        or not os.path.exists(output_path)
+    ):
+        raise HTTPException(404, "Completed paid translation not found")
+
+    return FileResponse(
+        output_path,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": "inline",
+            "Cache-Control": "no-store, no-cache, max-age=0, must-revalidate",
+            "Pragma": "no-cache",
+            "X-LipiTranslate-Output": "paid",
+        },
+    )
+
+
 # ============================================================================
 # BACKGROUND TRANSLATION TASK
 # ============================================================================
