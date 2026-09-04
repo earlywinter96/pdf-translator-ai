@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Header, Request, BackgroundTasks
 from pydantic import BaseModel
 from typing import Optional
 import logging
+from collections.abc import Awaitable, Callable
 
 from .payment_config import (
     calculate_payment,
@@ -45,6 +46,19 @@ logger = logging.getLogger(__name__)
 
 # Create router
 payment_router = APIRouter(prefix="/api/payment", tags=["payment"])
+
+# Registered by app.main after the translation worker has been defined. This
+# lets a verified Razorpay callback start the purchased work even if the
+# customer's browser closes or misses its follow-up API call.
+_paid_translation_starter: Callable[[str, str], Awaitable[dict]] | None = None
+
+
+def register_paid_translation_starter(
+    starter: Callable[[str, str], Awaitable[dict]],
+) -> None:
+    """Register the verified-payment dispatcher owned by the main app."""
+    global _paid_translation_starter
+    _paid_translation_starter = starter
 
 
 # ============================================================================
@@ -335,6 +349,7 @@ async def create_order(
 @payment_router.post("/verify", response_model=PaymentVerifyResponse)
 async def verify_payment(
     request: PaymentVerifyRequest,
+    background_tasks: BackgroundTasks,
     session_id: Optional[str] = Header(None, alias="X-Session-ID")
 ):
     """
@@ -375,6 +390,10 @@ async def verify_payment(
                     verified_payment_id=request.payment_id,
                     pending_payment_status="verified",
                 )
+                if _paid_translation_starter:
+                    background_tasks.add_task(
+                        _paid_translation_starter, request.job_id, request.order_id
+                    )
                 asyncio.create_task(notify_discord("LipiTranslate demo payment verified", {
                     "Job": request.job_id[:8],
                     "Status": "Ready to start full-document translation",
@@ -405,6 +424,12 @@ async def verify_payment(
             request.order_id, request.job_id,
             job.get("pending_payment_page_limit"),
         )
+        if _paid_translation_starter:
+            # The explicit frontend call remains supported and idempotent,
+            # but this server-side dispatch is the reliable source of truth.
+            background_tasks.add_task(
+                _paid_translation_starter, request.job_id, request.order_id
+            )
         asyncio.create_task(notify_discord("LipiTranslate payment captured", {
             "Job": request.job_id[:8],
             "Status": "Payment signature verified",

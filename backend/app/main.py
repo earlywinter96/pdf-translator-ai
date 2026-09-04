@@ -51,6 +51,7 @@ from app.models.job import (
     set_job_metadata,
 )
 from app.payment import payment_router
+from app.payment.payment_routes import register_paid_translation_starter
 from app.payment.payment_config import calculate_payment, FREE_PAGES_LIMIT
 from app.payment.payment_service import get_payment_status, is_payment_verified
 
@@ -481,9 +482,13 @@ async def translate_pdf(
     }
 
 
-@app.post("/api/start-paid-translation/{job_id}")
-async def start_paid_translation(job_id: str, order_id: str, background_tasks: BackgroundTasks):
-    """Start the full job only after the verified Razorpay order is matched."""
+async def start_verified_paid_translation(job_id: str, order_id: str) -> dict:
+    """Dispatch purchased pages after a signature-verified Razorpay order.
+
+    This is deliberately callable from both the payment verification route and
+    the browser's follow-up request. The first caller starts the work; later
+    callers receive the already-selected page limit without starting it again.
+    """
     job = get_job(job_id)
     payment = get_payment_status(order_id)
     if not job:
@@ -532,14 +537,15 @@ async def start_paid_translation(job_id: str, order_id: str, background_tasks: B
         "Job": job_id[:8],
         "Status": f"Translation started for first {page_limit} page(s)",
     }))
-    background_tasks.add_task(
-        translate_pdf_task,
-        job_id,
-        job["input_path"],
-        job["source_language"],
-        job["target_language"],
-        page_limit,
-        True,
+    asyncio.create_task(
+        translate_pdf_task(
+            job_id,
+            job["input_path"],
+            job["source_language"],
+            job["target_language"],
+            page_limit,
+            True,
+        )
     )
     return {
         "job_id": job_id,
@@ -547,6 +553,15 @@ async def start_paid_translation(job_id: str, order_id: str, background_tasks: B
         "page_limit": page_limit,
         "message": f"Payment verified. Translation started for {page_limit} pages.",
     }
+
+
+register_paid_translation_starter(start_verified_paid_translation)
+
+
+@app.post("/api/start-paid-translation/{job_id}")
+async def start_paid_translation(job_id: str, order_id: str):
+    """Idempotent browser fallback for a payment already verified by Razorpay."""
+    return await start_verified_paid_translation(job_id, order_id)
 
 
 @app.get("/api/status/{job_id}")
