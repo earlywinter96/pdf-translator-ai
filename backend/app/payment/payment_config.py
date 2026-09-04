@@ -142,14 +142,15 @@ def calculate_payment(total_pages: int, billable_characters: int = 0) -> Dict:
     else:
         if billable_characters <= 0:
             raise ValueError("Billable character count is required to quote this PDF")
-        # Select the page band first, then enforce its character ceiling.
-        # Do not move a dense 5-page file into a larger page package: once it
-        # crosses either limit it receives the protected Full PDF quote.
+        # A page package covers the whole document when its page cap reaches
+        # the uploaded PDF. Character count prices only documents above the
+        # available 10-page package range, avoiding a duplicate Full PDF
+        # price for a five-page document already covered by Basic.
         package = next(
             (item for item in SMALL_DOCUMENT_PACKAGES if total_pages <= item["max_pages"]),
             None,
         )
-        if package and billable_characters <= package["max_characters"]:
+        if package:
             amount_paise = package["amount"]
             pricing_model = "document_package"
             package_id = package["id"]

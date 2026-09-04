@@ -56,6 +56,7 @@ export default function ConvertClient() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [planMessage, setPlanMessage] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<SelectedPlan | null>(null);
+  const [completedPageLimit, setCompletedPageLimit] = useState<number | null>(null);
   const [translationRun, setTranslationRun] = useState(0);
   const { initiatePayment, paymentConfig, reportPaymentEvent } = usePayment();
 
@@ -189,6 +190,7 @@ export default function ConvertClient() {
 
   const handlePaymentSuccess = async (orderId: string) => {
     if (!jobId) return;
+    setCompletedPageLimit(selectedPlan?.pageLimit ?? previewPayment?.free_pages ?? null);
     await startPaidTranslation(jobId, orderId);
     setShowPaymentModal(false);
     setPreviewPayment(null);
@@ -207,6 +209,7 @@ export default function ConvertClient() {
     setShowPaymentModal(false);
     setPlanMessage(null);
     setSelectedPlan(null);
+    setCompletedPageLimit(null);
     setFailureCount(0);
     setPollCount(0);
     setStuckDetected(false);
@@ -278,7 +281,11 @@ export default function ConvertClient() {
           <div className="space-y-6 text-center">
             <CheckCircle className="w-16 h-16 mx-auto text-green-400" />
             <h2 className="text-white text-2xl font-bold">
-              {previewPayment ? "Your Free 1-Page Preview Is Ready" : "Your Design-Preserved Translation Is Ready 🎉"}
+              {previewPayment
+                ? "Your Free 1-Page Preview Is Ready"
+                : completedPageLimit
+                  ? `Your ${completedPageLimit}-Page Translation Is Ready 🎉`
+                  : "Your Design-Preserved Translation Is Ready 🎉"}
             </h2>
             {previewPayment ? (
               <div className="mx-auto max-w-xl rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/15 to-indigo-500/10 p-6 text-left shadow-xl shadow-cyan-950/30">
@@ -294,7 +301,7 @@ export default function ConvertClient() {
                 </p>
                 <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl border border-white/10 bg-slate-950/30 p-4 text-sm">
                   <div><p className="text-gray-500">Document</p><p className="mt-1 font-semibold text-white">{previewPayment.free_pages + previewPayment.paid_pages} pages</p></div>
-                  <div><p className="text-gray-500">Selected unlock</p><p className="mt-1 font-semibold text-cyan-300">{selectedPlan ? `${selectedPlan.pageLimit} pages · ₹${selectedPlan.price.toFixed(0)}` : `Full PDF · ₹${previewPayment.amount_inr.toFixed(0)}`}</p></div>
+                  <div><p className="text-gray-500">Selected unlock</p><p className="mt-1 font-semibold text-cyan-300">{selectedPlan ? `${selectedPlan.pageLimit} pages · ₹${selectedPlan.price.toFixed(0)}` : `${Math.min(previewPayment.package_limit_pages || previewPayment.free_pages + previewPayment.paid_pages, previewPayment.free_pages + previewPayment.paid_pages)} pages · ₹${previewPayment.amount_inr.toFixed(0)}`}</p></div>
                 </div>
                 <div className="mt-4">
                   <div className="flex items-center justify-between gap-3">
@@ -308,10 +315,14 @@ export default function ConvertClient() {
                       { id: "standard", name: "Standard", limit: 8, price: 29, limits: "First 8 pages" },
                       { id: "plus", name: "Plus", limit: 10, price: 39, limits: "First 10 pages" },
                       { id: "full_pdf", name: "Full PDF", limit: previewPayment.free_pages + previewPayment.paid_pages, price: previewPayment.amount_inr, limits: "All document pages" },
-                    ].filter((plan) => plan.id === "full_pdf" || plan.limit <= previewPayment.free_pages + previewPayment.paid_pages).map((plan) => {
+                    ].filter((plan, _, plans) => {
+                      const pageCount = previewPayment.free_pages + previewPayment.paid_pages;
+                      if (plan.id !== "full_pdf") return plan.limit <= pageCount;
+                      return !plans.some((candidate) => candidate.id !== "full_pdf" && candidate.limit >= pageCount);
+                    }).map((plan) => {
                       const pageCount = previewPayment.free_pages + previewPayment.paid_pages;
                       const pageLimit = Math.min(plan.limit, pageCount);
-                      const selected = selectedPlan?.id === plan.id || (!selectedPlan && plan.id === "full_pdf");
+                      const selected = selectedPlan?.id === plan.id || (!selectedPlan && plan.id === previewPayment.package_id);
                       const unavailable = plan.id !== "full_pdf" && pageLimit <= previewPayment.free_pages;
                       return (
                         <button
@@ -354,11 +365,16 @@ export default function ConvertClient() {
                 </button>
               </div>
             ) : (
-              <div className="flex justify-center gap-3">
+              <div className="space-y-3">
+                {completedPageLimit && (
+                  <p className="text-sm text-cyan-200">Your selected plan includes the first {completedPageLimit} page{completedPageLimit === 1 ? "" : "s"}. Download the translated result below.</p>
+                )}
+                <div className="flex justify-center gap-3">
                 <DownloadButton jobId={jobId} />
                 <button onClick={handleReset} className="border px-4 py-2 rounded-lg text-white">
                   Translate Another
                 </button>
+                </div>
               </div>
             )}
             <BilingualPreview jobId={jobId} targetLanguage={targetLanguage} isPreview={Boolean(previewPayment)} />
@@ -393,8 +409,8 @@ export default function ConvertClient() {
           paymentAmount={selectedPlan?.price ?? previewPayment.amount_inr}
           freePagesUsed={previewPayment.free_pages}
           jobId={jobId}
-          packageName={selectedPlan?.name ?? "Full PDF"}
-          packageId={selectedPlan?.id ?? "full_pdf"}
+          packageName={selectedPlan?.name ?? previewPayment.package_name ?? "Full PDF"}
+          packageId={selectedPlan?.id ?? previewPayment.package_id ?? "full_pdf"}
           pageLimit={selectedPlan?.pageLimit ?? previewPayment.free_pages + previewPayment.paid_pages}
           initiatePayment={initiatePayment}
           isDemoMode={paymentConfig?.demo_mode}
