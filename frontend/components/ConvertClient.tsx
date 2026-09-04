@@ -22,6 +22,14 @@ import { getJobStatus, startPaidTranslation } from "@/lib/api";
 import { usePayment } from "@/app/usepayment";
 import type { PaymentQuote } from "@/components/FileUploaderWithPayment";
 
+type SelectedPlan = {
+  id: string;
+  name: string;
+  price: number;
+  pageLimit: number;
+  limits: string;
+};
+
 /* ============================================================================
    CONFIG CONSTANTS (SINGLE SOURCE OF TRUTH)
 ============================================================================ */
@@ -47,6 +55,7 @@ export default function ConvertClient() {
   const [previewPayment, setPreviewPayment] = useState<PaymentQuote | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [planMessage, setPlanMessage] = useState<string | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<SelectedPlan | null>(null);
   const [translationRun, setTranslationRun] = useState(0);
   const { initiatePayment, paymentConfig, reportPaymentEvent } = usePayment();
 
@@ -165,6 +174,7 @@ export default function ConvertClient() {
     setJobId(id);
     setPreviewPayment(payment ?? null);
     setPlanMessage(null);
+    setSelectedPlan(null);
     setTargetLanguage(
       selectedTargetLanguage.charAt(0).toUpperCase() + selectedTargetLanguage.slice(1)
     );
@@ -196,6 +206,7 @@ export default function ConvertClient() {
     setPreviewPayment(null);
     setShowPaymentModal(false);
     setPlanMessage(null);
+    setSelectedPlan(null);
     setFailureCount(0);
     setPollCount(0);
     setStuckDetected(false);
@@ -276,54 +287,53 @@ export default function ConvertClient() {
                     <p className="text-lg font-semibold text-white">Check the first-page translation before you pay</p>
                     <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-cyan-300">No hidden processing after preview</p>
                   </div>
-                  <span className="shrink-0 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-sm font-semibold text-cyan-200">₹{previewPayment.amount_inr.toFixed(0)}</span>
+                  <span className="shrink-0 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-sm font-semibold text-cyan-200">₹{(selectedPlan?.price ?? previewPayment.amount_inr).toFixed(0)}</span>
                 </div>
                 <p className="mt-2 text-sm leading-relaxed text-gray-300">
-                  Your {previewPayment.free_pages + previewPayment.paid_pages}-page PDF has a free first-page preview. The remaining pages have not been sent to Sarvam AI. When you are satisfied, unlock the complete document with the <span className="font-semibold text-white">{previewPayment.package_name || "Full PDF"}</span> plan.
+                  Your {previewPayment.free_pages + previewPayment.paid_pages}-page PDF has a free first-page preview. The remaining pages have not been sent to Sarvam AI. Choose how many pages you want to unlock.
                 </p>
                 <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl border border-white/10 bg-slate-950/30 p-4 text-sm">
                   <div><p className="text-gray-500">Document</p><p className="mt-1 font-semibold text-white">{previewPayment.free_pages + previewPayment.paid_pages} pages</p></div>
-                  <div><p className="text-gray-500">Full translation</p><p className="mt-1 font-semibold text-cyan-300">₹{previewPayment.amount_inr.toFixed(0)}</p></div>
+                  <div><p className="text-gray-500">Selected unlock</p><p className="mt-1 font-semibold text-cyan-300">{selectedPlan ? `${selectedPlan.pageLimit} pages · ₹${selectedPlan.price.toFixed(0)}` : `Full PDF · ₹${previewPayment.amount_inr.toFixed(0)}`}</p></div>
                 </div>
                 <div className="mt-4">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-semibold text-white">Transparent plans</p>
-                    <span className="text-xs text-gray-400">Your match: {previewPayment.package_name || "Full PDF"}</span>
+                    <span className="text-xs text-gray-400">Choose what you need</span>
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
                     {[
-                      ["Starter", "2 pages / 4K chars", "₹5"],
-                      ["Basic", "5 pages / 9K chars", "₹19"],
-                      ["Standard", "8 pages / 14K chars", "₹29"],
-                      ["Plus", "10 pages / 18K chars", "₹39"],
-                      ["Full PDF", "Any larger document", "₹49+"],
-                    ].map(([name, limits, price]) => {
-                      const selected = name === (previewPayment.package_name || "Full PDF");
+                      { id: "starter", name: "Starter", limit: 2, price: 5, limits: "First 2 pages" },
+                      { id: "basic", name: "Basic", limit: 5, price: 19, limits: "First 5 pages" },
+                      { id: "standard", name: "Standard", limit: 8, price: 29, limits: "First 8 pages" },
+                      { id: "plus", name: "Plus", limit: 10, price: 39, limits: "First 10 pages" },
+                      { id: "full_pdf", name: "Full PDF", limit: previewPayment.free_pages + previewPayment.paid_pages, price: previewPayment.amount_inr, limits: "All document pages" },
+                    ].map((plan) => {
+                      const pageCount = previewPayment.free_pages + previewPayment.paid_pages;
+                      const pageLimit = Math.min(plan.limit, pageCount);
+                      const selected = selectedPlan?.id === plan.id || (!selectedPlan && plan.id === "full_pdf");
+                      const unavailable = plan.id !== "full_pdf" && pageLimit <= previewPayment.free_pages;
                       return (
                         <button
                           type="button"
-                          key={name}
+                          key={plan.id}
+                          disabled={unavailable}
                           onClick={() => {
-                            if (selected) {
-                              setPlanMessage(null);
-                              void reportPaymentEvent(jobId, "payment_plan_selected");
-                              setShowPaymentModal(true);
-                              return;
-                            }
-                            setPlanMessage(`${name} is not eligible for this complete PDF. Its page/text limit is ${limits}; your document is matched to ${previewPayment.package_name || "Full PDF"} at ₹${previewPayment.amount_inr.toFixed(0)}.`);
+                            setSelectedPlan({ id: plan.id, name: plan.name, price: plan.price, pageLimit, limits: plan.limits });
+                            setPlanMessage(`${plan.name} selected: you will receive a translated PDF with the first ${pageLimit} page${pageLimit === 1 ? "" : "s"}.`);
                           }}
-                          className={`rounded-lg border p-2.5 text-left transition focus:outline-none focus:ring-2 focus:ring-cyan-300 ${selected ? "border-cyan-400/70 bg-cyan-400/10 hover:bg-cyan-400/20" : "border-white/10 bg-white/[0.03] hover:border-cyan-400/40 hover:bg-white/[0.06]"}`}
-                          aria-label={selected ? `Select ${name}, ${price}` : `View ${name} plan eligibility`}
+                          className={`rounded-lg border p-2.5 text-left transition focus:outline-none focus:ring-2 focus:ring-cyan-300 disabled:cursor-not-allowed disabled:opacity-40 ${selected ? "border-cyan-400/70 bg-cyan-400/10 hover:bg-cyan-400/20" : "border-white/10 bg-white/[0.03] hover:border-cyan-400/40 hover:bg-white/[0.06]"}`}
+                          aria-label={`Select ${plan.name}, ₹${plan.price}`}
                         >
-                          <p className={`text-xs font-semibold ${selected ? "text-cyan-200" : "text-gray-200"}`}>{name}</p>
-                          <p className="mt-1 min-h-8 text-[11px] text-gray-500">{limits}</p>
-                          <p className="mt-1 text-sm font-bold text-white">{price}</p>
-                          <p className={`mt-1 text-[10px] font-medium ${selected ? "text-cyan-300" : "text-gray-500"}`}>{selected ? "Select this plan" : "Check eligibility"}</p>
+                          <p className={`text-xs font-semibold ${selected ? "text-cyan-200" : "text-gray-200"}`}>{plan.name}</p>
+                          <p className="mt-1 min-h-8 text-[11px] text-gray-500">{plan.limits}</p>
+                          <p className="mt-1 text-sm font-bold text-white">₹{plan.price === previewPayment.amount_inr && plan.id === "full_pdf" ? `${plan.price.toFixed(0)}` : plan.price}</p>
+                          <p className={`mt-1 text-[10px] font-medium ${selected ? "text-cyan-300" : "text-gray-500"}`}>{selected ? "Selected" : unavailable ? "Not needed" : "Select plan"}</p>
                         </button>
                       );
                     })}
                   </div>
-                  <p className="mt-2 text-xs text-gray-500">A plan applies when both its page and text limits fit the full document.</p>
+                  <p className="mt-2 text-xs text-gray-500">Each plan translates the first listed pages, including your already free preview page.</p>
                   {planMessage && <p role="status" className="mt-2 rounded-lg border border-amber-400/30 bg-amber-400/10 p-2 text-xs leading-relaxed text-amber-100">{planMessage}</p>}
                 </div>
                 {previewPayment.pricing_model === "full_pdf_character_based" && (
@@ -340,7 +350,7 @@ export default function ConvertClient() {
                   }}
                   className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-cyan-600 px-5 py-3 font-semibold text-white hover:from-indigo-500 hover:to-cyan-500"
                 >
-                  <CreditCard className="h-5 w-5" /> Continue securely with Razorpay
+                  <CreditCard className="h-5 w-5" /> Pay ₹{(selectedPlan?.price ?? previewPayment.amount_inr).toFixed(0)} securely with Razorpay
                 </button>
               </div>
             ) : (
@@ -380,11 +390,12 @@ export default function ConvertClient() {
           }}
           onPaymentSuccess={handlePaymentSuccess}
           pageCount={previewPayment.free_pages + previewPayment.paid_pages}
-          paymentAmount={previewPayment.amount_inr}
+          paymentAmount={selectedPlan?.price ?? previewPayment.amount_inr}
           freePagesUsed={previewPayment.free_pages}
           jobId={jobId}
-          packageName={previewPayment.package_name}
-          characterLimit={previewPayment.package_id !== "full_pdf" ? previewPayment.package_limit_characters : undefined}
+          packageName={selectedPlan?.name ?? "Full PDF"}
+          packageId={selectedPlan?.id ?? "full_pdf"}
+          pageLimit={selectedPlan?.pageLimit ?? previewPayment.free_pages + previewPayment.paid_pages}
           initiatePayment={initiatePayment}
           isDemoMode={paymentConfig?.demo_mode}
         />

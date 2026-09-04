@@ -20,7 +20,9 @@ interface PaymentModalProps {
   jobId: string;
   packageName?: string;
   characterLimit?: number;
-  initiatePayment: (jobId: string, pageCount: number) => Promise<string | null>;
+  packageId?: string;
+  pageLimit?: number;
+  initiatePayment: (jobId: string, pageCount: number, packageId?: string) => Promise<string | null>;
   isDemoMode?: boolean;
 }
 
@@ -35,6 +37,8 @@ export default function PaymentModal({
   jobId,
   packageName,
   characterLimit,
+  packageId,
+  pageLimit,
   initiatePayment,
   isDemoMode = false,
 }: PaymentModalProps) {
@@ -48,7 +52,7 @@ export default function PaymentModal({
     setError(null);
 
     try {
-      const orderId = await initiatePayment(jobId, pageCount);
+      const orderId = await initiatePayment(jobId, pageLimit || pageCount, packageId);
       
       if (orderId) {
         await onPaymentSuccess(orderId);
@@ -101,7 +105,7 @@ export default function PaymentModal({
           <div className="bg-white/5 rounded-lg p-4 space-y-3">
             <div className="flex justify-between text-sm">
               <span className="text-gray-400">Total Pages</span>
-              <span className="text-white font-medium">{pageCount} pages</span>
+              <span className="text-white font-medium">{pageLimit || pageCount} page{(pageLimit || pageCount) === 1 ? "" : "s"}</span>
             </div>
             
             <div className="flex justify-between text-sm">
@@ -137,7 +141,7 @@ export default function PaymentModal({
             </div>
             <div className="flex items-center gap-2 text-sm text-gray-300">
               <CheckCircle className="w-4 h-4 text-green-400" />
-              <span>All remaining pages are translated only after payment</span>
+              <span>Only the selected pages are translated after payment</span>
             </div>
             <div className="flex items-center gap-2 text-sm text-gray-300">
               <CheckCircle className="w-4 h-4 text-green-400" />

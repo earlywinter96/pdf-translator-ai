@@ -193,6 +193,61 @@ def calculate_payment(total_pages: int, billable_characters: int = 0) -> Dict:
     }
 
 
+def calculate_selected_package(
+    package_id: str, total_pages: int, billable_characters: int,
+) -> Dict:
+    """Return the exact checkout amount and page limit a customer selected.
+
+    The first page is always free. Small plans intentionally unlock a limited
+    PDF so a customer can verify quality before paying for more pages.
+    """
+    if total_pages < 2:
+        raise ValueError("Payment is not required for a one-page document")
+
+    selected_id = (package_id or "full_pdf").strip().lower()
+    if selected_id == "full_pdf":
+        quote = calculate_payment(total_pages, billable_characters)
+        # A customer explicitly choosing Full PDF receives all pages even
+        # where their document would otherwise qualify for a smaller tier.
+        if quote["package_id"] != "full_pdf":
+            quote.update({
+                "package_id": "full_pdf",
+                "package_name": "Full PDF",
+                "package_limit_pages": total_pages,
+                "package_limit_characters": billable_characters,
+                "amount": max(MINIMUM_FULL_PDF_AMOUNT, quote["amount"]),
+                "amount_inr": max(MINIMUM_FULL_PDF_AMOUNT, quote["amount"]) / 100,
+                "pricing_model": "full_pdf_character_based",
+            })
+        quote["page_limit"] = total_pages
+        quote["message"] = f"Full PDF translation: {format_amount(quote['amount'])}"
+        return quote
+
+    package = next((item for item in SMALL_DOCUMENT_PACKAGES if item["id"] == selected_id), None)
+    if not package:
+        raise ValueError("Please select a valid translation plan")
+    if total_pages <= FREE_PAGES_LIMIT:
+        raise ValueError("Payment is not required for this document")
+
+    page_limit = min(total_pages, int(package["max_pages"]))
+    return {
+        "total_pages": total_pages,
+        "free_pages": FREE_PAGES_LIMIT,
+        "paid_pages": max(0, page_limit - FREE_PAGES_LIMIT),
+        "billable_characters": billable_characters,
+        "pricing_model": "selected_page_package",
+        "package_id": package["id"],
+        "package_name": package["name"],
+        "package_limit_pages": package["max_pages"],
+        "package_limit_characters": package["max_characters"],
+        "page_limit": page_limit,
+        "amount": package["amount"],
+        "amount_inr": package["amount"] / 100,
+        "requires_payment": True,
+        "message": f"{package['name']} unlocks the first {page_limit} pages: {format_amount(package['amount'])}",
+    }
+
+
 # ============================================================================
 # VALIDATION
 # ============================================================================

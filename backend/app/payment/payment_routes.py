@@ -13,6 +13,7 @@ import logging
 
 from .payment_config import (
     calculate_payment,
+    calculate_selected_package,
     get_public_key,
     is_demo_mode,
     FREE_PAGES_LIMIT,
@@ -73,6 +74,7 @@ class PageCheckResponse(BaseModel):
 class PaymentOrderRequest(BaseModel):
     job_id: str
     page_count: int
+    package_id: str = "full_pdf"
 
 
 class PaymentOrderResponse(BaseModel):
@@ -260,8 +262,11 @@ async def create_order(
     if job.get("status") != "completed" or not job.get("output_path"):
         raise HTTPException(409, "Your free preview is still being created. Please review it before payment.")
 
-    # Never accept a browser-controlled page count for billing.
-    payment_calc = calculate_payment(
+    # Never accept a browser-controlled page count or amount. The selected
+    # package is validated here and determines both checkout amount and the
+    # maximum number of pages released after verification.
+    payment_calc = calculate_selected_package(
+        request.package_id,
         int(job["page_count"]),
         int(job.get("billable_characters", 0)),
     )
@@ -277,7 +282,7 @@ async def create_order(
                 amount_paise=payment_calc["amount"],
                 job_id=request.job_id,
                 session_id=session_id,
-                page_count=payment_calc["paid_pages"]
+                page_count=payment_calc["page_limit"]
             )
             order["demo"] = True
             order["message"] = "⚠️ DEMO MODE: This is a test payment. No real money will be charged."
@@ -287,14 +292,15 @@ async def create_order(
                 amount_paise=payment_calc["amount"],
                 job_id=request.job_id,
                 session_id=session_id,
-                page_count=payment_calc["paid_pages"]
+                page_count=payment_calc["page_limit"]
             )
         
         # Associate payment with session
         add_payment_to_session(session_id, order["order_id"])
         asyncio.create_task(notify_discord("LipiTranslate payment checkout opened", {
             "Job": request.job_id[:8],
-            "Pages to unlock": payment_calc["paid_pages"],
+            "Plan": payment_calc["package_name"],
+            "Pages to unlock": payment_calc["page_limit"],
             "Amount": format_amount(payment_calc["amount"]),
             "Status": "Awaiting payment",
         }))

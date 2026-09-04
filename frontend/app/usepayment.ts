@@ -222,7 +222,8 @@ export function usePayment() {
 
   const initiatePayment = async (
     jobId: string,
-    pageCount: number
+    pageCount: number,
+    packageId: string = 'full_pdf',
   ) => {
     if (!sessionId) {
       throw new Error('No session ID');
@@ -239,6 +240,7 @@ export function usePayment() {
         body: JSON.stringify({
           job_id: jobId,
           page_count: pageCount,
+          package_id: packageId,
         }),
       }
     );

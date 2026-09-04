@@ -495,11 +495,17 @@ async def start_paid_translation(job_id: str, order_id: str, background_tasks: B
     if job.get("status") != "completed" or not job.get("output_path"):
         raise HTTPException(409, "The free preview must finish before full-document translation can start")
 
-    set_job_metadata(job_id, payment_started=True, paid_order_id=order_id)
+    page_limit = min(int(payment.get("page_count") or job["page_count"]), int(job["page_count"]))
+    set_job_metadata(
+        job_id,
+        payment_started=True,
+        paid_order_id=order_id,
+        unlocked_page_limit=page_limit,
+    )
     update_job(job_id, 1, "Payment verified. Starting full-document translation...")
     asyncio.create_task(notify_discord("LipiTranslate payment verified", {
         "Job": job_id[:8],
-        "Status": "Full-document translation started",
+        "Status": f"Translation started for first {page_limit} page(s)",
     }))
     background_tasks.add_task(
         translate_pdf_task,
@@ -507,7 +513,7 @@ async def start_paid_translation(job_id: str, order_id: str, background_tasks: B
         job["input_path"],
         job["source_language"],
         job["target_language"],
-        None,
+        page_limit,
     )
     return {"job_id": job_id, "status": "processing", "message": "Payment verified. Translation started."}
 
@@ -761,7 +767,11 @@ async def translate_pdf_task(
         else:
             create_translated_pdf(translated_content, output_path, target_language)
 
-        if page_limit is not None and total_pages > page_limit:
+        # Only the free preview carries a lock notice. A customer who bought
+        # a 2/5/8/10-page plan receives exactly that many translated pages,
+        # without an extra marketing page in their download.
+        job_for_output = get_job(job_id) or {}
+        if page_limit is not None and total_pages > page_limit and not job_for_output.get("payment_started"):
             append_payment_required_page(output_path, total_pages)
         
         # Complete job
