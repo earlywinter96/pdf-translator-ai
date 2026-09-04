@@ -115,9 +115,11 @@ def validate_language(language: str) -> str:
     if normalized in SUPPORTED_LANGUAGES:
         return SUPPORTED_LANGUAGES[normalized]
     
-    # Check if already in correct format
-    if normalized in SUPPORTED_LANGUAGES.values():
-        return normalized
+    # Check if already in the provider format, case-insensitively. The UI
+    # normally sends names such as "hindi", while API clients may use hi-IN.
+    for language_code in set(SUPPORTED_LANGUAGES.values()):
+        if normalized == language_code.lower():
+            return language_code
     
     raise ValueError(
         f"Language '{language}' not supported by Sarvam AI. "

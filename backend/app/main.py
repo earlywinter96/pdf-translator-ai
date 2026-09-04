@@ -37,6 +37,7 @@ from app.services.layout_pdf_writer import (
 )
 from app.services.discord_notifier import notify_discord, notify_pdf_upload, notify_preview_documents
 from app.services.sarvam_vision import extract_sarvam_vision_blocks, is_sarvam_vision_enabled
+from app.sarvam_wrapper import is_same_language
 
 # Import existing modules
 from app.models.job import (
@@ -256,6 +257,8 @@ async def detect_language_endpoint(file: UploadFile = File(...)):
     # Validate file
     if not file.filename.endswith('.pdf'):
         raise HTTPException(400, "Only PDF files are supported")
+    if is_same_language(source_language, target_language):
+        raise HTTPException(400, "Source and target language are the same. Please select a different target language.")
     
     # Save temporary file
     temp_id = str(uuid.uuid4())

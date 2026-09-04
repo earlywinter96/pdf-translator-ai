@@ -40,6 +40,7 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
   
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const sameLanguage = sourceLanguage.trim().toLowerCase() === targetLanguage.trim().toLowerCase();
   
   // ============================================================================
   // FILE UPLOAD
@@ -77,6 +78,10 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
   // ============================================================================
 
   const handleTranslate = async () => {
+    if (sameLanguage) {
+      setError("The source and target languages are the same. Please select a different language to translate into.");
+      return;
+    }
     if (!file) {
       setError('Please select a PDF file');
       return;
@@ -270,6 +275,12 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
           </div>
         </div>
 
+        {sameLanguage && (
+          <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-200">
+            Select a different language in “To” to create a translation.
+          </div>
+        )}
+
         {/* Translation Mode */}
         <div className="space-y-2">
           <label className="text-sm text-gray-400">Translation Style</label>
@@ -371,7 +382,7 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
       {/* Translate Button */}
       <button
         onClick={handleTranslate}
-        disabled={!file || isUploading}
+        disabled={!file || isUploading || sameLanguage}
         className="w-full py-4 rounded-xl font-semibold text-white
           bg-gradient-to-r from-indigo-600 to-cyan-600
           hover:from-indigo-500 hover:to-cyan-500
