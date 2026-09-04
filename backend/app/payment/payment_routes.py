@@ -215,6 +215,7 @@ async def record_payment_funnel_event(event: PaymentFunnelEvent):
         "preview_viewed": "Free preview viewed",
         "payment_modal_opened": "Payment options viewed",
         "payment_modal_dismissed": "Payment options dismissed",
+        "payment_plan_selected": "Eligible payment plan selected",
         "razorpay_opened": "Razorpay checkout opened",
         "razorpay_dismissed": "Razorpay checkout dismissed",
         "payment_failed": "Razorpay payment failed",

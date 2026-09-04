@@ -46,6 +46,7 @@ export default function ConvertClient() {
   const [jobStatus, setJobStatus] = useState<string>("");
   const [previewPayment, setPreviewPayment] = useState<PaymentQuote | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [planMessage, setPlanMessage] = useState<string | null>(null);
   const [translationRun, setTranslationRun] = useState(0);
   const { initiatePayment, paymentConfig, reportPaymentEvent } = usePayment();
 
@@ -163,6 +164,7 @@ export default function ConvertClient() {
   ) => {
     setJobId(id);
     setPreviewPayment(payment ?? null);
+    setPlanMessage(null);
     setTargetLanguage(
       selectedTargetLanguage.charAt(0).toUpperCase() + selectedTargetLanguage.slice(1)
     );
@@ -193,6 +195,7 @@ export default function ConvertClient() {
     setJobStatus("");
     setPreviewPayment(null);
     setShowPaymentModal(false);
+    setPlanMessage(null);
     setFailureCount(0);
     setPollCount(0);
     setStuckDetected(false);
@@ -289,23 +292,39 @@ export default function ConvertClient() {
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
                     {[
-                      ["Starter", "2 pages", "₹5"],
-                      ["Basic", "5 pages", "₹19"],
-                      ["Standard", "8 pages", "₹29"],
-                      ["Plus", "10 pages", "₹39"],
-                      ["Full PDF", "Larger files", "₹49+"],
-                    ].map(([name, pages, price]) => {
+                      ["Starter", "2 pages / 4K chars", "₹5"],
+                      ["Basic", "5 pages / 9K chars", "₹19"],
+                      ["Standard", "8 pages / 14K chars", "₹29"],
+                      ["Plus", "10 pages / 18K chars", "₹39"],
+                      ["Full PDF", "Any larger document", "₹49+"],
+                    ].map(([name, limits, price]) => {
                       const selected = name === (previewPayment.package_name || "Full PDF");
                       return (
-                        <div key={name} className={`rounded-lg border p-2.5 ${selected ? "border-cyan-400/70 bg-cyan-400/10" : "border-white/10 bg-white/[0.03]"}`}>
+                        <button
+                          type="button"
+                          key={name}
+                          onClick={() => {
+                            if (selected) {
+                              setPlanMessage(null);
+                              void reportPaymentEvent(jobId, "payment_plan_selected");
+                              setShowPaymentModal(true);
+                              return;
+                            }
+                            setPlanMessage(`${name} is not eligible for this complete PDF. Its page/text limit is ${limits}; your document is matched to ${previewPayment.package_name || "Full PDF"} at ₹${previewPayment.amount_inr.toFixed(0)}.`);
+                          }}
+                          className={`rounded-lg border p-2.5 text-left transition focus:outline-none focus:ring-2 focus:ring-cyan-300 ${selected ? "border-cyan-400/70 bg-cyan-400/10 hover:bg-cyan-400/20" : "border-white/10 bg-white/[0.03] hover:border-cyan-400/40 hover:bg-white/[0.06]"}`}
+                          aria-label={selected ? `Select ${name}, ${price}` : `View ${name} plan eligibility`}
+                        >
                           <p className={`text-xs font-semibold ${selected ? "text-cyan-200" : "text-gray-200"}`}>{name}</p>
-                          <p className="mt-1 text-[11px] text-gray-500">{pages}</p>
+                          <p className="mt-1 min-h-8 text-[11px] text-gray-500">{limits}</p>
                           <p className="mt-1 text-sm font-bold text-white">{price}</p>
-                        </div>
+                          <p className={`mt-1 text-[10px] font-medium ${selected ? "text-cyan-300" : "text-gray-500"}`}>{selected ? "Select this plan" : "Check eligibility"}</p>
+                        </button>
                       );
                     })}
                   </div>
                   <p className="mt-2 text-xs text-gray-500">A plan applies when both its page and text limits fit the full document.</p>
+                  {planMessage && <p role="status" className="mt-2 rounded-lg border border-amber-400/30 bg-amber-400/10 p-2 text-xs leading-relaxed text-amber-100">{planMessage}</p>}
                 </div>
                 {previewPayment.pricing_model === "full_pdf_character_based" && (
                   <p className="mt-2 text-xs text-cyan-200">
