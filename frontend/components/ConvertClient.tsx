@@ -308,7 +308,7 @@ export default function ConvertClient() {
                       { id: "standard", name: "Standard", limit: 8, price: 29, limits: "First 8 pages" },
                       { id: "plus", name: "Plus", limit: 10, price: 39, limits: "First 10 pages" },
                       { id: "full_pdf", name: "Full PDF", limit: previewPayment.free_pages + previewPayment.paid_pages, price: previewPayment.amount_inr, limits: "All document pages" },
-                    ].map((plan) => {
+                    ].filter((plan) => plan.id === "full_pdf" || plan.limit <= previewPayment.free_pages + previewPayment.paid_pages).map((plan) => {
                       const pageCount = previewPayment.free_pages + previewPayment.paid_pages;
                       const pageLimit = Math.min(plan.limit, pageCount);
                       const selected = selectedPlan?.id === plan.id || (!selectedPlan && plan.id === "full_pdf");
