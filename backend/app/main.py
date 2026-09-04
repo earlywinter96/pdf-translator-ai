@@ -496,6 +496,9 @@ async def start_paid_translation(job_id: str, order_id: str, background_tasks: B
         raise HTTPException(409, "The free preview must finish before full-document translation can start")
 
     page_limit = min(int(payment.get("page_count") or job["page_count"]), int(job["page_count"]))
+    if page_limit <= FREE_PREVIEW_PAGE_LIMIT:
+        logger.error("Verified payment %s has invalid unlock limit %s", order_id, page_limit)
+        raise HTTPException(500, "The selected payment plan did not include an additional page. Please contact support before retrying.")
     set_job_metadata(
         job_id,
         payment_started=True,
@@ -766,7 +769,11 @@ async def translate_pdf_task(
         )
         
         # Create output PDF
-        output_path = os.path.join(OUTPUTS_DIR, f"{job_id}_translated.pdf")
+        # Never overwrite the preview file for a paid job. A unique paid path
+        # also prevents browser/CDN PDF caches from serving the first-page
+        # preview after a successful payment.
+        output_label = f"paid_{page_limit}" if is_paid_unlock else f"preview_{page_limit}"
+        output_path = os.path.join(OUTPUTS_DIR, f"{job_id}_{output_label}.pdf")
         if use_layout_preservation:
             layout_result = create_layout_preserved_pdf(
                 pdf_path, layout_blocks, translated_content, output_path, target_language,
@@ -782,6 +789,22 @@ async def translate_pdf_task(
         # pages purchased and no lock page.
         if page_limit is not None and total_pages > page_limit and not is_paid_unlock:
             append_payment_required_page(output_path, total_pages)
+
+        # Paid plans must produce exactly the number of pages that was sold.
+        # Keep this as a server-side invariant so a free-preview lock page can
+        # never be presented as a paid 2- or 5-page translation.
+        with fitz.open(output_path) as generated_document:
+            generated_pages = generated_document.page_count
+        if is_paid_unlock and page_limit is not None and generated_pages != page_limit:
+            logger.error(
+                "Paid output page-count mismatch for %s: bought=%s generated=%s",
+                job_id, page_limit, generated_pages,
+            )
+            fail_job(job_id, "We could not generate every page included in your paid plan. No completed result was released.")
+            return
+        if is_paid_unlock:
+            logger.info("Paid output verified for %s: %s translated pages", job_id, generated_pages)
+            set_job_metadata(job_id, generated_page_count=generated_pages, output_kind="paid_unlock")
         
         # Complete job
         complete_job(job_id, output_path)
