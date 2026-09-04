@@ -17,7 +17,10 @@ export default function BilingualPreview({ jobId, targetLanguage, isPreview = fa
 
   // Use preview endpoints instead of download endpoints
   const originalUrl = `${API_BASE}/api/preview/original/${jobId}`;
-  const translatedUrl = `${API_BASE}/api/preview/translated/${jobId}`;
+  // The paid worker replaces the preview PDF at the same server path. A
+  // versioned URL forces the browser PDF viewer to discard the one-page
+  // preview (and its lock page) once payment has completed.
+  const translatedUrl = `${API_BASE}/api/preview/translated/${jobId}?version=${isPreview ? "preview" : "paid"}`;
 
   const changeView = (view: "side-by-side" | "original" | "translated") => {
     setActiveTab(view);
@@ -146,6 +149,7 @@ export default function BilingualPreview({ jobId, targetLanguage, isPreview = fa
             {/* PDF Viewer */}
             <div className="relative bg-gray-800" style={{ height: "600px" }}>
               <iframe
+                key={translatedUrl}
                 src={translatedUrl}
                 className="w-full h-full border-0"
                 title="Translated PDF"
