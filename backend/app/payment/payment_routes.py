@@ -38,7 +38,7 @@ from .payment_service import (
     verify_webhook_signature,
     handle_payment_webhook
 )
-from app.models.job import get_job
+from app.models.job import get_job, set_job_metadata
 from app.services.discord_notifier import notify_discord
 
 logger = logging.getLogger(__name__)
@@ -297,6 +297,22 @@ async def create_order(
         
         # Associate payment with session
         add_payment_to_session(session_id, order["order_id"])
+        # PAYMENT_STORE is an in-process cache. Persist the order details on
+        # the job as well, because Render can route checkout, verification and
+        # the paid worker through different application processes.
+        set_job_metadata(
+            request.job_id,
+            pending_payment_order_id=order["order_id"],
+            pending_payment_page_limit=payment_calc["page_limit"],
+            pending_payment_package_id=payment_calc["package_id"],
+            pending_payment_amount=payment_calc["amount"],
+            pending_payment_status="created",
+        )
+        logger.info(
+            "Payment order %s persisted for job %s: package=%s, pages=%s",
+            order["order_id"], request.job_id, payment_calc["package_id"],
+            payment_calc["page_limit"],
+        )
         asyncio.create_task(notify_discord("LipiTranslate payment checkout opened", {
             "Job": request.job_id[:8],
             "Plan": payment_calc["package_name"],
@@ -337,8 +353,14 @@ async def verify_payment(
     
     update_session_activity(session_id)
 
+    job = get_job(request.job_id)
     payment = get_payment_status(request.order_id)
-    if not payment or payment.get("job_id") != request.job_id:
+    order_matches_persisted_job = bool(
+        job and job.get("pending_payment_order_id") == request.order_id
+    )
+    if not job or (
+        payment is not None and payment.get("job_id") != request.job_id
+    ) or (payment is None and not order_matches_persisted_job):
         raise HTTPException(400, "Payment order does not match this translation job")
     
     try:
@@ -346,6 +368,13 @@ async def verify_payment(
         if is_demo_mode():
             success = auto_verify_demo_payment(request.order_id)
             if success:
+                set_job_metadata(
+                    request.job_id,
+                    payment_verified=True,
+                    verified_payment_order_id=request.order_id,
+                    verified_payment_id=request.payment_id,
+                    pending_payment_status="verified",
+                )
                 asyncio.create_task(notify_discord("LipiTranslate demo payment verified", {
                     "Job": request.job_id[:8],
                     "Status": "Ready to start full-document translation",
@@ -364,6 +393,18 @@ async def verify_payment(
         
         if not is_valid:
             raise HTTPException(400, message)
+        set_job_metadata(
+            request.job_id,
+            payment_verified=True,
+            verified_payment_order_id=request.order_id,
+            verified_payment_id=request.payment_id,
+            pending_payment_status="verified",
+        )
+        logger.info(
+            "Verified payment %s persisted for job %s; unlocking %s page(s)",
+            request.order_id, request.job_id,
+            job.get("pending_payment_page_limit"),
+        )
         asyncio.create_task(notify_discord("LipiTranslate payment captured", {
             "Job": request.job_id[:8],
             "Status": "Payment signature verified",

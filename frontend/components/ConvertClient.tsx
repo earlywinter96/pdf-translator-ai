@@ -190,8 +190,14 @@ export default function ConvertClient() {
 
   const handlePaymentSuccess = async (orderId: string) => {
     if (!jobId) return;
-    setCompletedPageLimit(selectedPlan?.pageLimit ?? previewPayment?.free_pages ?? null);
-    await startPaidTranslation(jobId, orderId);
+    // Do not switch the PDF viewer away from the preview until the server has
+    // accepted the verified order and confirms the exact paid page limit.
+    const started = await startPaidTranslation(jobId, orderId);
+    const serverPageLimit = Number(started?.page_limit);
+    if (!Number.isInteger(serverPageLimit) || serverPageLimit <= 1) {
+      throw new Error("Payment was verified, but the selected page package could not be started. Please contact support.");
+    }
+    setCompletedPageLimit(serverPageLimit);
     setShowPaymentModal(false);
     setPreviewPayment(null);
     setProgress(1);

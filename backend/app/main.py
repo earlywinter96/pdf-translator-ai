@@ -486,16 +486,38 @@ async def start_paid_translation(job_id: str, order_id: str, background_tasks: B
     """Start the full job only after the verified Razorpay order is matched."""
     job = get_job(job_id)
     payment = get_payment_status(order_id)
-    if not job or not payment:
-        raise HTTPException(404, "Translation job or payment order not found")
-    if payment.get("job_id") != job_id or not is_payment_verified(order_id):
+    if not job:
+        raise HTTPException(404, "Translation job not found")
+
+    # The Razorpay signature was verified in /api/payment/verify. Keep that
+    # authorization on the persistent job, rather than depending solely on
+    # PAYMENT_STORE (an in-memory cache that is not shared by Render workers).
+    persisted_payment_verified = (
+        job.get("payment_verified") is True
+        and job.get("verified_payment_order_id") == order_id
+        and job.get("pending_payment_order_id") == order_id
+    )
+    cached_payment_verified = bool(
+        payment
+        and payment.get("job_id") == job_id
+        and is_payment_verified(order_id)
+    )
+    if not persisted_payment_verified and not cached_payment_verified:
         raise HTTPException(402, "Verified payment is required before translation")
     if job.get("payment_started"):
-        return {"job_id": job_id, "status": "processing", "message": "Translation already started"}
+        return {
+            "job_id": job_id,
+            "status": "processing",
+            "page_limit": job.get("unlocked_page_limit"),
+            "message": "Translation already started",
+        }
     if job.get("status") != "completed" or not job.get("output_path"):
         raise HTTPException(409, "The free preview must finish before full-document translation can start")
 
-    page_limit = min(int(payment.get("page_count") or job["page_count"]), int(job["page_count"]))
+    selected_page_limit = (
+        payment.get("page_count") if payment else None
+    ) or job.get("pending_payment_page_limit")
+    page_limit = min(int(selected_page_limit or job["page_count"]), int(job["page_count"]))
     if page_limit <= FREE_PREVIEW_PAGE_LIMIT:
         logger.error("Verified payment %s has invalid unlock limit %s", order_id, page_limit)
         raise HTTPException(500, "The selected payment plan did not include an additional page. Please contact support before retrying.")
@@ -519,7 +541,12 @@ async def start_paid_translation(job_id: str, order_id: str, background_tasks: B
         page_limit,
         True,
     )
-    return {"job_id": job_id, "status": "processing", "message": "Payment verified. Translation started."}
+    return {
+        "job_id": job_id,
+        "status": "processing",
+        "page_limit": page_limit,
+        "message": f"Payment verified. Translation started for {page_limit} pages.",
+    }
 
 
 @app.get("/api/status/{job_id}")
