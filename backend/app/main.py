@@ -514,6 +514,7 @@ async def start_paid_translation(job_id: str, order_id: str, background_tasks: B
         job["source_language"],
         job["target_language"],
         page_limit,
+        True,
     )
     return {"job_id": job_id, "status": "processing", "message": "Payment verified. Translation started."}
 
@@ -653,6 +654,7 @@ async def translate_pdf_task(
     source_language: str,
     target_language: str,
     page_limit: int | None = FREE_PREVIEW_PAGE_LIMIT,
+    is_paid_unlock: bool = False,
 ):
     """
     Background task for PDF translation with enhanced validation
@@ -665,7 +667,11 @@ async def translate_pdf_task(
     """
     translator = None
     try:
-        update_job(job_id, 10, "Extracting the free preview page...")
+        update_job(
+            job_id,
+            10,
+            f"Extracting your paid {page_limit}-page translation..." if is_paid_unlock else "Extracting the free preview page...",
+        )
         blank_page_count = 0
         with fitz.open(pdf_path) as source_document:
             total_pages = source_document.page_count
@@ -770,11 +776,11 @@ async def translate_pdf_task(
         else:
             create_translated_pdf(translated_content, output_path, target_language)
 
-        # Only the free preview carries a lock notice. A customer who bought
-        # a 2/5/8/10-page plan receives exactly that many translated pages,
-        # without an extra marketing page in their download.
-        job_for_output = get_job(job_id) or {}
-        if page_limit is not None and total_pages > page_limit and not job_for_output.get("payment_started"):
+        # Only the free preview carries a lock notice. This explicit argument
+        # travels with the paid background task, avoiding a timing/cache race
+        # with job metadata. Paid 2/5/8/10-page results contain exactly the
+        # pages purchased and no lock page.
+        if page_limit is not None and total_pages > page_limit and not is_paid_unlock:
             append_payment_required_page(output_path, total_pages)
         
         # Complete job
