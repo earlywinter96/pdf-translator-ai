@@ -378,7 +378,7 @@ export default function ConvertClient() {
                       name: "Full PDF",
                       limit: previewPayment.free_pages + previewPayment.paid_pages,
                       price: previewPayment.full_pdf_amount_inr ?? previewPayment.amount_inr,
-                      limits: "All document pages",
+                      limits: previewPayment.full_pdf_details || "All document pages",
                     }].filter((plan, _, plans) => {
                       const pageCount = previewPayment.free_pages + previewPayment.paid_pages;
                       if (plan.id !== "full_pdf") return plan.limit <= pageCount;

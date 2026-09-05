@@ -61,6 +61,8 @@ SMALL_DOCUMENT_PACKAGES = (
 CHARACTER_BLOCK_SIZE = 10_000
 PRICE_PER_CHARACTER_BLOCK = 4900  # ₹49 per started 10,000 characters
 MINIMUM_FULL_PDF_AMOUNT = 4900  # ₹49 minimum for documents outside packages
+EXTRA_PAGE_AMOUNT = 1500  # ₹15 for each page after the 10-page Plus plan
+EXTRA_CHARACTER_BLOCK_AMOUNT = 2500  # ₹25 per started 10K chars above Plus
 
 # Business information
 BUSINESS_INFO = {
@@ -139,12 +141,41 @@ def available_page_packages(total_pages: int, billable_characters: int) -> list[
     return available
 
 
-def calculate_full_pdf_amount(billable_characters: int) -> int:
-    """Character-priced amount for every page of a paid document."""
-    return max(
-        MINIMUM_FULL_PDF_AMOUNT,
-        math.ceil(billable_characters / CHARACTER_BLOCK_SIZE) * PRICE_PER_CHARACTER_BLOCK,
-    )
+def calculate_full_pdf_amount(total_pages: int, billable_characters: int) -> int:
+    """A clear incremental quote for the whole document.
+
+    For documents above 10 pages, continue from Plus instead of abruptly
+    restarting the price at ₹49 per character block. The page increment covers
+    normal scanned pages; the text increment protects against unusually dense
+    documents whose Sarvam usage is genuinely higher.
+    """
+    plus = SMALL_DOCUMENT_PACKAGES[-1]
+    if total_pages <= int(plus["max_pages"]):
+        return max(
+            MINIMUM_FULL_PDF_AMOUNT,
+            math.ceil(billable_characters / CHARACTER_BLOCK_SIZE) * PRICE_PER_CHARACTER_BLOCK,
+        )
+
+    extra_pages = total_pages - int(plus["max_pages"])
+    page_increment = extra_pages * EXTRA_PAGE_AMOUNT
+    overflow_characters = max(0, billable_characters - int(plus["max_characters"]))
+    character_increment = math.ceil(overflow_characters / CHARACTER_BLOCK_SIZE) * EXTRA_CHARACTER_BLOCK_AMOUNT
+    return int(plus["amount"]) + max(page_increment, character_increment)
+
+
+def full_pdf_pricing_details(total_pages: int, billable_characters: int) -> str:
+    """Customer-facing explanation of the exact full-PDF quote."""
+    plus = SMALL_DOCUMENT_PACKAGES[-1]
+    if total_pages <= int(plus["max_pages"]):
+        return "All document pages"
+    extra_pages = total_pages - int(plus["max_pages"])
+    page_increment = extra_pages * EXTRA_PAGE_AMOUNT
+    overflow_characters = max(0, billable_characters - int(plus["max_characters"]))
+    character_increment = math.ceil(overflow_characters / CHARACTER_BLOCK_SIZE) * EXTRA_CHARACTER_BLOCK_AMOUNT
+    additional = max(page_increment, character_increment)
+    if character_increment > page_increment:
+        return f"₹89 up to 10 pages + ₹{additional / 100:.0f} for dense additional text"
+    return f"₹89 up to 10 pages + ₹{additional / 100:.0f} for {extra_pages} additional page{'s' if extra_pages != 1 else ''}"
 
 
 # ============================================================================
@@ -206,7 +237,7 @@ def calculate_payment(total_pages: int, billable_characters: int = 0) -> Dict:
             package_limit_pages = package["max_pages"]
             package_limit_characters = package["max_characters"]
         else:
-            amount_paise = calculate_full_pdf_amount(billable_characters)
+            amount_paise = calculate_full_pdf_amount(total_pages, billable_characters)
             pricing_model = "full_pdf_character_based"
             package_id = "full_pdf"
             package_name = "Full PDF"
@@ -234,8 +265,9 @@ def calculate_payment(total_pages: int, billable_characters: int = 0) -> Dict:
         "package_limit_characters": package_limit_characters,
         "amount": amount_paise,
         "amount_inr": amount_inr,
-        "full_pdf_amount": calculate_full_pdf_amount(billable_characters) if paid_pages else 0,
-        "full_pdf_amount_inr": calculate_full_pdf_amount(billable_characters) / 100 if paid_pages else 0,
+        "full_pdf_amount": calculate_full_pdf_amount(total_pages, billable_characters) if paid_pages else 0,
+        "full_pdf_amount_inr": calculate_full_pdf_amount(total_pages, billable_characters) / 100 if paid_pages else 0,
+        "full_pdf_details": full_pdf_pricing_details(total_pages, billable_characters) if paid_pages else "",
         "requires_payment": paid_pages > 0,
         "message": message,
         "available_packages": available_page_packages(total_pages, billable_characters) if paid_pages else [],

@@ -35,6 +35,7 @@ export interface PaymentQuote {
   package_limit_pages?: number;
   package_limit_characters?: number;
   full_pdf_amount_inr?: number;
+  full_pdf_details?: string;
   available_packages?: Array<{
     id: string;
     name: string;
@@ -134,6 +135,7 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
           package_limit_pages: result.payment.package_limit_pages,
           package_limit_characters: result.payment.package_limit_characters,
           full_pdf_amount_inr: result.payment.full_pdf_amount_inr,
+          full_pdf_details: result.payment.full_pdf_details,
           available_packages: result.payment.available_packages,
         });
       } else {
