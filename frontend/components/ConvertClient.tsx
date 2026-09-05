@@ -115,6 +115,15 @@ export default function ConvertClient() {
         // -------------------------------
         if (data.status === "completed" || data.progress >= 100) {
           if (awaitingPaidOutputRef.current) {
+            if (data.output_kind !== "paid_unlock") {
+              awaitingPaidOutputRef.current = false;
+              setJobStatus("failed");
+              setStatusMessage(
+                "Your payment was received, but the paid PDF was not completed. Please contact support before attempting another payment."
+              );
+              isActiveRef.current = false;
+              return;
+            }
             awaitingPaidOutputRef.current = false;
             // This changes BilingualPreview from ?version=preview to
             // ?version=paid only after the paid file exists on Render.

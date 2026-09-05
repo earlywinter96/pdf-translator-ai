@@ -585,7 +585,11 @@ async def get_translation_status(job_id: str):
         "status": job["status"],
         "progress": job["progress"],
         "message": job["message"],
-        "output_path": job.get("output_path")
+        "output_path": job.get("output_path"),
+        # The frontend uses this to distinguish a completed free preview from
+        # the separately generated paid PDF.
+        "output_kind": job.get("output_kind"),
+        "generated_page_count": job.get("generated_page_count"),
     }
 
 
