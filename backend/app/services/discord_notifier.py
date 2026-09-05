@@ -14,10 +14,42 @@ import fitz
 logger = logging.getLogger(__name__)
 MAX_DISCORD_PREVIEW_BYTES = 8 * 1024 * 1024
 _missing_webhook_warned = False
+_missing_telegram_warned = False
+
+
+def _is_error_event(title: str) -> bool:
+    value = title.lower()
+    return any(word in value for word in ("error", "failed", "failure", "exception", "unavailable"))
+
+
+async def notify_telegram(title: str, fields: Mapping[str, str | int]) -> None:
+    """Send routine operational notifications to the owner's Telegram bot."""
+    global _missing_telegram_warned
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        if not _missing_telegram_warned:
+            logger.error("Telegram notifications disabled: TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID are not configured")
+            _missing_telegram_warned = True
+        return
+    lines = [title] + [f"{name}: {value}" for name, value in fields.items()]
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={"chat_id": chat_id, "text": "\n".join(lines)},
+            )
+            if response.is_error:
+                logger.error("Telegram notification rejected (%s): %s", response.status_code, response.text[:300])
+    except Exception as exc:
+        logger.warning("Telegram notification failed: %s", exc)
 
 
 async def notify_discord(title: str, fields: Mapping[str, str | int]) -> None:
     """Send metadata-only events when a private webhook is configured."""
+    if not _is_error_event(title):
+        await notify_telegram(title, fields)
+        return
     global _missing_webhook_warned
     webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
     if not webhook_url:
@@ -76,7 +108,15 @@ async def notify_preview_documents(
     paid_pages: int,
     amount_inr: float,
 ) -> None:
-    """Attach the original and translated first pages to the private webhook."""
+    """Report preview readiness to Telegram as a routine notification."""
+    await notify_telegram("LipiTranslate preview ready", {
+        "Job": job_id[:8],
+        "Preview": "Original + translated first page ready",
+        "Pages awaiting payment": paid_pages if paid_pages else "None — free document",
+        "Full translation price": f"₹{amount_inr:.0f}" if paid_pages else "Free",
+        "Status": "Preview ready — awaiting payment" if paid_pages else "Free first-page translation complete",
+    })
+    return
     webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
     if not webhook_url:
         logger.error("Discord preview notification skipped: DISCORD_WEBHOOK_URL is not configured")
