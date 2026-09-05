@@ -1,4 +1,4 @@
-# LipiTranslate 🇮🇳
+# LipiTranslate.in 🇮🇳
 
 **Production PDF translation and OCR for Indian languages**
 
