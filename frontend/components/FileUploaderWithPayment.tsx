@@ -1,7 +1,7 @@
 // components/FileUploaderWithPayment.tsx
 /**
  * File Uploader with Payment Integration
- * Updated for Sarvam AI (22+ languages)
+ * Currently available: Gujarati, Hindi, Marathi and English.
  */
 
 "use client";
@@ -9,7 +9,7 @@
 import { useState, useCallback } from "react";
 import { Upload, FileText, Languages, Zap, AlertCircle, LayoutTemplate, ImageIcon, Table2 } from "lucide-react";
 import { useDropzone } from "react-dropzone";
-import { uploadPDFForTranslation, SUPPORTED_LANGUAGES, PRIMARY_LANGUAGES, EXTENDED_LANGUAGES } from "@/lib/api";
+import { uploadPDFForTranslation, SUPPORTED_LANGUAGES, PRIMARY_LANGUAGES } from "@/lib/api";
 
 const MAX_FILE_SIZE_MB = 25;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -51,7 +51,6 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
   const [sourceLanguage, setSourceLanguage] = useState("gujarati");
   const [targetLanguage, setTargetLanguage] = useState("english");
   const [translationMode, setTranslationMode] = useState("formal");
-  const [showExtendedLanguages, setShowExtendedLanguages] = useState(false);
   
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -222,25 +221,9 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
                 ))}
               </optgroup>
               
-              {showExtendedLanguages && (
-                <optgroup label="Extended Languages (via Sarvam AI)">
-                  {EXTENDED_LANGUAGES.map(lang => (
-                    <option key={lang} value={lang}>
-                      {SUPPORTED_LANGUAGES[lang as keyof typeof SUPPORTED_LANGUAGES].name}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
+              
             </select>
             
-            {!showExtendedLanguages && (
-              <button
-                onClick={() => setShowExtendedLanguages(true)}
-                className="text-xs text-cyan-400 hover:text-cyan-300"
-              >
-                + Show 8 more languages
-              </button>
-            )}
           </div>
 
           {/* Swap Button */}
@@ -282,15 +265,6 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
                 ))}
               </optgroup>
               
-              {showExtendedLanguages && (
-                <optgroup label="Extended Languages (via Sarvam AI)">
-                  {EXTENDED_LANGUAGES.map(lang => (
-                    <option key={lang} value={lang}>
-                      {SUPPORTED_LANGUAGES[lang as keyof typeof SUPPORTED_LANGUAGES].name}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
             </select>
           </div>
         </div>

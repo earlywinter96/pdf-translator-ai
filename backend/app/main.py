@@ -275,7 +275,7 @@ Verified LipiTranslate facts:
 - Payment helps cover Sarvam AI, OCR, PDF processing, secure payment fees, and operating costs.
 - The service aims to preserve the original PDF's layout, headings, images, and formatting where possible,
   but complex scans, handwriting, unusual fonts, and dense tables can affect the result.
-- Major Indian languages including Gujarati, Hindi, Marathi and English are supported.
+- Gujarati, Hindi, Marathi and English are currently supported. Additional languages are in development.
 - For a question, suggestion, payment issue, or a document-specific issue, direct the visitor to
   lipitranslate.general@gmail.com. Do not invent refund policies, turnaround guarantees, storage claims,
   prices, technical guarantees, or founder details beyond the facts above.
@@ -307,7 +307,7 @@ def _support_fallback_answer(message: str) -> str:
     if any(word in query for word in ("founder", "hemant", "who made", "who created")):
         return "LipiTranslate was founded by Hemant Solanki to make Indian-language PDFs easier to understand and translate."
     if any(word in query for word in ("language", "gujarati", "hindi", "marathi", "english")):
-        return "LipiTranslate supports English and major Indian languages, including Gujarati, Hindi and Marathi."
+        return "LipiTranslate currently supports Gujarati, Hindi, Marathi and English. Additional languages are in development."
     if any(word in query for word in ("help", "support", "contact", "suggestion", "issue", "problem")):
         return f"For a document-specific issue, payment question, query or suggestion, email us at {SUPPORT_EMAIL}."
     return f"I can help only with LipiTranslate: the free first-page preview, paid page unlocks, PDF quality, supported languages, or support. For anything else, email {SUPPORT_EMAIL}."

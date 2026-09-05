@@ -10,7 +10,7 @@ LipiTranslate is a commercial document-translation platform founded by **Hemant 
 
 ## What the product provides
 
-- Sarvam AI translation for English and major Indian languages, including Gujarati, Hindi, Marathi, Bengali, Tamil, Telugu, Kannada, Malayalam, Punjabi, Odia, Assamese, and Urdu.
+- Currently available translation languages: Gujarati, Hindi, Marathi and English. Additional Indian languages are being quality-tested for a future release.
 - Sarvam Vision/document digitization for scanned PDFs, with a Tesseract fallback when Vision is unavailable.
 - Layout-aware PDF extraction and design-preserved translated output, including images and tables where the source structure can be recovered.
 - A free first-page translation preview so customers can review quality before payment.

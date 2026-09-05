@@ -32,8 +32,7 @@ export default function HomePage() {
           
           <p className="text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
             AI-powered PDF translation and visualization for{" "}
-            <span className="text-cyan-400 font-semibold">22+ Indian Languages</span>
-            {" "}including Gujarati, Hindi, Marathi, Bengali, Tamil & more
+            <span className="text-cyan-400 font-semibold">Gujarati, Hindi, Marathi and English</span>
           </p>
 
           <div className="flex justify-center">
@@ -78,7 +77,7 @@ export default function HomePage() {
             <ul className="space-y-2 text-sm text-gray-300">
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-cyan-400"></div>
-                22+ Indian languages (Gujarati, Hindi, Marathi, Bengali, Tamil, Telugu & more)
+                Gujarati, Hindi, Marathi and English are currently available
               </li>
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-cyan-400"></div>
@@ -157,7 +156,7 @@ export default function HomePage() {
                 </div>
                 <ul className="space-y-2 text-sm text-gray-300">
                   <li>• Native speaker quality</li>
-                  <li>• 22+ Indian languages</li>
+                  <li>• Gujarati, Hindi, Marathi and English</li>
                   <li>• Cultural context aware</li>
                   <li>• ₹0.003 per page (~99% savings)</li>
                 </ul>
@@ -226,9 +225,9 @@ export default function HomePage() {
             
             <div className="rounded-xl bg-white/5 border border-white/10 p-6 text-center">
               <Languages className="w-10 h-10 text-cyan-400 mx-auto mb-3" />
-              <h4 className="font-semibold text-white mb-2">22+ Languages</h4>
+              <h4 className="font-semibold text-white mb-2">4 Languages Available</h4>
               <p className="text-sm text-gray-400">
-                Complete coverage of Indian languages
+                More Indian languages are being added after quality testing
               </p>
             </div>
             

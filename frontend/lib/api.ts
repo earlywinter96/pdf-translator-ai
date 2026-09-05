@@ -19,7 +19,8 @@ export const SUPPORTED_LANGUAGES = {
   marathi: { code: 'mr', name: 'Marathi (मराठी)', flag: '🇮🇳' },
   english: { code: 'en', name: 'English', flag: '🇬🇧' },
   
-  // Extended Indian Languages (via Sarvam AI)
+  // Additional languages are retained for future rollout but are not exposed
+  // in the production selector until their quality checks are complete.
   bengali: { code: 'bn', name: 'Bengali (বাংলা)', flag: '🇮🇳' },
   tamil: { code: 'ta', name: 'Tamil (தமிழ்)', flag: '🇮🇳' },
   telugu: { code: 'te', name: 'Telugu (తెలుగు)', flag: '🇮🇳' },
@@ -31,10 +32,7 @@ export const SUPPORTED_LANGUAGES = {
 };
 
 export const PRIMARY_LANGUAGES = ['gujarati', 'hindi', 'marathi', 'english'];
-export const EXTENDED_LANGUAGES = [
-  'bengali', 'tamil', 'telugu', 'kannada', 
-  'malayalam', 'punjabi', 'odia', 'urdu'
-];
+export const EXTENDED_LANGUAGES: string[] = [];
 
 // ============================================================================
 // PDF UTILITIES

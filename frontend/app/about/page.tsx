@@ -31,7 +31,7 @@ export default function AboutPage() {
         <section className="rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 shadow-xl p-8 md:p-10 space-y-6 text-gray-300 leading-relaxed">
           <h2 className="text-2xl font-semibold text-white">Made for documents that matter</h2>
           <p>
-            LipiTranslate is designed for the PDFs people actually need to understand: study material, forms, notes, government documents, reports, and professional files. It focuses on Indian-language translation, including Gujarati, Hindi, Marathi, Bengali, Tamil, Telugu, and more.
+            LipiTranslate is designed for the PDFs people actually need to understand: study material, forms, notes, government documents, reports, and professional files. Gujarati, Hindi, Marathi and English translation are currently available; additional Indian languages are being quality-tested for a future release.
           </p>
           <p>
             Every document starts with a <span className="text-cyan-300 font-medium">free one-page preview</span>. You can check the translation quality, language direction, and visual result before choosing to unlock the remaining pages.
