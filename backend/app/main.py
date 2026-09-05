@@ -509,20 +509,27 @@ async def start_verified_paid_translation(job_id: str, order_id: str) -> dict:
     )
     if not persisted_payment_verified and not cached_payment_verified:
         raise HTTPException(402, "Verified payment is required before translation")
-    if job.get("payment_started"):
+    current_unlock = int(job.get("unlocked_page_limit") or 0)
+    selected_page_limit = (
+        payment.get("page_count") if payment else None
+    ) or job.get("pending_payment_page_limit")
+    page_limit = min(int(selected_page_limit or job["page_count"]), int(job["page_count"]))
+    is_upgrade = bool(
+        job.get("payment_started")
+        and job.get("status") == "completed"
+        and job.get("output_kind") == "paid_unlock"
+        and page_limit > current_unlock
+        and job.get("pending_payment_order_id") == order_id
+    )
+    if job.get("payment_started") and not is_upgrade:
         return {
             "job_id": job_id,
             "status": "processing",
             "page_limit": job.get("unlocked_page_limit"),
             "message": "Translation already started",
         }
-    if job.get("status") != "completed" or not job.get("output_path"):
+    if not is_upgrade and (job.get("status") != "completed" or not job.get("output_path")):
         raise HTTPException(409, "The free preview must finish before full-document translation can start")
-
-    selected_page_limit = (
-        payment.get("page_count") if payment else None
-    ) or job.get("pending_payment_page_limit")
-    page_limit = min(int(selected_page_limit or job["page_count"]), int(job["page_count"]))
     if page_limit <= FREE_PREVIEW_PAGE_LIMIT:
         logger.error("Verified payment %s has invalid unlock limit %s", order_id, page_limit)
         raise HTTPException(500, "The selected payment plan did not include an additional page. Please contact support before retrying.")
@@ -531,8 +538,10 @@ async def start_verified_paid_translation(job_id: str, order_id: str) -> dict:
         payment_started=True,
         paid_order_id=order_id,
         unlocked_page_limit=page_limit,
+        paid_amount_total=int(job.get("paid_amount_total") or 0) + int(job.get("pending_payment_amount") or 0),
+        output_kind=None,
     )
-    update_job(job_id, 1, "Payment verified. Starting full-document translation...")
+    update_job(job_id, 1, "Payment verified. Generating your selected pages...")
     asyncio.create_task(notify_discord("LipiTranslate payment verified", {
         "Job": job_id[:8],
         "Status": f"Translation started for first {page_limit} page(s)",
@@ -551,6 +560,7 @@ async def start_verified_paid_translation(job_id: str, order_id: str) -> dict:
         "job_id": job_id,
         "status": "processing",
         "page_limit": page_limit,
+        "paid_amount_total": int(job.get("paid_amount_total") or 0) + int(job.get("pending_payment_amount") or 0),
         "message": f"Payment verified. Translation started for {page_limit} pages.",
     }
 

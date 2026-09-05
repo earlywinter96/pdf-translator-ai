@@ -271,8 +271,15 @@ async def create_order(
     job = get_job(request.job_id)
     if not job or not job.get("payment_required"):
         raise HTTPException(400, "This job does not require payment")
-    if job.get("payment_started"):
-        raise HTTPException(409, "Translation has already started")
+    current_unlock = int(job.get("unlocked_page_limit") or 0)
+    upgrading_paid_output = bool(
+        job.get("payment_started")
+        and job.get("status") == "completed"
+        and job.get("output_kind") == "paid_unlock"
+        and current_unlock < int(job["page_count"])
+    )
+    if job.get("payment_started") and not upgrading_paid_output:
+        raise HTTPException(409, "Translation is already being processed")
     if job.get("status") != "completed" or not job.get("output_path"):
         raise HTTPException(409, "Your free preview is still being created. Please review it before payment.")
 
@@ -287,6 +294,15 @@ async def create_order(
     
     if not payment_calc["requires_payment"]:
         raise HTTPException(400, "Payment not required for this page count")
+    if payment_calc["page_limit"] <= current_unlock:
+        raise HTTPException(400, "Choose a page package larger than the pages already unlocked")
+
+    # Packages represent the total unlocked page range. On an upgrade, charge
+    # only the difference from the amount already paid for this document.
+    already_paid = int(job.get("paid_amount_total") or 0)
+    payment_calc["total_package_amount"] = payment_calc["amount"]
+    payment_calc["amount"] = max(100, payment_calc["amount"] - already_paid)
+    payment_calc["amount_inr"] = payment_calc["amount"] / 100
     
     try:
         # Create payment order
@@ -320,6 +336,7 @@ async def create_order(
             pending_payment_page_limit=payment_calc["page_limit"],
             pending_payment_package_id=payment_calc["package_id"],
             pending_payment_amount=payment_calc["amount"],
+            pending_payment_total_package_amount=payment_calc["total_package_amount"],
             pending_payment_status="created",
         )
         logger.info(

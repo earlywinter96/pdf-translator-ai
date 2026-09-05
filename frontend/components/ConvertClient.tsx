@@ -58,6 +58,9 @@ export default function ConvertClient() {
   const [planMessage, setPlanMessage] = useState<string | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<SelectedPlan | null>(null);
   const [completedPageLimit, setCompletedPageLimit] = useState<number | null>(null);
+  const [documentPageCount, setDocumentPageCount] = useState(0);
+  const [paidAmountTotal, setPaidAmountTotal] = useState(0);
+  const [fullDocumentPrice, setFullDocumentPrice] = useState(0);
   const [translationRun, setTranslationRun] = useState(0);
   const { initiatePayment, paymentConfig, reportPaymentEvent } = usePayment();
 
@@ -202,6 +205,10 @@ export default function ConvertClient() {
   ) => {
     setJobId(id);
     setPreviewPayment(payment ?? null);
+    setDocumentPageCount(payment ? payment.free_pages + payment.paid_pages : 0);
+    setFullDocumentPrice(payment?.amount_inr ?? 0);
+    setPaidAmountTotal(0);
+    setFullDocumentPrice(0);
     setPlanMessage(null);
     setSelectedPlan(null);
     setSourceLanguage(
@@ -235,6 +242,7 @@ export default function ConvertClient() {
         throw new Error("Payment was verified, but the selected page package could not be started. Please contact support.");
       }
       setCompletedPageLimit(serverPageLimit);
+      setPaidAmountTotal(Number(started?.paid_amount_total) / 100 || paidAmountTotal + (selectedPlan?.price ?? previewPayment?.amount_inr ?? 0));
     } catch (error) {
       awaitingPaidOutputRef.current = false;
       throw error;
@@ -258,6 +266,8 @@ export default function ConvertClient() {
     setPlanMessage(null);
     setSelectedPlan(null);
     setCompletedPageLimit(null);
+    setDocumentPageCount(0);
+    setPaidAmountTotal(0);
     setFailureCount(0);
     setPollCount(0);
     setStuckDetected(false);
@@ -423,6 +433,24 @@ export default function ConvertClient() {
                 {completedPageLimit && (
                   <p className="text-sm text-cyan-200">Your selected plan includes the first {completedPageLimit} page{completedPageLimit === 1 ? "" : "s"}. Download the translated result below.</p>
                 )}
+                {completedPageLimit && completedPageLimit < documentPageCount && (
+                  <div className="mx-auto max-w-xl rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-4 text-left">
+                    <p className="font-semibold text-white">Need more pages?</p>
+                    <p className="mt-1 text-sm text-gray-300">Choose a larger page range. You pay only the upgrade difference, then we regenerate the expanded PDF.</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {[
+                        { id: "starter", name: "2 pages", limit: 2, total: 5 },
+                        { id: "basic", name: "5 pages", limit: 5, total: 19 },
+                        { id: "standard", name: "8 pages", limit: 8, total: 29 },
+                        { id: "plus", name: "10 pages", limit: 10, total: 39 },
+                        { id: "full_pdf", name: "full document", limit: documentPageCount, total: fullDocumentPrice },
+                      ].filter((plan) => plan.limit > completedPageLimit && plan.limit <= documentPageCount && (plan.id !== "full_pdf" || documentPageCount > 10)).map((plan) => {
+                        const upgradePrice = Math.max(1, plan.total - paidAmountTotal);
+                        return <button key={plan.id} onClick={() => { setSelectedPlan({ id: plan.id, name: plan.name, price: upgradePrice, pageLimit: plan.limit, limits: `First ${plan.limit} pages` }); setShowPaymentModal(true); }} className="rounded-lg border border-cyan-400/40 px-3 py-2 text-sm font-medium text-cyan-100 hover:bg-cyan-400/15">Unlock {plan.name} · ₹{upgradePrice}</button>;
+                      })}
+                    </div>
+                  </div>
+                )}
                 <div className="flex justify-center gap-3">
                 <DownloadButton jobId={jobId} />
                 <button onClick={handleReset} className="border px-4 py-2 rounded-lg text-white">
@@ -450,7 +478,7 @@ export default function ConvertClient() {
         )}
       </div>
 
-      {jobId && previewPayment && (
+      {jobId && (previewPayment || completedPageLimit) && (
         <PaymentModal
           isOpen={showPaymentModal}
           onClose={() => setShowPaymentModal(false)}
@@ -459,13 +487,13 @@ export default function ConvertClient() {
             setShowPaymentModal(false);
           }}
           onPaymentSuccess={handlePaymentSuccess}
-          pageCount={previewPayment.free_pages + previewPayment.paid_pages}
-          paymentAmount={selectedPlan?.price ?? previewPayment.amount_inr}
-          freePagesUsed={previewPayment.free_pages}
+          pageCount={documentPageCount || (previewPayment?.free_pages ?? 0) + (previewPayment?.paid_pages ?? 0)}
+          paymentAmount={selectedPlan?.price ?? previewPayment?.amount_inr ?? 0}
+          freePagesUsed={completedPageLimit ?? previewPayment?.free_pages ?? 1}
           jobId={jobId}
-          packageName={selectedPlan?.name ?? previewPayment.package_name ?? "Full PDF"}
-          packageId={selectedPlan?.id ?? previewPayment.package_id ?? "full_pdf"}
-          pageLimit={selectedPlan?.pageLimit ?? previewPayment.free_pages + previewPayment.paid_pages}
+          packageName={selectedPlan?.name ?? previewPayment?.package_name ?? "Full PDF"}
+          packageId={selectedPlan?.id ?? previewPayment?.package_id ?? "full_pdf"}
+          pageLimit={selectedPlan?.pageLimit ?? documentPageCount}
           initiatePayment={initiatePayment}
           isDemoMode={paymentConfig?.demo_mode}
         />
