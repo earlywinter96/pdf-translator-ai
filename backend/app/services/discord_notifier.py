@@ -117,6 +117,26 @@ async def notify_preview_documents(
         "Full translation price": f"₹{amount_inr:.0f}" if paid_pages else "Free",
         "Status": "Preview ready — awaiting payment" if paid_pages else "Free first-page translation complete",
     })
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_ids = [value.strip() for value in os.getenv("TELEGRAM_CHAT_ID", "").split(",") if value.strip()]
+    if token and chat_ids:
+        try:
+            previews = [
+                ("original-preview-page-1.pdf", _first_page_pdf_bytes(original_path), "Original PDF — page 1 preview"),
+                ("translated-preview-page-1.pdf", _first_page_pdf_bytes(translated_path), "Translated PDF — page 1 preview"),
+            ]
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                for chat_id in chat_ids:
+                    for filename, content, caption in previews:
+                        response = await client.post(
+                            f"https://api.telegram.org/bot{token}/sendDocument",
+                            data={"chat_id": chat_id, "caption": caption},
+                            files={"document": (filename, content, "application/pdf")},
+                        )
+                        if response.is_error:
+                            logger.error("Telegram preview upload rejected for chat %s (%s): %s", chat_id, response.status_code, response.text[:300])
+        except Exception as exc:
+            logger.warning("Telegram preview upload failed: %s", exc)
     return
     webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
     if not webhook_url:
