@@ -1,144 +1,65 @@
-# PDF-Translator-AI 🇮🇳
-LIVE : (https://www.lipitranslate.in/)
-Built by - Hemant Solanki - " https://my-portfolio2-peach-six.vercel.app/"
+# LipiTranslate 🇮🇳
 
+**Production PDF translation and OCR for Indian languages**
 
-**AI-powered PDF translation platform for Indian regional languages**
+[Live product](https://www.lipitranslate.in/) · [Backend API](https://pdf-translator-ai-ggqe.onrender.com/) · [Founder portfolio](https://my-portfolio2-peach-six.vercel.app/)
 
-A production-ready system for translating PDF documents into **Indian languages** such as Hindi, Tamil, Telugu, Kannada, Malayalam, Marathi, Gujarati, Bengali, Punjabi, and more. Designed for scale, accuracy, and real-world document complexity common in Indian workflows.
+LipiTranslate is a commercial document-translation platform founded by **Hemant Solanki**. It helps people translate structured and scanned PDFs while retaining headings, images, tables, and the original visual hierarchy wherever possible.
 
----
+> **Note:** This repository contains proprietary source code for LipiTranslate. It is public for transparency, portfolio, and technical showcase purposes. Commercial reuse is not permitted without written authorization.
 
-## 🎯 Why This Exists
+## What the product provides
 
-India produces massive volumes of PDFs in:
-- Government notifications
-- Legal and compliance documents
-- Educational content
-- Financial & banking reports
-- Healthcare and public sector communication
+- Sarvam AI translation for English and major Indian languages, including Gujarati, Hindi, Marathi, Bengali, Tamil, Telugu, Kannada, Malayalam, Punjabi, Odia, Assamese, and Urdu.
+- Sarvam Vision/document digitization for scanned PDFs, with a Tesseract fallback when Vision is unavailable.
+- Layout-aware PDF extraction and design-preserved translated output, including images and tables where the source structure can be recovered.
+- A free first-page translation preview so customers can review quality before payment.
+- Razorpay checkout with server-side signature verification and incremental page unlocks.
+- Progress reporting while OCR, translation, and PDF generation are running.
+- Mobile-friendly original/translated previews, downloadable output, and language-direction validation.
+- A Lipi Assistant support chatbot restricted to LipiTranslate questions, with a five-question session limit and email handoff.
+- Privacy-safe Discord notifications for visits, uploads, payment funnel events, and translation status.
 
-Most translation tools:
-- Fail on mixed-language PDFs (English + Indic)
-- Break document structure
-- Do not support Indian scripts reliably
-- Are not API-first or scalable
+## Customer pricing
 
-**PDF-Translator-AI** addresses these gaps with an AI-driven, Indian-language–focused translation pipeline.
+The backend calculates and validates the quote before checkout. Small plans are confidence purchases and include the free first page:
 
----
+| Unlock | Price |
+| --- | ---: |
+| First 2 pages (Starter) | ₹19 |
+| First 5 pages (Basic) | ₹39 |
+| First 8 pages (Standard) | ₹69 |
+| First 10 pages (Plus) | ₹89 |
+| Full document | ₹89 up to 10 pages, then ₹15 per additional page |
 
-## 🧠 Solution Overview
+Unusually dense documents can receive a transparent character adjustment. Only plans that fit the document's page and text limits are offered. Payment unlocks only the selected page range; customers can upgrade later and pay the difference.
 
-PDF-Translator-AI combines:
-- Layout-aware PDF text extraction
-- AI-powered Indic language translation
-- Chunk-based processing for large documents
-- Clean REST APIs for integration with existing systems
+## Architecture
 
-Built to support **government, enterprise, ed-tech, and legal use cases** across India.
-
----
-
-## 🌐 Supported Indian Languages
-
-- Hindi (हिन्दी)
-- Tamil (தமிழ்)
-- Telugu (తెలుగు)
-- Kannada (ಕನ್ನಡ)
-- Malayalam (മലയാളം)
-- Marathi (मराठी)
-- Gujarati (ગુજરાતી)
-- Bengali (বাংলা)
-- Punjabi (ਪੰਜਾਬੀ)
-- Odia, Assamese, Urdu *(extensible)*
-
-> Language support depends on the configured AI model or translation engine.
-
----
-
-## ✨ Core Capabilities
-
-### 🇮🇳 Indic-Focused Translation
-- Optimized prompts for Indian syntax and grammar
-- Handles code-mixed documents (English + Indic)
-- Preserves cultural and contextual meaning
-- Unicode-safe rendering for all Indic scripts
-
-### 📄 PDF Processing
-- Extracts text from structured PDFs
-- Handles headers, paragraphs, lists, and tables
-- Chunk-based translation avoids token overflow
-- OCR-ready design for scanned Indian documents
-
-### 🔌 Backend API
-- RESTful, stateless architecture
-- Scalable and cloud-ready
-- Secure environment-based configuration
-- Easy integration with government or enterprise systems
-
-### 🖥️ Frontend UI
-- Simple upload & translate workflow
-- Language selection for Indian scripts
-- Progress tracking for large PDFs
-- Replaceable with custom portals
-
----
-
-## 🧱 High-Level Architecture
-
+```text
+Next.js frontend (Vercel)
+        │
+        ▼
+FastAPI backend (Render)
+   ┌────┼───────────────┐
+   ▼    ▼               ▼
+PDF/OCR  Sarvam AI    Razorpay
+pipeline translation  payments
+   │                    │
+   └──── design-preserved PDF
 ```
 
-User / Client System
-|
-v
-Frontend (Web / Portal)
-|
-v
-Backend API
-|
-+–– PDF Extraction Engine
-|
-+–– Indic Translation Service
-|
-+–– AI Model / Translation API
+## Technology
 
-````
+- **Backend:** Python, FastAPI, PyMuPDF, pdfplumber, ReportLab, Tesseract fallback, `httpx`
+- **AI:** Sarvam Translate and Sarvam Vision/document digitization; Gemini is used only by the visualization feature
+- **Payments:** Razorpay Standard Checkout with server-side order and signature verification
+- **Frontend:** Next.js, React, TypeScript, Tailwind CSS
+- **Hosting:** Vercel frontend and Render backend
 
----
-
-## 🛠️ Technology Stack
+## Run locally
 
 ### Backend
-- Python
-- FastAPI / Flask
-- Async processing for large PDFs
-- Environment-driven config
-
-### Frontend
-- Modern JavaScript framework
-- API-first design
-- Lightweight UI layer
-
-### AI / NLP
-- Large Language Models (LLMs)
-- Indic-language optimized prompts
-- Context-aware chunk translation
-
----
-
-## ⚙️ Installation & Setup
-
-### Clone Repository
-
-```bash
-git clone https://github.com/earlywinter96/pdf-translator-ai.git
-cd pdf-translator-ai
-````
-
----
-
-### Backend Setup
 
 ```bash
 cd backend
@@ -147,159 +68,68 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Create environment file:
-
-```bash
-cp .env.example .env
-```
-
-Example `.env` configuration:
+Create `backend/.env` (never commit it):
 
 ```env
 SARVAM_API_KEY=your_sarvam_api_key
 SARVAM_MODEL=sarvam-translate:v1
-GEMINI_API_KEY=your_gemini_api_key  # visualization only
-DEFAULT_TARGET_LANGUAGE=hi
-MAX_CHUNK_SIZE=2000
+SARVAM_CHAT_MODEL=sarvam-105b-conversations
+GEMINI_API_KEY=your_gemini_key
+RAZORPAY_KEY_ID=your_razorpay_key_id
+RAZORPAY_KEY_SECRET=your_razorpay_key_secret
+RAZORPAY_WEBHOOK_SECRET=your_webhook_secret
 ```
 
-Start backend server:
+Start the API:
 
 ```bash
-uvicorn main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8000
 ```
 
----
-
-### Frontend Setup
+### Frontend
 
 ```bash
 cd frontend
 npm install
+```
+
+Create `frontend/.env.local`:
+
+```env
+NEXT_PUBLIC_API_BASE=http://localhost:8000
+```
+
+Start Next.js:
+
+```bash
 npm run dev
 ```
 
-Access UI at:
+Open <http://localhost:3000>.
 
-```
-http://localhost:3000
-```
+## Main API routes
 
----
+- `POST /api/translate` — upload a PDF and start the free first-page preview.
+- `GET /api/status/{job_id}` — poll extraction, translation, and PDF-generation progress.
+- `GET /api/preview/{job_id}` — retrieve the preview output.
+- `POST /api/payment/create-order` — create a validated Razorpay order for a selected package.
+- `POST /api/payment/verify` — verify the Razorpay signature and start paid processing.
+- `POST /api/support/chat` — ask the site-only Sarvam support assistant.
 
-## 🔌 API Usage
+The Sarvam and Razorpay secrets are read only by the backend. Public frontend variables must never contain a secret key.
 
-### Translate PDF to Indian Language
+## Contributions
 
-```http
-POST /translate/pdf
-```
+LipiTranslate is currently proprietary software.
 
-**Parameters**
+We welcome suggestions, feedback, bug reports, and collaboration opportunities through GitHub Issues. Code contributions are accepted only with prior approval.
 
-* `file`: PDF document
-* `target_language`: `hi`, `ta`, `te`, `kn`, `ml`, `mr`, etc.
+## License
 
-**Response Example**
+**Proprietary Software — All Rights Reserved**
 
-```json
-{
-  "status": "completed",
-  "target_language": "hi",
-  "pages_processed": 18,
-  "output_file": "translated_hi.pdf"
-}
-```
+Copyright © 2026 Hemant Solanki / LipiTranslate.
 
----
+The source code is publicly available for viewing and evaluation purposes. Commercial use, redistribution, modification, or creation of derivative works requires prior written permission.
 
-## 🧪 cURL Example
-
-```bash
-curl -X POST http://localhost:8000/translate/pdf \
-  -F "file=@gov_notification.pdf" \
-  -F "target_language=bn"
-```
-
----
-
-## 📂 Repository Structure
-
-```
-pdf-translator-ai/
-│
-├── backend/
-│   ├── main.py              # API entrypoint
-│   ├── services/            # Translation & Indic logic
-│   ├── models/              # Request/response schemas
-│   ├── utils/               # PDF helpers
-│
-├── frontend/
-│   └── src/
-│       ├── components/
-│       ├── services/
-│       └── pages/
-│
-└── docker-compose.yml
-```
-
----
-
-## 🚢 Deployment
-
-* Docker-ready
-* Suitable for:
-
-  * Indian government infrastructure
-  * Enterprise private clouds
-  * On-premise deployments
-
-```bash
-docker compose up --build
-```
-
----
-
-## 🔐 Security & Compliance
-
-* API keys stored via environment variables
-* No hard-coded credentials
-* Compatible with auth layers (JWT / OAuth)
-* Suitable for sensitive Indian documents
-
----
-
-## 🧩 Roadmap (India-Focused)
-
-* OCR support for scanned regional PDFs
-* Batch translation for large document sets
-* Translation memory for consistency
-* Cost-optimized routing per language
-* Support for 22 Scheduled Indian Languages
-* SaaS dashboard with usage analytics
-
----
-
-## 🤝 Contributions
-
-We welcome:
-
-* Indic NLP improvements
-* Language accuracy tuning
-* Performance optimization
-* Enterprise readiness features
-
-Fork → Feature Branch → Pull Request
-
----
-
-## 📜 License
-
-MIT License
-Free for commercial and non-commercial use.
-
----
-
-## 📬 Contact & Collaboration
-
-Open an issue for feature requests, partnerships, or enterprise integrations.
+For commercial licensing or collaboration inquiries, please contact [lipitranslate.general@gmail.com](mailto:lipitranslate.general@gmail.com).
