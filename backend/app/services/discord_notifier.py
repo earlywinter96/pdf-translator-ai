@@ -4,6 +4,7 @@ import logging
 import os
 import ipaddress
 import json
+import asyncio
 from io import BytesIO
 from typing import Mapping
 
@@ -37,13 +38,19 @@ async def notify_discord(title: str, fields: Mapping[str, str | int]) -> None:
     }
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.post(webhook_url, json=payload)
-            if response.is_error:
-                logger.error(
-                    "Discord webhook rejected notification (%s): %s",
-                    response.status_code, response.text[:300],
-                )
-                return
+            for attempt in range(2):
+                response = await client.post(webhook_url, json=payload)
+                if response.status_code != 429:
+                    if response.is_error:
+                        logger.error(
+                            "Discord webhook rejected notification (%s): %s",
+                            response.status_code, response.text[:300],
+                        )
+                    return
+                retry_after = min(float(response.headers.get("retry-after", "2")), 10.0)
+                logger.warning("Discord webhook rate limited; retrying in %.1fs", retry_after)
+                if attempt == 0:
+                    await asyncio.sleep(max(0.1, retry_after))
     except Exception as exc:
         # Notifications must never stop payments, uploads, or translations.
         logger.warning("Discord notification failed: %s", exc)
@@ -111,12 +118,22 @@ async def notify_preview_documents(
                 handles.append(handle)
                 multipart_files[f"files[{index}]"] = (filename, handle, "application/pdf")
             async with httpx.AsyncClient(timeout=15.0) as client:
-                response = await client.post(
-                    webhook_url,
-                    data={"payload_json": json.dumps(payload)},
-                    files=multipart_files,
-                )
-                response.raise_for_status()
+                for attempt in range(2):
+                    if attempt:
+                        for handle in handles:
+                            handle.seek(0)
+                    response = await client.post(
+                        webhook_url,
+                        data={"payload_json": json.dumps(payload)},
+                        files=multipart_files,
+                    )
+                    if response.status_code != 429:
+                        response.raise_for_status()
+                        break
+                    retry_after = min(float(response.headers.get("retry-after", "2")), 10.0)
+                    logger.warning("Discord preview webhook rate limited; retrying in %.1fs", retry_after)
+                    if attempt == 0:
+                        await asyncio.sleep(max(0.1, retry_after))
         finally:
             for handle in handles:
                 handle.close()
