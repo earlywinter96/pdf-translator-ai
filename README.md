@@ -26,13 +26,13 @@ The backend calculates and validates the quote before checkout. Small plans are 
 
 | Unlock | Price |
 | --- | ---: |
-| First 2 pages (Starter) | ₹19 |
-| First 5 pages (Basic) | ₹39 |
-| First 8 pages (Standard) | ₹69 |
-| First 10 pages (Plus) | ₹89 |
-| Full document | ₹89 up to 10 pages, then ₹15 per additional page |
+| Up to 2 pages (Starter) | ₹5 |
+| Up to 5 pages (Basic) | ₹19 |
+| Up to 8 pages (Standard) | ₹29 |
+| Up to 10 pages (Plus) | ₹39 |
+| Full document outside a tier | ₹49 per started 10K characters |
 
-Unusually dense documents can receive a transparent character adjustment. Only plans that fit the document's page and text limits are offered. Payment unlocks only the selected page range; customers can upgrade later and pay the difference.
+The backend chooses one best offer only when both the page and character limits fit the complete PDF. Anything above those limits uses the dynamic full-document character quote. The first page is free and is included in the selected paid result.
 
 ## Architecture
 

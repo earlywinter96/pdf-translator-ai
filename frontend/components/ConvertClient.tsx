@@ -354,8 +354,8 @@ export default function ConvertClient() {
                   </div>
                   <span className="shrink-0 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-sm font-semibold text-cyan-200">₹{(selectedPlan?.price ?? previewPayment.amount_inr).toFixed(0)}</span>
                 </div>
-                <p className="mt-2 text-sm leading-relaxed text-gray-300">
-                  Your {previewPayment.free_pages + previewPayment.paid_pages}-page PDF has a free first-page preview. The remaining pages have not been sent to Sarvam AI. Choose how many pages you want to unlock.
+                  <p className="mt-2 text-sm leading-relaxed text-gray-300">
+                  Your {previewPayment.free_pages + previewPayment.paid_pages}-page PDF has a free first-page preview. The remaining pages have not been sent to Sarvam AI. We selected the best eligible offer for this document.
                 </p>
                 <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl border border-white/10 bg-slate-950/30 p-4 text-sm">
                   <div><p className="text-gray-500">Document</p><p className="mt-1 font-semibold text-white">{previewPayment.free_pages + previewPayment.paid_pages} pages</p></div>
@@ -363,8 +363,8 @@ export default function ConvertClient() {
                 </div>
                 <div className="mt-4">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-white">Transparent plans</p>
-                    <span className="text-xs text-gray-400">Choose what you need</span>
+                    <p className="text-sm font-semibold text-white">Your eligible offer</p>
+                    <span className="text-xs text-gray-400">Based on pages and characters</span>
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
                     {[...(previewPayment.available_packages || []).map((plan) => ({
@@ -372,13 +372,13 @@ export default function ConvertClient() {
                       name: plan.name,
                       limit: plan.page_limit,
                       price: plan.amount_inr,
-                      limits: `First ${plan.page_limit} pages`,
+                      limits: `Translate all ${plan.page_limit} pages`,
                     })), {
                       id: "full_pdf",
                       name: "Full PDF",
                       limit: previewPayment.free_pages + previewPayment.paid_pages,
                       price: previewPayment.full_pdf_amount_inr ?? previewPayment.amount_inr,
-                      limits: previewPayment.full_pdf_details || "All document pages",
+                      limits: previewPayment.full_pdf_details || "Translate all document pages",
                     }].filter((plan, _, plans) => {
                       const pageCount = previewPayment.free_pages + previewPayment.paid_pages;
                       if (plan.id !== "full_pdf") return plan.limit <= pageCount;
@@ -393,7 +393,7 @@ export default function ConvertClient() {
                           key={plan.id}
                           onClick={() => {
                             setSelectedPlan({ id: plan.id, name: plan.name, price: plan.price, pageLimit, limits: plan.limits });
-                            setPlanMessage(`${plan.name} selected: you will receive a translated PDF with the first ${pageLimit} page${pageLimit === 1 ? "" : "s"}.`);
+                            setPlanMessage(`${plan.name} selected: you will receive a translated PDF with all ${pageLimit} pages.`);
                           }}
                           className={`rounded-lg border p-2.5 text-left transition focus:outline-none focus:ring-2 focus:ring-cyan-300 ${selected ? "border-cyan-400/70 bg-cyan-400/10 hover:bg-cyan-400/20" : "border-white/10 bg-white/[0.03] hover:border-cyan-400/40 hover:bg-white/[0.06]"}`}
                           aria-label={`Select ${plan.name}, ₹${plan.price}`}
@@ -406,7 +406,7 @@ export default function ConvertClient() {
                       );
                     })}
                   </div>
-                  <p className="mt-2 text-xs text-gray-500">Only plans that fit this document's page and text limits are shown. Each plan includes your free preview page.</p>
+                  <p className="mt-2 text-xs text-gray-500">One offer is selected from the document's page and character count. It includes your free preview page and translates the complete document.</p>
                   {planMessage && <p role="status" className="mt-2 rounded-lg border border-amber-400/30 bg-amber-400/10 p-2 text-xs leading-relaxed text-amber-100">{planMessage}</p>}
                 </div>
                 {previewPayment.pricing_model === "full_pdf_character_based" && (

@@ -45,24 +45,18 @@ CURRENCY = "INR"
 # are released to the translation worker.
 FREE_PAGES_LIMIT = 1
 
-# Customer-facing packages. These prices cover Sarvam translation, OCR for
-# scanned PDFs, Razorpay fees, and operating margin at their stated text cap.
-# A plan is displayed only when the selected page range fits both limits.
+# Customer-facing packages. A document receives one package only when its
+# complete page and character counts fit that tier.
 FREE_CHARACTER_LIMIT = 2_000
 SMALL_DOCUMENT_PACKAGES = (
-    # Caps are intentionally set for typical scanned Indian-language pages.
-    # They permit low-cost confidence purchases while still covering Sarvam
-    # translation, Vision/OCR, Razorpay fees, and a sustainable margin.
-    {"id": "starter", "name": "Starter", "max_pages": 2, "max_characters": 5_000, "amount": 1900},
-    {"id": "basic", "name": "Basic", "max_pages": 5, "max_characters": 13_000, "amount": 3900},
-    {"id": "standard", "name": "Standard", "max_pages": 8, "max_characters": 21_000, "amount": 6900},
-    {"id": "plus", "name": "Plus", "max_pages": 10, "max_characters": 26_000, "amount": 8900},
+    {"id": "starter", "name": "Starter", "max_pages": 2, "max_characters": 4_000, "amount": 500},
+    {"id": "basic", "name": "Basic", "max_pages": 5, "max_characters": 9_000, "amount": 1900},
+    {"id": "standard", "name": "Standard", "max_pages": 8, "max_characters": 14_000, "amount": 2900},
+    {"id": "plus", "name": "Plus", "max_pages": 10, "max_characters": 18_000, "amount": 3900},
 )
 CHARACTER_BLOCK_SIZE = 10_000
 PRICE_PER_CHARACTER_BLOCK = 4900  # ₹49 per started 10,000 characters
 MINIMUM_FULL_PDF_AMOUNT = 4900  # ₹49 minimum for documents outside packages
-EXTRA_PAGE_AMOUNT = 1500  # ₹15 for each page after the 10-page Plus plan
-EXTRA_CHARACTER_BLOCK_AMOUNT = 2500  # ₹25 per started 10K chars above Plus
 
 # Business information
 BUSINESS_INFO = {
@@ -119,63 +113,37 @@ def estimate_selected_characters(total_pages: int, billable_characters: int, pag
 
 
 def available_page_packages(total_pages: int, billable_characters: int) -> list[Dict]:
-    """Return only fixed packages that are safe for this document's range."""
-    available: list[Dict] = []
-    for package in SMALL_DOCUMENT_PACKAGES:
-        page_limit = min(total_pages, int(package["max_pages"]))
-        if page_limit <= FREE_PAGES_LIMIT:
-            continue
-        estimated_characters = estimate_selected_characters(
-            total_pages, billable_characters, page_limit,
-        )
-        if estimated_characters <= int(package["max_characters"]):
-            available.append({
-                "id": package["id"],
-                "name": package["name"],
-                "page_limit": page_limit,
-                "amount": package["amount"],
-                "amount_inr": package["amount"] / 100,
-                "max_characters": package["max_characters"],
-                "estimated_characters": estimated_characters,
-            })
-    return available
+    """Return the single best tier that covers the complete PDF."""
+    package = next(
+        (item for item in SMALL_DOCUMENT_PACKAGES
+         if total_pages <= int(item["max_pages"])
+         and billable_characters <= int(item["max_characters"])),
+        None,
+    )
+    if not package:
+        return []
+    return [{
+        "id": package["id"],
+        "name": package["name"],
+        "page_limit": total_pages,
+        "amount": package["amount"],
+        "amount_inr": package["amount"] / 100,
+        "max_characters": package["max_characters"],
+        "estimated_characters": billable_characters,
+    }]
 
 
 def calculate_full_pdf_amount(total_pages: int, billable_characters: int) -> int:
-    """A clear incremental quote for the whole document.
-
-    For documents above 10 pages, continue from Plus instead of abruptly
-    restarting the price at ₹49 per character block. The page increment covers
-    normal scanned pages; the text increment protects against unusually dense
-    documents whose Sarvam usage is genuinely higher.
-    """
-    plus = SMALL_DOCUMENT_PACKAGES[-1]
-    if total_pages <= int(plus["max_pages"]):
-        return max(
-            MINIMUM_FULL_PDF_AMOUNT,
-            math.ceil(billable_characters / CHARACTER_BLOCK_SIZE) * PRICE_PER_CHARACTER_BLOCK,
-        )
-
-    extra_pages = total_pages - int(plus["max_pages"])
-    page_increment = extra_pages * EXTRA_PAGE_AMOUNT
-    overflow_characters = max(0, billable_characters - int(plus["max_characters"]))
-    character_increment = math.ceil(overflow_characters / CHARACTER_BLOCK_SIZE) * EXTRA_CHARACTER_BLOCK_AMOUNT
-    return int(plus["amount"]) + max(page_increment, character_increment)
+    """Character-based price for a document outside the fixed tiers."""
+    return max(
+        MINIMUM_FULL_PDF_AMOUNT,
+        math.ceil(billable_characters / CHARACTER_BLOCK_SIZE) * PRICE_PER_CHARACTER_BLOCK,
+    )
 
 
 def full_pdf_pricing_details(total_pages: int, billable_characters: int) -> str:
     """Customer-facing explanation of the exact full-PDF quote."""
-    plus = SMALL_DOCUMENT_PACKAGES[-1]
-    if total_pages <= int(plus["max_pages"]):
-        return "All document pages"
-    extra_pages = total_pages - int(plus["max_pages"])
-    page_increment = extra_pages * EXTRA_PAGE_AMOUNT
-    overflow_characters = max(0, billable_characters - int(plus["max_characters"]))
-    character_increment = math.ceil(overflow_characters / CHARACTER_BLOCK_SIZE) * EXTRA_CHARACTER_BLOCK_AMOUNT
-    additional = max(page_increment, character_increment)
-    if character_increment > page_increment:
-        return f"₹89 up to 10 pages + ₹{additional / 100:.0f} for dense additional text"
-    return f"₹89 up to 10 pages + ₹{additional / 100:.0f} for {extra_pages} additional page{'s' if extra_pages != 1 else ''}"
+    return f"{billable_characters:,} characters · ₹49 per started 10K characters"
 
 
 # ============================================================================
@@ -234,7 +202,7 @@ def calculate_payment(total_pages: int, billable_characters: int = 0) -> Dict:
             pricing_model = "document_package"
             package_id = package["id"]
             package_name = package["name"]
-            package_limit_pages = package["max_pages"]
+            package_limit_pages = total_pages
             package_limit_characters = package["max_characters"]
         else:
             amount_paise = calculate_full_pdf_amount(total_pages, billable_characters)
@@ -277,29 +245,15 @@ def calculate_payment(total_pages: int, billable_characters: int = 0) -> Dict:
 def calculate_selected_package(
     package_id: str, total_pages: int, billable_characters: int,
 ) -> Dict:
-    """Return the exact checkout amount and page limit a customer selected.
-
-    The first page is always free. Small plans intentionally unlock a limited
-    PDF so a customer can verify quality before paying for more pages.
-    """
+    """Return the server-authoritative quote for the document's one offer."""
     if total_pages < 2:
         raise ValueError("Payment is not required for a one-page document")
 
     selected_id = (package_id or "full_pdf").strip().lower()
     if selected_id == "full_pdf":
         quote = calculate_payment(total_pages, billable_characters)
-        # A customer explicitly choosing Full PDF receives all pages even
-        # where their document would otherwise qualify for a smaller tier.
         if quote["package_id"] != "full_pdf":
-            quote.update({
-                "package_id": "full_pdf",
-                "package_name": "Full PDF",
-                "package_limit_pages": total_pages,
-                "package_limit_characters": billable_characters,
-                "amount": quote["full_pdf_amount"],
-                "amount_inr": quote["full_pdf_amount_inr"],
-                "pricing_model": "full_pdf_character_based",
-            })
+            raise ValueError("This document fits a fixed offer; use the eligible package shown.")
         quote["page_limit"] = total_pages
         quote["message"] = f"Full PDF translation: {format_amount(quote['amount'])}"
         return quote
@@ -310,23 +264,19 @@ def calculate_selected_package(
     if total_pages <= FREE_PAGES_LIMIT:
         raise ValueError("Payment is not required for this document")
 
-    page_limit = min(total_pages, int(package["max_pages"]))
-    selected_characters = estimate_selected_characters(
-        total_pages, billable_characters, page_limit,
-    )
-    if selected_characters > int(package["max_characters"]):
-        raise ValueError(
-            f"{package['name']} is not available for this document because its selected pages exceed the plan's text limit. Please choose the character-based Full PDF quote."
-        )
+    best_quote = calculate_payment(total_pages, billable_characters)
+    if best_quote["package_id"] != selected_id:
+        raise ValueError("This document has one eligible offer. Please use the price shown for the complete PDF.")
+    page_limit = total_pages
     return {
         "total_pages": total_pages,
         "free_pages": FREE_PAGES_LIMIT,
         "paid_pages": max(0, page_limit - FREE_PAGES_LIMIT),
-        "billable_characters": selected_characters,
+        "billable_characters": billable_characters,
         "pricing_model": "selected_page_package",
         "package_id": package["id"],
         "package_name": package["name"],
-        "package_limit_pages": package["max_pages"],
+        "package_limit_pages": total_pages,
         "package_limit_characters": package["max_characters"],
         "page_limit": page_limit,
         "amount": package["amount"],
@@ -348,7 +298,7 @@ def validate_config():
     logger.info(f"Mode: {'DEMO' if DEMO_MODE else 'PRODUCTION'}")
     logger.info(f"Currency: {CURRENCY}")
     logger.info(f"Free Pages: {FREE_PAGES_LIMIT}")
-    logger.info("Packages: ₹19 / ₹39 / ₹69 / ₹89, then ₹49 per started 10K characters")
+    logger.info("Packages: ₹5 / ₹19 / ₹29 / ₹39, then ₹49 per started 10K characters")
     logger.info(f"Business: {BUSINESS_INFO['name']}")
     
     if DEMO_MODE:
