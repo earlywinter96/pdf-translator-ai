@@ -119,12 +119,12 @@ export default function ConvertClient() {
         if (data.status === "completed" || data.progress >= 100) {
           if (awaitingPaidOutputRef.current) {
             if (data.output_kind !== "paid_unlock") {
-              awaitingPaidOutputRef.current = false;
-              setJobStatus("failed");
-              setStatusMessage(
-                "Your payment was received, but the paid PDF was not completed. Please contact support before attempting another payment."
-              );
-              isActiveRef.current = false;
+              // A payment callback and its worker can reach Render just after
+              // the final preview poll. Keep the customer on processing until
+              // the paid worker writes its own output marker (or truly fails).
+              setJobStatus("processing");
+              setStatusMessage("Payment confirmed. Preparing your paid pages…");
+              timeoutId = setTimeout(pollStatus, POLL_INTERVAL_MS);
               return;
             }
             awaitingPaidOutputRef.current = false;

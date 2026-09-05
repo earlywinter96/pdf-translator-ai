@@ -823,15 +823,19 @@ async def translate_pdf_task(
                 fail_job(job_id, "We could not read text from page 1. Please upload a clearer scan.")
                 return
 
-        update_job(job_id, 15, "Preview page extracted, starting translation...")
-        update_job(job_id, 20, "Initializing translator...")
+        work_label = (
+            f"your paid {page_limit}-page selection"
+            if is_paid_unlock else "your free preview page"
+        )
+        update_job(job_id, 15, f"Extracted {work_label}. Preparing translation...")
+        update_job(job_id, 20, "Initializing Sarvam AI translator...")
         translator = HybridTranslatorV2(
             source_language=source_language, target_language=target_language, mode="general"
         )
-        update_job(job_id, 30, "Translating with Sarvam AI...")
+        update_job(job_id, 30, f"Translating {work_label} with Sarvam AI...")
         preview_page_texts = page_texts if page_limit is None else page_texts[:page_limit]
         if use_layout_preservation:
-            update_job(job_id, 35, "Preserving original layout and translating text...")
+            update_job(job_id, 35, "Translating text while preserving the original layout...")
             translated_content = await translator.translate_chunks([block.text for block in layout_blocks])
         else:
             logger.info("Layout preservation unavailable; using reflow PDF output")
@@ -850,7 +854,7 @@ async def translate_pdf_task(
         update_job(
             job_id,
             80,
-            "Rebuilding translated text in the original design..." if use_layout_preservation else "Creating translated PDF...",
+            "Building your translated PDF in the original design..." if use_layout_preservation else "Creating your translated PDF...",
         )
         
         # Create output PDF
