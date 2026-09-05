@@ -442,13 +442,13 @@ export default function ConvertClient() {
                     <p className="mt-1 text-sm text-gray-300">Choose a larger page range. You pay only the upgrade difference, then we regenerate the expanded PDF.</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {[
-                        { id: "starter", name: "2 pages", limit: 2, total: 5 },
-                        { id: "basic", name: "5 pages", limit: 5, total: 19 },
-                        { id: "standard", name: "8 pages", limit: 8, total: 29 },
-                        { id: "plus", name: "10 pages", limit: 10, total: 39 },
+                        { id: "starter", name: "2 pages", limit: 2, total: 19 },
+                        { id: "basic", name: "5 pages", limit: 5, total: 39 },
+                        { id: "standard", name: "8 pages", limit: 8, total: 69 },
+                        { id: "plus", name: "10 pages", limit: 10, total: 89 },
                         { id: "full_pdf", name: "full document", limit: documentPageCount, total: fullDocumentPrice },
                       ].filter((plan) => plan.limit > completedPageLimit && plan.limit <= documentPageCount && (plan.id !== "full_pdf" || documentPageCount > 10)).map((plan) => {
-                        const upgradePrice = Math.max(1, plan.total - paidAmountTotal);
+                        const upgradePrice = Math.max(1, Math.round(plan.total - paidAmountTotal));
                         return <button key={plan.id} onClick={() => { setSelectedPlan({ id: plan.id, name: plan.name, price: upgradePrice, pageLimit: plan.limit, limits: `First ${plan.limit} pages` }); setShowPaymentModal(true); }} className="rounded-lg border border-cyan-400/40 px-3 py-2 text-sm font-medium text-cyan-100 hover:bg-cyan-400/15">Unlock {plan.name} · ₹{upgradePrice}</button>;
                       })}
                     </div>
