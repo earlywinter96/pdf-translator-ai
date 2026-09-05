@@ -604,6 +604,7 @@ async def translate_pdf(
         quote["amount_inr"],
         client_ip,
         pricing_basis,
+        quote.get("available_packages"),
     ))
     
     if page_count > FREE_PAGES_LIMIT:

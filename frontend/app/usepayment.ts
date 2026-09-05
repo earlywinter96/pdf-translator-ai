@@ -51,12 +51,12 @@ function errorMessage(error: unknown, fallback: string): string {
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE || 'https://pdf-translator-ai-ggqe.onrender.com';
 
-async function reportPaymentEvent(jobId: string, event: string) {
+async function reportPaymentEvent(jobId: string, event: string, details?: { package_id?: string; page_limit?: number; amount_inr?: number }) {
   try {
     await fetch(`${API_BASE}/api/payment/events`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ job_id: jobId, event }),
+      body: JSON.stringify({ job_id: jobId, event, ...details }),
     });
   } catch {
     // Funnel telemetry must never interrupt a customer's payment flow.

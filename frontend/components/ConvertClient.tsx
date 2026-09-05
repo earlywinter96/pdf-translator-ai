@@ -409,6 +409,7 @@ export default function ConvertClient() {
                           key={plan.id}
                           onClick={() => {
                             setSelectedPlan({ id: plan.id, name: plan.name, price: plan.price, pageLimit, limits: plan.limits });
+                            void reportPaymentEvent(jobId, "payment_plan_selected", { package_id: plan.id, page_limit: pageLimit, amount_inr: plan.price });
                             setPlanMessage(`${plan.name} selected: you will receive a translated PDF with all ${pageLimit} pages.`);
                           }}
                           className={`rounded-lg border p-2.5 text-left transition focus:outline-none focus:ring-2 focus:ring-cyan-300 ${selected ? "border-cyan-400/70 bg-cyan-400/10 hover:bg-cyan-400/20" : "border-white/10 bg-white/[0.03] hover:border-cyan-400/40 hover:bg-white/[0.06]"}`}
@@ -434,7 +435,7 @@ export default function ConvertClient() {
                 )}
                 <button
                   onClick={() => {
-                    void reportPaymentEvent(jobId, "payment_modal_opened");
+                    void reportPaymentEvent(jobId, "payment_modal_opened", selectedPlan ? { package_id: selectedPlan.id, page_limit: selectedPlan.pageLimit, amount_inr: selectedPlan.price } : undefined);
                     setShowPaymentModal(true);
                   }}
                   className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-cyan-600 px-5 py-3 font-semibold text-white hover:from-indigo-500 hover:to-cyan-500"

@@ -145,10 +145,17 @@ async def notify_pdf_upload(
     amount_inr: float,
     client_ip: str | None,
     pricing_basis: str = "detected",
+    available_packages: list[dict] | None = None,
 ) -> None:
     """Send an upload alert with filename and approximate IP-derived location."""
     location = await get_approximate_location(client_ip)
-    await notify_discord("LipiTranslate PDF upload", {
+    offers = available_packages or []
+    offer_summary = ", ".join(
+        f"{item.get('page_limit')}p ₹{float(item.get('amount_inr', 0)):.0f}"
+        for item in offers
+    ) or (f"Full PDF ₹{amount_inr:.0f}" if payment_required else "Free")
+    size_flag = " — LARGE DOCUMENT" if page_count >= 100 else (" — 20+ pages" if page_count >= 20 else "")
+    await notify_discord(f"LipiTranslate PDF upload{size_flag}", {
         "File": filename or "Unnamed PDF",
         "Pages": page_count,
         "Direction": f"{source_language} -> {target_language}",
@@ -160,6 +167,8 @@ async def notify_pdf_upload(
             if pricing_basis == "scan_estimate" else "Per-page price"
         ),
         "Full translation price": f"₹{amount_inr:.0f}" if payment_required else "Free",
+        "Offers shown": offer_summary,
+        "Document size": f"{page_count} pages / {billable_characters:,} chars",
         "Status": (
             f"1-page free preview started; {paid_pages} page(s) await payment"
             if payment_required else "Free preview started"

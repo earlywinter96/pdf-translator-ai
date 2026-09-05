@@ -118,6 +118,9 @@ class PaymentVerifyResponse(BaseModel):
 class PaymentFunnelEvent(BaseModel):
     job_id: str
     event: str
+    package_id: Optional[str] = None
+    page_limit: Optional[int] = None
+    amount_inr: Optional[float] = None
 
 
 # ============================================================================
@@ -240,11 +243,24 @@ async def record_payment_funnel_event(event: PaymentFunnelEvent):
     job = get_job(event.job_id)
     if not label or not job:
         raise HTTPException(400, "Invalid payment event")
-    asyncio.create_task(notify_discord("LipiTranslate customer funnel", {
+    quote = job.get("payment_quote") or {}
+    fields = {
         "Job": event.job_id[:8],
         "Event": label,
-        "Price shown": f"₹{(job.get('payment_quote') or {}).get('amount_inr', 0):.0f}",
-    }))
+        "Document": f"{job.get('page_count', '?')} pages / {job.get('billable_characters', 0):,} chars",
+        "Offers shown": ", ".join(
+            f"{item.get('page_limit')}p ₹{float(item.get('amount_inr', 0)):.0f}"
+            for item in quote.get("available_packages", [])
+        ) or f"Full PDF ₹{float(quote.get('full_pdf_amount_inr', quote.get('amount_inr', 0))):.0f}",
+        "Price shown": f"₹{event.amount_inr:.0f}" if event.amount_inr is not None else f"₹{quote.get('amount_inr', 0):.0f}",
+    }
+    if event.package_id:
+        fields["Selected offer"] = f"{event.package_id} ({event.page_limit or '?'} pages)"
+    if job.get("page_count", 0) >= 100:
+        fields["Size alert"] = "100+ page document"
+    elif job.get("page_count", 0) >= 20:
+        fields["Size alert"] = "20+ page document"
+    asyncio.create_task(notify_discord("LipiTranslate customer funnel", fields))
     return {"recorded": True}
 
 @payment_router.post("/create-order", response_model=PaymentOrderResponse)
