@@ -40,8 +40,8 @@ export default function ContactPage() {
             <ContactCard
               icon={<Mail size={20} />}
               label="Email"
-              value="Reach out for feedback or questions"
-              href="mailto:hemantsolanki@example.com"
+              value="lipitranslate.general@gmail.com"
+              href="mailto:lipitranslate.general@gmail.com"
             />
 
             <ContactCard
