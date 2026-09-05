@@ -17,29 +17,6 @@ function getSupportSessionId() {
   return sessionId;
 }
 
-const FAQS = [
-  {
-    question: "How does the free preview work?",
-    answer: "We translate only page 1 for free. Review it first, then pay only to unlock the remaining pages.",
-  },
-  {
-    question: "Who built LipiTranslate?",
-    answer: "LipiTranslate was founded by Hemant Solanki to make Indian-language PDFs easier to understand and translate.",
-  },
-  {
-    question: "Why do I need to pay?",
-    answer: "Payment covers translation, OCR, PDF processing, and secure delivery of the remaining pages.",
-  },
-  {
-    question: "Which languages are supported?",
-    answer: "LipiTranslate supports English and major Indian languages including Gujarati, Hindi, and Marathi.",
-  },
-  {
-    question: "My scanned PDF is unclear",
-    answer: "For the best OCR result, upload a sharp scan with straight pages, clear text, and good lighting.",
-  },
-];
-
 type ChatMessage = { role: "assistant" | "user"; content: string };
 
 export default function FaqOrb() {
@@ -99,7 +76,7 @@ export default function FaqOrb() {
   return (
     <div className="fixed bottom-5 right-5 z-40 sm:bottom-7 sm:right-7">
       {open && (
-        <section className="mb-3 w-[calc(100vw-2.5rem)] max-w-sm overflow-hidden rounded-2xl border border-cyan-400/30 bg-[#07182a]/95 shadow-2xl shadow-cyan-950/60 backdrop-blur-xl">
+        <section className="mb-3 flex max-h-[min(38rem,calc(100dvh-7.5rem))] w-[calc(100vw-2.5rem)] max-w-sm flex-col overflow-hidden rounded-2xl border border-cyan-400/30 bg-[#07182a]/95 shadow-2xl shadow-cyan-950/60 backdrop-blur-xl">
           <header className="flex items-center gap-3 border-b border-cyan-400/15 bg-gradient-to-r from-cyan-500/20 to-blue-500/15 px-4 py-3">
             <div className="grid h-9 w-9 place-items-center rounded-xl bg-cyan-400 text-slate-950">
               <Bot className="h-5 w-5" />
@@ -112,8 +89,8 @@ export default function FaqOrb() {
               <X className="h-4 w-4" />
             </button>
           </header>
-          <div className="space-y-3 p-4">
-            <div className="max-h-72 space-y-2 overflow-y-auto pr-1" aria-live="polite">
+          <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1 touch-pan-y [scrollbar-gutter:stable]" aria-live="polite">
               {messages.map((message, index) => (
                 <p key={`${message.role}-${index}`} className={`max-w-[92%] whitespace-pre-wrap rounded-xl p-3 text-sm leading-relaxed ${message.role === "assistant" ? "rounded-tl-sm bg-cyan-500/10 text-gray-100" : "ml-auto rounded-br-sm bg-blue-500/25 text-white"}`}>
                   {message.content}
@@ -124,13 +101,6 @@ export default function FaqOrb() {
 
             {askedCount < MAX_CONVERSATIONS ? (
               <>
-                <div className="flex flex-wrap gap-1.5">
-                  {FAQS.map((faq) => (
-                    <button key={faq.question} onClick={() => { trackSiteInteraction("faq_question"); void askQuestion(faq.question); }} disabled={loading} className="rounded-full border border-cyan-400/25 bg-cyan-500/10 px-2.5 py-1.5 text-left text-xs text-cyan-100 transition hover:border-cyan-300 hover:bg-cyan-500/20 disabled:opacity-50">
-                      {faq.question}
-                    </button>
-                  ))}
-                </div>
                 <form onSubmit={handleSubmit} className="flex gap-2 border-t border-white/10 pt-3">
                   <input value={input} onChange={(event) => setInput(event.target.value)} maxLength={600} disabled={loading} placeholder="Ask about LipiTranslate…" className="min-w-0 flex-1 rounded-xl border border-cyan-400/20 bg-slate-950/70 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-300 disabled:opacity-60" />
                   <button type="submit" disabled={loading || !input.trim()} className="grid h-10 w-10 place-items-center rounded-xl bg-cyan-400 text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-40" aria-label="Send support question"><Send className="h-4 w-4" /></button>
