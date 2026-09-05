@@ -2,7 +2,7 @@
 
 **Production PDF translation and OCR for Indian languages**
 
-[Live product](https://www.lipitranslate.in/) · [Backend API](https://pdf-translator-ai-ggqe.onrender.com/) · [Founder portfolio](https://my-portfolio2-peach-six.vercel.app/)
+[Live product](https://www.lipitranslate.in/) · [Founder portfolio](https://my-portfolio2-peach-six.vercel.app/)
 
 LipiTranslate is a commercial document-translation platform founded by **Hemant Solanki**. It helps people translate structured and scanned PDFs while retaining headings, images, tables, and the original visual hierarchy wherever possible.
 
