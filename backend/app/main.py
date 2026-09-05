@@ -9,6 +9,7 @@ import os
 import logging
 import asyncio
 import re
+import time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTasks, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -252,6 +253,11 @@ SARVAM_CHAT_URL = "https://api.sarvam.ai/v1/chat/completions"
 SARVAM_CHAT_MODEL = os.getenv("SARVAM_CHAT_MODEL", "sarvam-105b-conversations")
 MAX_SUPPORT_MESSAGE_LENGTH = 600
 MAX_SUPPORT_HISTORY_MESSAGES = 10
+MAX_SUPPORT_CONVERSATIONS = 5
+# Short-lived, in-memory accounting is sufficient for a lightweight support
+# widget. It resets on a Render restart and deliberately stores no user data.
+SUPPORT_CHAT_USAGE: dict[str, tuple[int, float]] = {}
+SUPPORT_CHAT_SESSION_TTL_SECONDS = 24 * 60 * 60
 
 SUPPORT_SYSTEM_PROMPT = """You are Lipi Assistant, the short support helper for the LipiTranslate website.
 Answer only questions about LipiTranslate. Never answer general knowledge, personal, legal, medical,
@@ -283,6 +289,7 @@ class SupportMessage(BaseModel):
 class SupportChatRequest(BaseModel):
     message: str
     history: list[SupportMessage] = Field(default_factory=list)
+    session_id: str
 
 
 def _support_fallback_answer(message: str) -> str:
@@ -323,6 +330,20 @@ async def site_support_chat(request: SupportChatRequest):
         raise HTTPException(400, "Please enter a support question.")
     if len(message) > MAX_SUPPORT_MESSAGE_LENGTH:
         raise HTTPException(400, f"Please keep your question under {MAX_SUPPORT_MESSAGE_LENGTH} characters.")
+    try:
+        session_id = str(uuid.UUID(request.session_id))
+    except (ValueError, AttributeError):
+        raise HTTPException(400, "Invalid support chat session.")
+
+    now = time.time()
+    # Periodically prune old anonymous counters to keep worker memory bounded.
+    for stale_id, (_, last_seen) in list(SUPPORT_CHAT_USAGE.items()):
+        if now - last_seen > SUPPORT_CHAT_SESSION_TTL_SECONDS:
+            SUPPORT_CHAT_USAGE.pop(stale_id, None)
+    question_count = SUPPORT_CHAT_USAGE.get(session_id, (0, now))[0]
+    if question_count >= MAX_SUPPORT_CONVERSATIONS:
+        raise HTTPException(429, f"The {MAX_SUPPORT_CONVERSATIONS}-question support limit has been reached. Please email {SUPPORT_EMAIL}.")
+    SUPPORT_CHAT_USAGE[session_id] = (question_count + 1, now)
 
     api_key = os.getenv("SARVAM_API_KEY")
     fallback = _support_fallback_answer(message)
@@ -330,10 +351,10 @@ async def site_support_chat(request: SupportChatRequest):
     # support assistant, not a general-purpose chatbot.
     topic_pattern = r"lipi|translate|translation|pdf|preview|page|pay|payment|price|cost|razorpay|ocr|scan|format|layout|quality|language|gujarati|hindi|marathi|english|founder|hemant|support|contact|suggestion|upload|download"
     if not re.search(topic_pattern, message, flags=re.IGNORECASE):
-        return {"answer": fallback, "provider": "site_only_guard"}
+        return {"answer": fallback, "provider": "site_only_guard", "questions_remaining": MAX_SUPPORT_CONVERSATIONS - question_count - 1}
     if not api_key:
         logger.warning("Support chat is using its local FAQ fallback because SARVAM_API_KEY is unavailable")
-        return {"answer": fallback, "provider": "faq_fallback"}
+        return {"answer": fallback, "provider": "faq_fallback", "questions_remaining": MAX_SUPPORT_CONVERSATIONS - question_count - 1}
 
     messages = [{"role": "system", "content": SUPPORT_SYSTEM_PROMPT}]
     messages.extend(_clean_support_history(request.history))
@@ -356,11 +377,11 @@ async def site_support_chat(request: SupportChatRequest):
         answer = response.json()["choices"][0]["message"]["content"].strip()
         if not answer:
             raise ValueError("Sarvam returned an empty chat response")
-        return {"answer": answer[:1800], "provider": "sarvam"}
+        return {"answer": answer[:1800], "provider": "sarvam", "questions_remaining": MAX_SUPPORT_CONVERSATIONS - question_count - 1}
     except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as error:
         # A support widget should remain helpful if chat quota/access is unavailable.
         logger.warning("Sarvam support chat unavailable; using FAQ fallback: %s", error)
-        return {"answer": fallback, "provider": "faq_fallback"}
+        return {"answer": fallback, "provider": "faq_fallback", "questions_remaining": MAX_SUPPORT_CONVERSATIONS - question_count - 1}
 
 
 
