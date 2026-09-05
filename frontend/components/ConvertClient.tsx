@@ -48,6 +48,7 @@ export default function ConvertClient() {
      STATE
   ============================================================================ */
   const [jobId, setJobId] = useState<string | null>(null);
+  const [sourceLanguage, setSourceLanguage] = useState("Gujarati");
   const [targetLanguage, setTargetLanguage] = useState("English");
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState("");
@@ -72,6 +73,7 @@ export default function ConvertClient() {
   const lastProgressUpdateRef = useRef<number>(Date.now());
   const isActiveRef = useRef<boolean>(false);
   const failureCountRef = useRef<number>(0);
+  const pollGenerationRef = useRef<number>(0);
   // Keep the known-good one-page preview on screen while the paid worker is
   // producing its separate PDF. Switching the iframe too early makes native
   // PDF viewers retain the old preview/lock page after payment.
@@ -83,13 +85,14 @@ export default function ConvertClient() {
   useEffect(() => {
     if (!jobId) return;
 
+    const pollingRun = ++pollGenerationRef.current;
     isActiveRef.current = true;
     failureCountRef.current = 0;
     let pollCounter = 0;
     let timeoutId: NodeJS.Timeout | null = null;
 
     const pollStatus = async () => {
-      if (!isActiveRef.current) return;
+      if (!isActiveRef.current || pollingRun !== pollGenerationRef.current) return;
 
       try {
         pollCounter++;
@@ -97,6 +100,11 @@ export default function ConvertClient() {
         setLastPollTime(new Date().toISOString());
 
         const data = await getJobStatus(jobId);
+
+        // A preview request can resolve after payment has started. Ignore that
+        // stale "completed" response so it can never replace the active paid
+        // processing status with a premature ready screen.
+        if (!isActiveRef.current || pollingRun !== pollGenerationRef.current) return;
 
         setProgress(data.progress);
         setStatusMessage(data.message);
@@ -179,6 +187,7 @@ export default function ConvertClient() {
   ============================================================================ */
   const handleJobCreated = (
     id: string,
+    selectedSourceLanguage: string,
     selectedTargetLanguage: string,
     payment?: PaymentQuote,
   ) => {
@@ -186,6 +195,9 @@ export default function ConvertClient() {
     setPreviewPayment(payment ?? null);
     setPlanMessage(null);
     setSelectedPlan(null);
+    setSourceLanguage(
+      selectedSourceLanguage.charAt(0).toUpperCase() + selectedSourceLanguage.slice(1)
+    );
     setTargetLanguage(
       selectedTargetLanguage.charAt(0).toUpperCase() + selectedTargetLanguage.slice(1)
     );
@@ -201,17 +213,25 @@ export default function ConvertClient() {
 
   const handlePaymentSuccess = async (orderId: string) => {
     if (!jobId) return;
+    // Invalidate an in-flight preview poll immediately, before it can report
+    // the old completed preview state while checkout starts paid processing.
+    pollGenerationRef.current += 1;
+    awaitingPaidOutputRef.current = true;
     // Do not switch the PDF viewer away from the preview until the server has
     // accepted the verified order and confirms the exact paid page limit.
-    const started = await startPaidTranslation(jobId, orderId);
-    const serverPageLimit = Number(started?.page_limit);
-    if (!Number.isInteger(serverPageLimit) || serverPageLimit <= 1) {
-      throw new Error("Payment was verified, but the selected page package could not be started. Please contact support.");
+    try {
+      const started = await startPaidTranslation(jobId, orderId);
+      const serverPageLimit = Number(started?.page_limit);
+      if (!Number.isInteger(serverPageLimit) || serverPageLimit <= 1) {
+        throw new Error("Payment was verified, but the selected page package could not be started. Please contact support.");
+      }
+      setCompletedPageLimit(serverPageLimit);
+    } catch (error) {
+      awaitingPaidOutputRef.current = false;
+      throw error;
     }
     // Do not clear previewPayment yet. The polling loop clears it only after
     // Render reports the separate paid output as completed.
-    awaitingPaidOutputRef.current = true;
-    setCompletedPageLimit(serverPageLimit);
     setShowPaymentModal(false);
     setProgress(1);
     setStatusMessage("Payment verified. Starting full-document translation...");
@@ -386,6 +406,11 @@ export default function ConvertClient() {
               </div>
             ) : (
               <div className="space-y-3">
+                <p className="text-sm text-cyan-100">
+                  Translation: <span className="font-semibold text-white">{sourceLanguage}</span>
+                  <span className="mx-2 text-cyan-400">→</span>
+                  <span className="font-semibold text-white">{targetLanguage}</span>
+                </p>
                 {completedPageLimit && (
                   <p className="text-sm text-cyan-200">Your selected plan includes the first {completedPageLimit} page{completedPageLimit === 1 ? "" : "s"}. Download the translated result below.</p>
                 )}

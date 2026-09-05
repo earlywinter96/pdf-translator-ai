@@ -15,7 +15,12 @@ const MAX_FILE_SIZE_MB = 25;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 interface Props {
-  onJobCreated: (jobId: string, targetLanguage: string, payment?: PaymentQuote) => void;
+  onJobCreated: (
+    jobId: string,
+    sourceLanguage: string,
+    targetLanguage: string,
+    payment?: PaymentQuote,
+  ) => void;
 }
 
 export interface PaymentQuote {
@@ -108,7 +113,7 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
       if (result.status === "processing_preview") {
         // The backend has started only page 1. The payment control is shown
         // after this preview is ready, not immediately after upload.
-        onJobCreated(result.job_id, targetLanguage, {
+        onJobCreated(result.job_id, sourceLanguage, targetLanguage, {
           free_pages: result.payment.free_pages,
           paid_pages: result.payment.paid_pages,
           amount_inr: result.payment.amount_inr,
@@ -121,7 +126,7 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
           package_limit_characters: result.payment.package_limit_characters,
         });
       } else {
-        onJobCreated(result.job_id, targetLanguage);
+        onJobCreated(result.job_id, sourceLanguage, targetLanguage);
       }
     } catch (err: unknown) {
       console.error('❌ Upload failed:', err);

@@ -7,6 +7,7 @@ separately by the PDF visualization service only.
 
 import asyncio
 import logging
+import os
 import re
 import time
 from dataclasses import dataclass, field
@@ -15,7 +16,10 @@ from typing import Any, Dict, List
 from app.sarvam_wrapper import SarvamTranslator, sanitize_text_for_sarvam
 
 logger = logging.getLogger(__name__)
-DEFAULT_CONCURRENCY = 4
+# Sarvam can rate-limit parallel requests, especially for scanned PDFs which
+# contain many small OCR blocks. One controlled request at a time is slower
+# but prevents paid documents from failing midway with HTTP 429 responses.
+DEFAULT_CONCURRENCY = max(1, int(os.getenv("SARVAM_TRANSLATION_CONCURRENCY", "1")))
 MIN_CHARS_FOR_TRANSLATION = 10
 # Sarvam Translate accepts at most 2,000 characters. Leave room for any
 # preprocessing by keeping each request under this threshold.
