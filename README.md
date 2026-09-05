@@ -32,7 +32,9 @@ The backend calculates and validates the quote before checkout. Small plans are 
 | Up to 10 pages (Plus) | ₹39 |
 | Full document outside a tier | ₹49 per started 10K characters |
 
-The backend chooses one best offer only when both the page and character limits fit the complete PDF. Anything above those limits uses the dynamic full-document character quote. The first page is free and is included in the selected paid result.
+The backend calculates actual per-page billable characters and returns every relevant independent offer. A fixed package is shown only when its included pages fit both its page and character limits (and remain safe after Sarvam and Razorpay costs). Documents outside the fixed tiers receive a dynamic full-document quote. The first page is free and is included in every paid result.
+
+Full-document pricing starts at ₹49 per started 10,000 billable characters, then is raised when necessary to cover the estimated Sarvam translation/digitization cost and Razorpay's 2% + GST fee. The customer sees one clear server-calculated amount; the margin calculation is kept internal.
 
 ## Architecture
 

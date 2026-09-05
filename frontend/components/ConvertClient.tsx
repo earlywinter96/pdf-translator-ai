@@ -355,7 +355,7 @@ export default function ConvertClient() {
                   <span className="shrink-0 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-sm font-semibold text-cyan-200">₹{(selectedPlan?.price ?? previewPayment.amount_inr).toFixed(0)}</span>
                 </div>
                   <p className="mt-2 text-sm leading-relaxed text-gray-300">
-                  Your {previewPayment.free_pages + previewPayment.paid_pages}-page PDF has a free first-page preview. The remaining pages have not been sent to Sarvam AI. We selected the best eligible offer for this document.
+                  Your {previewPayment.free_pages + previewPayment.paid_pages}-page PDF has a free first-page preview. The remaining pages have not been sent to Sarvam AI. Choose an independent page-range offer or the full-document offer.
                 </p>
                 <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl border border-white/10 bg-slate-950/30 p-4 text-sm">
                   <div><p className="text-gray-500">Document</p><p className="mt-1 font-semibold text-white">{previewPayment.free_pages + previewPayment.paid_pages} pages</p></div>
@@ -363,8 +363,8 @@ export default function ConvertClient() {
                 </div>
                 <div className="mt-4">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-white">Your eligible offer</p>
-                    <span className="text-xs text-gray-400">Based on pages and characters</span>
+                    <p className="text-sm font-semibold text-white">Available offers</p>
+                    <span className="text-xs text-gray-400">Choose what you need</span>
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
                     {[...(previewPayment.available_packages || []).map((plan) => ({
@@ -406,7 +406,7 @@ export default function ConvertClient() {
                       );
                     })}
                   </div>
-                  <p className="mt-2 text-xs text-gray-500">One offer is selected from the document's page and character count. It includes your free preview page and translates the complete document.</p>
+                  <p className="mt-2 text-xs text-gray-500">Each offer is independent and includes your free first-page preview. The selected card translates exactly the pages shown; prices are calculated by the server from this PDF&apos;s characters.</p>
                   {planMessage && <p role="status" className="mt-2 rounded-lg border border-amber-400/30 bg-amber-400/10 p-2 text-xs leading-relaxed text-amber-100">{planMessage}</p>}
                 </div>
                 {previewPayment.pricing_model === "full_pdf_character_based" && (
@@ -442,10 +442,10 @@ export default function ConvertClient() {
                     <p className="mt-1 text-sm text-gray-300">Choose a larger page range. You pay only the upgrade difference, then we regenerate the expanded PDF.</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {[
-                        { id: "starter", name: "2 pages", limit: 2, total: 19 },
-                        { id: "basic", name: "5 pages", limit: 5, total: 39 },
-                        { id: "standard", name: "8 pages", limit: 8, total: 69 },
-                        { id: "plus", name: "10 pages", limit: 10, total: 89 },
+                        { id: "starter", name: "2 pages", limit: 2, total: 5 },
+                        { id: "basic", name: "5 pages", limit: 5, total: 19 },
+                        { id: "standard", name: "8 pages", limit: 8, total: 29 },
+                        { id: "plus", name: "10 pages", limit: 10, total: 39 },
                         { id: "full_pdf", name: "full document", limit: documentPageCount, total: fullDocumentPrice },
                       ].filter((plan) => plan.limit > completedPageLimit && plan.limit <= documentPageCount && (plan.id !== "full_pdf" || documentPageCount > 10)).map((plan) => {
                         const upgradePrice = Math.max(1, Math.round(plan.total - paidAmountTotal));

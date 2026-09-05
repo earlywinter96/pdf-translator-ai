@@ -45,8 +45,8 @@ CURRENCY = "INR"
 # are released to the translation worker.
 FREE_PAGES_LIMIT = 1
 
-# Customer-facing packages. A document receives one package only when its
-# complete page and character counts fit that tier.
+# Customer-facing packages. A package is eligible only when the included page
+# range fits both its character cap and its provider/payment cost.
 FREE_CHARACTER_LIMIT = 2_000
 SMALL_DOCUMENT_PACKAGES = (
     {"id": "starter", "name": "Starter", "max_pages": 2, "max_characters": 4_000, "amount": 500},
@@ -57,6 +57,15 @@ SMALL_DOCUMENT_PACKAGES = (
 CHARACTER_BLOCK_SIZE = 10_000
 PRICE_PER_CHARACTER_BLOCK = 4900  # ₹49 per started 10,000 characters
 MINIMUM_FULL_PDF_AMOUNT = 4900  # ₹49 minimum for documents outside packages
+
+# Provider and checkout cost model. Sarvam's published Translate V1 price is
+# ₹20 per 10,000 characters. Razorpay's 2% + 18% GST is 2.36% of checkout.
+# Sarvam Vision/document digitization is currently ₹0.50/page; it is charged
+# only for scan-estimate pages. These values are kept in one engine so pricing
+# can be updated when provider invoices change.
+SARVAM_TRANSLATION_COST_PER_10K_PAISE = 2_000
+SARVAM_DIGITIZATION_COST_PER_PAGE_PAISE = 50
+RAZORPAY_FEE_RATE = 0.0236
 
 # Business information
 BUSINESS_INFO = {
@@ -112,45 +121,108 @@ def estimate_selected_characters(total_pages: int, billable_characters: int, pag
     return math.ceil(billable_characters * min(page_limit, total_pages) / total_pages)
 
 
-def available_page_packages(total_pages: int, billable_characters: int) -> list[Dict]:
-    """Return the single best tier that covers the complete PDF."""
-    package = next(
-        (item for item in SMALL_DOCUMENT_PACKAGES
-         if total_pages <= int(item["max_pages"])
-         and billable_characters <= int(item["max_characters"])),
-        None,
-    )
-    if not package:
+def get_page_characters(
+    total_pages: int, billable_characters: int, page_characters: list[int] | None,
+) -> list[int]:
+    """Return per-page billable characters, with a safe proportional fallback."""
+    if page_characters and len(page_characters) == total_pages:
+        return [max(0, int(value)) for value in page_characters]
+    if total_pages < 1:
         return []
-    return [{
+    base, remainder = divmod(max(0, int(billable_characters)), total_pages)
+    return [base + (1 if index < remainder else 0) for index in range(total_pages)]
+
+
+def estimate_provider_cost_paise(
+    characters: int, pages: int, pricing_basis: str = "detected",
+) -> int:
+    """Estimate Sarvam + OCR costs before Razorpay's checkout fee."""
+    translation = (max(0, characters) * SARVAM_TRANSLATION_COST_PER_10K_PAISE) / CHARACTER_BLOCK_SIZE
+    digitization = (
+        max(0, pages) * SARVAM_DIGITIZATION_COST_PER_PAGE_PAISE
+        if pricing_basis == "scan_estimate" else 0
+    )
+    return math.ceil(translation + digitization)
+
+
+def estimate_checkout_fee_paise(amount_paise: int) -> int:
+    return math.ceil(max(0, amount_paise) * RAZORPAY_FEE_RATE)
+
+
+def estimate_margin_paise(
+    amount_paise: int, characters: int, pages: int, pricing_basis: str,
+) -> int:
+    return amount_paise - estimate_provider_cost_paise(characters, pages, pricing_basis) - estimate_checkout_fee_paise(amount_paise)
+
+
+def package_offer(
+    package: Dict, total_pages: int, page_characters: list[int], pricing_basis: str,
+) -> Dict | None:
+    """Build a package offer for its actual included page range."""
+    page_limit = min(total_pages, int(package["max_pages"]))
+    if page_limit <= FREE_PAGES_LIMIT:
+        return None
+    included_characters = sum(page_characters[:page_limit])
+    if included_characters > int(package["max_characters"]):
+        return None
+    margin = estimate_margin_paise(package["amount"], included_characters, page_limit, pricing_basis)
+    if margin < 0:
+        return None
+    return {
         "id": package["id"],
         "name": package["name"],
-        "page_limit": total_pages,
+        "page_limit": page_limit,
         "amount": package["amount"],
         "amount_inr": package["amount"] / 100,
         "max_characters": package["max_characters"],
-        "estimated_characters": billable_characters,
-    }]
+        "estimated_characters": included_characters,
+        "estimated_cost_inr": estimate_provider_cost_paise(included_characters, page_limit, pricing_basis) / 100,
+        "estimated_margin_inr": margin / 100,
+        "is_full_document": page_limit == total_pages,
+    }
 
 
-def calculate_full_pdf_amount(total_pages: int, billable_characters: int) -> int:
+def available_page_packages(
+    total_pages: int, billable_characters: int,
+    page_characters: list[int] | None = None,
+    pricing_basis: str = "detected",
+) -> list[Dict]:
+    """Return every relevant partial package and the best fixed full offer."""
+    pages = get_page_characters(total_pages, billable_characters, page_characters)
+    offers: list[Dict] = []
+    for package in SMALL_DOCUMENT_PACKAGES:
+        offer = package_offer(package, total_pages, pages, pricing_basis)
+        if offer:
+            offers.append(offer)
+        # Once a tier covers the complete document, larger tiers are not
+        # relevant to the customer-facing offer list.
+        if offer and offer["is_full_document"]:
+            break
+    return offers
+
+
+def calculate_full_pdf_amount(total_pages: int, billable_characters: int, pricing_basis: str = "detected") -> int:
     """Character-based price for a document outside the fixed tiers."""
-    return max(
-        MINIMUM_FULL_PDF_AMOUNT,
-        math.ceil(billable_characters / CHARACTER_BLOCK_SIZE) * PRICE_PER_CHARACTER_BLOCK,
-    )
+    target = max(MINIMUM_FULL_PDF_AMOUNT, math.ceil(billable_characters / CHARACTER_BLOCK_SIZE) * PRICE_PER_CHARACTER_BLOCK)
+    provider_cost = estimate_provider_cost_paise(billable_characters, total_pages, pricing_basis)
+    cost_covered = math.ceil(provider_cost / (1 - RAZORPAY_FEE_RATE))
+    return max(target, cost_covered)
 
 
-def full_pdf_pricing_details(total_pages: int, billable_characters: int) -> str:
+def full_pdf_pricing_details(total_pages: int, billable_characters: int, pricing_basis: str = "detected") -> str:
     """Customer-facing explanation of the exact full-PDF quote."""
-    return f"{billable_characters:,} characters · ₹49 per started 10K characters"
+    amount = calculate_full_pdf_amount(total_pages, billable_characters, pricing_basis)
+    return f"{billable_characters:,} characters · ₹{amount / 100:.0f} at ₹49 per started 10K characters"
 
 
 # ============================================================================
 # PAYMENT CALCULATION
 # ============================================================================
 
-def calculate_payment(total_pages: int, billable_characters: int = 0) -> Dict:
+def calculate_payment(
+    total_pages: int, billable_characters: int = 0,
+    page_characters: list[int] | None = None, pricing_basis: str = "detected",
+) -> Dict:
     """
     Calculate payment required for given page count
     
@@ -192,11 +264,10 @@ def calculate_payment(total_pages: int, billable_characters: int = 0) -> Dict:
         # the uploaded PDF. Character count prices only documents above the
         # available 10-page package range, avoiding a duplicate Full PDF
         # price for a five-page document already covered by Basic.
-        package = next(
-            (item for item in SMALL_DOCUMENT_PACKAGES
-             if total_pages <= item["max_pages"] and billable_characters <= item["max_characters"]),
-            None,
-        )
+        pages = get_page_characters(total_pages, billable_characters, page_characters)
+        package = next((item for item in SMALL_DOCUMENT_PACKAGES
+                        if (offer := package_offer(item, total_pages, pages, pricing_basis))
+                        and offer["is_full_document"]), None)
         if package:
             amount_paise = package["amount"]
             pricing_model = "document_package"
@@ -205,7 +276,7 @@ def calculate_payment(total_pages: int, billable_characters: int = 0) -> Dict:
             package_limit_pages = total_pages
             package_limit_characters = package["max_characters"]
         else:
-            amount_paise = calculate_full_pdf_amount(total_pages, billable_characters)
+            amount_paise = calculate_full_pdf_amount(total_pages, billable_characters, pricing_basis)
             pricing_model = "full_pdf_character_based"
             package_id = "full_pdf"
             package_name = "Full PDF"
@@ -233,27 +304,34 @@ def calculate_payment(total_pages: int, billable_characters: int = 0) -> Dict:
         "package_limit_characters": package_limit_characters,
         "amount": amount_paise,
         "amount_inr": amount_inr,
-        "full_pdf_amount": calculate_full_pdf_amount(total_pages, billable_characters) if paid_pages else 0,
-        "full_pdf_amount_inr": calculate_full_pdf_amount(total_pages, billable_characters) / 100 if paid_pages else 0,
-        "full_pdf_details": full_pdf_pricing_details(total_pages, billable_characters) if paid_pages else "",
+        "full_pdf_amount": calculate_full_pdf_amount(total_pages, billable_characters, pricing_basis) if paid_pages else 0,
+        "full_pdf_amount_inr": calculate_full_pdf_amount(total_pages, billable_characters, pricing_basis) / 100 if paid_pages else 0,
+        "full_pdf_details": full_pdf_pricing_details(total_pages, billable_characters, pricing_basis) if paid_pages else "",
+        "estimated_provider_cost_inr": estimate_provider_cost_paise(billable_characters, total_pages, pricing_basis) / 100,
+        "pricing_basis": pricing_basis,
         "requires_payment": paid_pages > 0,
         "message": message,
-        "available_packages": available_page_packages(total_pages, billable_characters) if paid_pages else [],
+        "available_packages": available_page_packages(total_pages, billable_characters, page_characters, pricing_basis) if paid_pages else [],
     }
 
 
 def calculate_selected_package(
     package_id: str, total_pages: int, billable_characters: int,
+    page_characters: list[int] | None = None, pricing_basis: str = "detected",
 ) -> Dict:
-    """Return the server-authoritative quote for the document's one offer."""
+    """Return a server-authoritative quote for a displayed package.
+
+    The package id is only a selector; amount and included pages are always
+    recomputed from the uploaded document on the server.
+    """
     if total_pages < 2:
         raise ValueError("Payment is not required for a one-page document")
 
     selected_id = (package_id or "full_pdf").strip().lower()
     if selected_id == "full_pdf":
-        quote = calculate_payment(total_pages, billable_characters)
+        quote = calculate_payment(total_pages, billable_characters, page_characters, pricing_basis)
         if quote["package_id"] != "full_pdf":
-            raise ValueError("This document fits a fixed offer; use the eligible package shown.")
+            raise ValueError("Choose the displayed fixed package for this document")
         quote["page_limit"] = total_pages
         quote["message"] = f"Full PDF translation: {format_amount(quote['amount'])}"
         return quote
@@ -264,15 +342,23 @@ def calculate_selected_package(
     if total_pages <= FREE_PAGES_LIMIT:
         raise ValueError("Payment is not required for this document")
 
-    best_quote = calculate_payment(total_pages, billable_characters)
-    if best_quote["package_id"] != selected_id:
-        raise ValueError("This document has one eligible offer. Please use the price shown for the complete PDF.")
-    page_limit = total_pages
+    pages = get_page_characters(total_pages, billable_characters, page_characters)
+    valid_ids = {
+        item["id"] for item in available_page_packages(
+            total_pages, billable_characters, pages, pricing_basis
+        )
+    }
+    if selected_id not in valid_ids:
+        raise ValueError("This package is not available for this document")
+    offer = package_offer(package, total_pages, pages, pricing_basis)
+    if not offer:
+        raise ValueError("This package is not safe for the selected pages and characters. Please choose another displayed offer.")
+    page_limit = offer["page_limit"]
     return {
         "total_pages": total_pages,
         "free_pages": FREE_PAGES_LIMIT,
         "paid_pages": max(0, page_limit - FREE_PAGES_LIMIT),
-        "billable_characters": billable_characters,
+        "billable_characters": offer["estimated_characters"],
         "pricing_model": "selected_page_package",
         "package_id": package["id"],
         "package_name": package["name"],

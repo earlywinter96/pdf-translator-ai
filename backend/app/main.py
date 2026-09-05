@@ -88,7 +88,7 @@ os.makedirs(UPLOADS_DIR, exist_ok=True)
 os.makedirs(OUTPUTS_DIR, exist_ok=True)
 
 
-def get_billable_character_count(pdf_path: str) -> tuple[int, str]:
+def get_billable_character_counts(pdf_path: str) -> tuple[list[int], str]:
     """Create a quote without OCR-reading locked scan pages.
 
     Selectable PDF text can be counted instantly. Image-only/scanned pages
@@ -101,15 +101,18 @@ def get_billable_character_count(pdf_path: str) -> tuple[int, str]:
         # page. Count all selectable text so a dense first page cannot slip
         # into a package that is too small for the eventual Sarvam workload.
         document_pages = document.page_count
-        direct_text = "".join(
-            document[index].get_text("text")
-            for index in range(document.page_count)
-        )
+        page_text = [document[index].get_text("text") for index in range(document.page_count)]
     finally:
         document.close()
-    if len(direct_text.strip()) >= 100:
-        return len(direct_text), "detected"
-    return document_pages * SCANNED_PAGE_CHARACTER_ESTIMATE, "scan_estimate"
+    if sum(len(text.strip()) for text in page_text) >= 100:
+        return [len(text) for text in page_text], "detected"
+    return [SCANNED_PAGE_CHARACTER_ESTIMATE] * document_pages, "scan_estimate"
+
+
+def get_billable_character_count(pdf_path: str) -> tuple[int, str]:
+    """Backward-compatible total count helper."""
+    page_characters, pricing_basis = get_billable_character_counts(pdf_path)
+    return sum(page_characters), pricing_basis
 
 # ============================================================================
 # STARTUP & SHUTDOWN
@@ -553,14 +556,15 @@ async def translate_pdf(
         # Every paid package has a character ceiling, including 2–7 page
         # documents. Always calculate a server-side count (or the conservative
         # scanned-page estimate) before selecting a quote.
-        billable_characters, pricing_basis = get_billable_character_count(input_path)
+        page_characters, pricing_basis = get_billable_character_counts(input_path)
+        billable_characters = sum(page_characters)
     except Exception as exc:
         logger.error("Could not calculate translation quote: %s", exc)
         os.remove(input_path)
         raise HTTPException(422, "We could not read enough text to price this PDF safely. Please upload a clearer PDF.")
 
     try:
-        quote = calculate_payment(page_count, billable_characters)
+        quote = calculate_payment(page_count, billable_characters, page_characters, pricing_basis)
         quote["pricing_basis"] = pricing_basis
     except ValueError as exc:
         os.remove(input_path)
@@ -577,6 +581,7 @@ async def translate_pdf(
         page_count=page_count,
         payment_required=page_count > FREE_PAGES_LIMIT,
         billable_characters=billable_characters,
+        page_characters=page_characters,
         pricing_basis=pricing_basis,
         payment_quote=quote,
     )
@@ -1046,7 +1051,10 @@ async def translate_pdf_task(
         if page_limit is not None:
             job = get_job(job_id) or {}
             quote = job.get("payment_quote") or calculate_payment(
-                total_pages, int(job.get("billable_characters", 0))
+                total_pages,
+                int(job.get("billable_characters", 0)),
+                job.get("page_characters"),
+                job.get("pricing_basis", "detected"),
             )
             asyncio.create_task(notify_preview_documents(
                 job_id,

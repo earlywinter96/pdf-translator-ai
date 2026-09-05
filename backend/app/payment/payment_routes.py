@@ -290,6 +290,8 @@ async def create_order(
         request.package_id,
         int(job["page_count"]),
         int(job.get("billable_characters", 0)),
+        job.get("page_characters"),
+        job.get("pricing_basis", "detected"),
     )
     
     if not payment_calc["requires_payment"]:
