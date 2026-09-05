@@ -50,10 +50,13 @@ FREE_PAGES_LIMIT = 1
 # A plan is displayed only when the selected page range fits both limits.
 FREE_CHARACTER_LIMIT = 2_000
 SMALL_DOCUMENT_PACKAGES = (
-    {"id": "starter", "name": "Starter", "max_pages": 2, "max_characters": 4_000, "amount": 1900},
-    {"id": "basic", "name": "Basic", "max_pages": 5, "max_characters": 9_000, "amount": 3900},
-    {"id": "standard", "name": "Standard", "max_pages": 8, "max_characters": 14_000, "amount": 6900},
-    {"id": "plus", "name": "Plus", "max_pages": 10, "max_characters": 18_000, "amount": 8900},
+    # Caps are intentionally set for typical scanned Indian-language pages.
+    # They permit low-cost confidence purchases while still covering Sarvam
+    # translation, Vision/OCR, Razorpay fees, and a sustainable margin.
+    {"id": "starter", "name": "Starter", "max_pages": 2, "max_characters": 5_000, "amount": 1900},
+    {"id": "basic", "name": "Basic", "max_pages": 5, "max_characters": 13_000, "amount": 3900},
+    {"id": "standard", "name": "Standard", "max_pages": 8, "max_characters": 21_000, "amount": 6900},
+    {"id": "plus", "name": "Plus", "max_pages": 10, "max_characters": 26_000, "amount": 8900},
 )
 CHARACTER_BLOCK_SIZE = 10_000
 PRICE_PER_CHARACTER_BLOCK = 4900  # ₹49 per started 10,000 characters
@@ -313,7 +316,7 @@ def validate_config():
     logger.info(f"Mode: {'DEMO' if DEMO_MODE else 'PRODUCTION'}")
     logger.info(f"Currency: {CURRENCY}")
     logger.info(f"Free Pages: {FREE_PAGES_LIMIT}")
-    logger.info("Packages: ₹5 / ₹19 / ₹29 / ₹39, then ₹49 per 10K characters")
+    logger.info("Packages: ₹19 / ₹39 / ₹69 / ₹89, then ₹49 per started 10K characters")
     logger.info(f"Business: {BUSINESS_INFO['name']}")
     
     if DEMO_MODE:
