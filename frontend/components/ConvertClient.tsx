@@ -206,9 +206,8 @@ export default function ConvertClient() {
     setJobId(id);
     setPreviewPayment(payment ?? null);
     setDocumentPageCount(payment ? payment.free_pages + payment.paid_pages : 0);
-    setFullDocumentPrice(payment?.amount_inr ?? 0);
+    setFullDocumentPrice(payment?.full_pdf_amount_inr ?? payment?.amount_inr ?? 0);
     setPaidAmountTotal(0);
-    setFullDocumentPrice(0);
     setPlanMessage(null);
     setSelectedPlan(null);
     setSourceLanguage(
@@ -368,13 +367,19 @@ export default function ConvertClient() {
                     <span className="text-xs text-gray-400">Choose what you need</span>
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
-                    {[
-                      { id: "starter", name: "Starter", limit: 2, price: 5, limits: "First 2 pages" },
-                      { id: "basic", name: "Basic", limit: 5, price: 19, limits: "First 5 pages" },
-                      { id: "standard", name: "Standard", limit: 8, price: 29, limits: "First 8 pages" },
-                      { id: "plus", name: "Plus", limit: 10, price: 39, limits: "First 10 pages" },
-                      { id: "full_pdf", name: "Full PDF", limit: previewPayment.free_pages + previewPayment.paid_pages, price: previewPayment.amount_inr, limits: "All document pages" },
-                    ].filter((plan, _, plans) => {
+                    {[...(previewPayment.available_packages || []).map((plan) => ({
+                      id: plan.id,
+                      name: plan.name,
+                      limit: plan.page_limit,
+                      price: plan.amount_inr,
+                      limits: `First ${plan.page_limit} pages`,
+                    })), {
+                      id: "full_pdf",
+                      name: "Full PDF",
+                      limit: previewPayment.free_pages + previewPayment.paid_pages,
+                      price: previewPayment.full_pdf_amount_inr ?? previewPayment.amount_inr,
+                      limits: "All document pages",
+                    }].filter((plan, _, plans) => {
                       const pageCount = previewPayment.free_pages + previewPayment.paid_pages;
                       if (plan.id !== "full_pdf") return plan.limit <= pageCount;
                       return !plans.some((candidate) => candidate.id !== "full_pdf" && candidate.limit >= pageCount);
@@ -382,28 +387,26 @@ export default function ConvertClient() {
                       const pageCount = previewPayment.free_pages + previewPayment.paid_pages;
                       const pageLimit = Math.min(plan.limit, pageCount);
                       const selected = selectedPlan?.id === plan.id || (!selectedPlan && plan.id === previewPayment.package_id);
-                      const unavailable = plan.id !== "full_pdf" && pageLimit <= previewPayment.free_pages;
                       return (
                         <button
                           type="button"
                           key={plan.id}
-                          disabled={unavailable}
                           onClick={() => {
                             setSelectedPlan({ id: plan.id, name: plan.name, price: plan.price, pageLimit, limits: plan.limits });
                             setPlanMessage(`${plan.name} selected: you will receive a translated PDF with the first ${pageLimit} page${pageLimit === 1 ? "" : "s"}.`);
                           }}
-                          className={`rounded-lg border p-2.5 text-left transition focus:outline-none focus:ring-2 focus:ring-cyan-300 disabled:cursor-not-allowed disabled:opacity-40 ${selected ? "border-cyan-400/70 bg-cyan-400/10 hover:bg-cyan-400/20" : "border-white/10 bg-white/[0.03] hover:border-cyan-400/40 hover:bg-white/[0.06]"}`}
+                          className={`rounded-lg border p-2.5 text-left transition focus:outline-none focus:ring-2 focus:ring-cyan-300 ${selected ? "border-cyan-400/70 bg-cyan-400/10 hover:bg-cyan-400/20" : "border-white/10 bg-white/[0.03] hover:border-cyan-400/40 hover:bg-white/[0.06]"}`}
                           aria-label={`Select ${plan.name}, ₹${plan.price}`}
                         >
                           <p className={`text-xs font-semibold ${selected ? "text-cyan-200" : "text-gray-200"}`}>{plan.name}</p>
                           <p className="mt-1 min-h-8 text-[11px] text-gray-500">{plan.limits}</p>
-                          <p className="mt-1 text-sm font-bold text-white">₹{plan.price === previewPayment.amount_inr && plan.id === "full_pdf" ? `${plan.price.toFixed(0)}` : plan.price}</p>
-                          <p className={`mt-1 text-[10px] font-medium ${selected ? "text-cyan-300" : "text-gray-500"}`}>{selected ? "Selected" : unavailable ? "Not needed" : "Select plan"}</p>
+                          <p className="mt-1 text-sm font-bold text-white">₹{plan.price.toFixed(0)}</p>
+                          <p className={`mt-1 text-[10px] font-medium ${selected ? "text-cyan-300" : "text-gray-500"}`}>{selected ? "Selected" : "Select plan"}</p>
                         </button>
                       );
                     })}
                   </div>
-                  <p className="mt-2 text-xs text-gray-500">Each plan translates the first listed pages, including your already free preview page.</p>
+                  <p className="mt-2 text-xs text-gray-500">Only plans that fit this document's page and text limits are shown. Each plan includes your free preview page.</p>
                   {planMessage && <p role="status" className="mt-2 rounded-lg border border-amber-400/30 bg-amber-400/10 p-2 text-xs leading-relaxed text-amber-100">{planMessage}</p>}
                 </div>
                 {previewPayment.pricing_model === "full_pdf_character_based" && (

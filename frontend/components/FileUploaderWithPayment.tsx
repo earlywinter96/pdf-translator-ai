@@ -34,6 +34,15 @@ export interface PaymentQuote {
   package_name?: string;
   package_limit_pages?: number;
   package_limit_characters?: number;
+  full_pdf_amount_inr?: number;
+  available_packages?: Array<{
+    id: string;
+    name: string;
+    page_limit: number;
+    amount_inr: number;
+    max_characters: number;
+    estimated_characters: number;
+  }>;
 }
 
 export default function FileUploaderWithPayment({ onJobCreated }: Props) {
@@ -124,6 +133,8 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
           package_name: result.payment.package_name,
           package_limit_pages: result.payment.package_limit_pages,
           package_limit_characters: result.payment.package_limit_characters,
+          full_pdf_amount_inr: result.payment.full_pdf_amount_inr,
+          available_packages: result.payment.available_packages,
         });
       } else {
         onJobCreated(result.job_id, sourceLanguage, targetLanguage);
