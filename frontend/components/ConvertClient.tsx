@@ -289,6 +289,11 @@ export default function ConvertClient() {
     return "Finalizing...";
   };
 
+  const hasMultipleOffers = Boolean(
+    previewPayment && ((previewPayment.available_packages?.length ?? 0) > 1 ||
+      (previewPayment.pricing_model === "full_pdf_character_based" && (previewPayment.available_packages?.length ?? 0) === 1))
+  );
+
   /* ============================================================================
      RENDER
   ============================================================================ */
@@ -354,19 +359,30 @@ export default function ConvertClient() {
                   </div>
                   <span className="shrink-0 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-sm font-semibold text-cyan-200">₹{(selectedPlan?.price ?? previewPayment.amount_inr).toFixed(0)}</span>
                 </div>
+                <p className="mt-3 text-sm text-cyan-100">
+                  Translation: <span className="font-semibold text-white">{sourceLanguage}</span>
+                  <span className="mx-2 text-cyan-400">→</span>
+                  <span className="font-semibold text-white">{targetLanguage}</span>
+                </p>
+                {!hasMultipleOffers ? (
+                  <p className="mt-2 text-sm leading-relaxed text-gray-300">
+                    Your PDF translation cost is <span className="font-semibold text-cyan-200">₹{(selectedPlan?.price ?? previewPayment.amount_inr).toFixed(0)}</span>. The free first-page preview is included.
+                  </p>
+                ) : (
                   <p className="mt-2 text-sm leading-relaxed text-gray-300">
                   Your {previewPayment.free_pages + previewPayment.paid_pages}-page PDF has a free first-page preview. The remaining pages have not been sent to Sarvam AI. Choose an independent page-range offer or the full-document offer.
-                </p>
+                  </p>
+                )}
                 <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl border border-white/10 bg-slate-950/30 p-4 text-sm">
                   <div><p className="text-gray-500">Document</p><p className="mt-1 font-semibold text-white">{previewPayment.free_pages + previewPayment.paid_pages} pages</p></div>
                   <div><p className="text-gray-500">Selected unlock</p><p className="mt-1 font-semibold text-cyan-300">{selectedPlan ? `${selectedPlan.pageLimit} pages · ₹${selectedPlan.price.toFixed(0)}` : `${Math.min(previewPayment.package_limit_pages || previewPayment.free_pages + previewPayment.paid_pages, previewPayment.free_pages + previewPayment.paid_pages)} pages · ₹${previewPayment.amount_inr.toFixed(0)}`}</p></div>
                 </div>
                 <div className="mt-4">
-                  <div className="flex items-center justify-between gap-3">
+                  {hasMultipleOffers && <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-semibold text-white">Available offers</p>
                     <span className="text-xs text-gray-400">Choose what you need</span>
-                  </div>
-                  <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                  </div>}
+                  <div className={`${hasMultipleOffers ? "mt-2 " : "hidden "}grid grid-cols-2 gap-2 sm:grid-cols-5`}>
                     {[...(previewPayment.available_packages || []).map((plan) => ({
                       id: plan.id,
                       name: plan.name,
@@ -406,7 +422,7 @@ export default function ConvertClient() {
                       );
                     })}
                   </div>
-                  <p className="mt-2 text-xs text-gray-500">Each offer is independent and includes your free first-page preview. The selected card translates exactly the pages shown; prices are calculated by the server from this PDF&apos;s characters.</p>
+                  {hasMultipleOffers && <p className="mt-2 text-xs text-gray-500">Each offer is independent and includes your free first-page preview. The selected card translates exactly the pages shown; prices are calculated by the server from this PDF&apos;s characters.</p>}
                   {planMessage && <p role="status" className="mt-2 rounded-lg border border-amber-400/30 bg-amber-400/10 p-2 text-xs leading-relaxed text-amber-100">{planMessage}</p>}
                 </div>
                 {previewPayment.pricing_model === "full_pdf_character_based" && (

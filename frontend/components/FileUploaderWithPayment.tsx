@@ -94,7 +94,9 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
 
   const handleTranslate = async () => {
     if (sameLanguage) {
-      setError("The source and target languages are the same. Please select a different language to translate into.");
+      const message = "Source and target languages are the same. Please select two different languages to translate.";
+      setError(message);
+      if (typeof window !== "undefined") window.alert(message);
       return;
     }
     if (!file) {
