@@ -12,12 +12,17 @@ import fitz
 
 logger = logging.getLogger(__name__)
 MAX_DISCORD_PREVIEW_BYTES = 8 * 1024 * 1024
+_missing_webhook_warned = False
 
 
 async def notify_discord(title: str, fields: Mapping[str, str | int]) -> None:
     """Send metadata-only events when a private webhook is configured."""
+    global _missing_webhook_warned
     webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
     if not webhook_url:
+        if not _missing_webhook_warned:
+            logger.error("Discord notifications disabled: DISCORD_WEBHOOK_URL is not configured")
+            _missing_webhook_warned = True
         return
 
     payload = {
@@ -33,7 +38,12 @@ async def notify_discord(title: str, fields: Mapping[str, str | int]) -> None:
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.post(webhook_url, json=payload)
-            response.raise_for_status()
+            if response.is_error:
+                logger.error(
+                    "Discord webhook rejected notification (%s): %s",
+                    response.status_code, response.text[:300],
+                )
+                return
     except Exception as exc:
         # Notifications must never stop payments, uploads, or translations.
         logger.warning("Discord notification failed: %s", exc)
@@ -62,6 +72,7 @@ async def notify_preview_documents(
     """Attach the original and translated first pages to the private webhook."""
     webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
     if not webhook_url:
+        logger.error("Discord preview notification skipped: DISCORD_WEBHOOK_URL is not configured")
         return
 
     fields: dict[str, str | int] = {
