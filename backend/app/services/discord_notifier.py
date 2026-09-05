@@ -26,8 +26,8 @@ async def notify_telegram(title: str, fields: Mapping[str, str | int]) -> None:
     """Send routine operational notifications to the owner's Telegram bot."""
     global _missing_telegram_warned
     token = os.getenv("TELEGRAM_BOT_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
-    if not token or not chat_id:
+    chat_ids = [value.strip() for value in os.getenv("TELEGRAM_CHAT_ID", "").split(",") if value.strip()]
+    if not token or not chat_ids:
         if not _missing_telegram_warned:
             logger.error("Telegram notifications disabled: TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID are not configured")
             _missing_telegram_warned = True
@@ -35,12 +35,13 @@ async def notify_telegram(title: str, fields: Mapping[str, str | int]) -> None:
     lines = [title] + [f"{name}: {value}" for name, value in fields.items()]
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.post(
-                f"https://api.telegram.org/bot{token}/sendMessage",
-                json={"chat_id": chat_id, "text": "\n".join(lines)},
-            )
-            if response.is_error:
-                logger.error("Telegram notification rejected (%s): %s", response.status_code, response.text[:300])
+            for chat_id in chat_ids:
+                response = await client.post(
+                    f"https://api.telegram.org/bot{token}/sendMessage",
+                    json={"chat_id": chat_id, "text": "\n".join(lines)},
+                )
+                if response.is_error:
+                    logger.error("Telegram notification rejected for chat %s (%s): %s", chat_id, response.status_code, response.text[:300])
     except Exception as exc:
         logger.warning("Telegram notification failed: %s", exc)
 

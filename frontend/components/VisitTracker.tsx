@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://pdf-translator-ai-ggqe.onrender.com";
-const VISIT_KEY = "lipitranslate_discord_visit_date";
+const VISIT_KEY = "lipitranslate_telegram_visit_date_v2";
 
 /** Notify operations once per browser per day, without sending personal data. */
 export default function VisitTracker() {
