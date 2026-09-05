@@ -1,21 +1,11 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { Bot, LoaderCircle, Send, X } from "lucide-react";
 import { trackSiteInteraction } from "@/lib/analytics";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://pdf-translator-ai-ggqe.onrender.com";
 const MAX_CONVERSATIONS = 5;
-const CHAT_SESSION_STORAGE_KEY = "lipi-support-chat-session";
-const CHAT_COUNT_STORAGE_KEY = "lipi-support-chat-count";
-
-function getSupportSessionId() {
-  const existing = window.localStorage.getItem(CHAT_SESSION_STORAGE_KEY);
-  if (existing) return existing;
-  const sessionId = crypto.randomUUID();
-  window.localStorage.setItem(CHAT_SESSION_STORAGE_KEY, sessionId);
-  return sessionId;
-}
 
 type ChatMessage = { role: "assistant" | "user"; content: string };
 
@@ -27,13 +17,8 @@ export default function FaqOrb() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [askedCount, setAskedCount] = useState(0);
-
-  useEffect(() => {
-    const savedCount = Number(window.localStorage.getItem(CHAT_COUNT_STORAGE_KEY));
-    if (Number.isFinite(savedCount) && savedCount > 0) {
-      setAskedCount(Math.min(savedCount, MAX_CONVERSATIONS));
-    }
-  }, []);
+  // A browser refresh starts a fresh, anonymous five-question support session.
+  const [chatSessionId] = useState(() => crypto.randomUUID());
 
   const askQuestion = async (question: string) => {
     const trimmed = question.trim();
@@ -46,14 +31,13 @@ export default function FaqOrb() {
     setLoading(true);
     const nextCount = askedCount + 1;
     setAskedCount(nextCount);
-    window.localStorage.setItem(CHAT_COUNT_STORAGE_KEY, String(nextCount));
     trackSiteInteraction("faq_chat_message");
 
     try {
       const response = await fetch(`${API_BASE}/api/support/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: trimmed, history: previousMessages, session_id: getSupportSessionId() }),
+        body: JSON.stringify({ message: trimmed, history: previousMessages, session_id: chatSessionId }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || "Unable to answer right now");
