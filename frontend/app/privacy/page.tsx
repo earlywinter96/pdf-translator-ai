@@ -48,7 +48,7 @@ export default function PrivacyPage() {
           <div>
             <h2 className="text-lg font-semibold text-white mb-3">Third-Party AI</h2>
             <p>
-              Translations are generated using Sarvam AI. No document data is permanently stored by this service. Translation requests are processed in real-time and discarded immediately.
+              PDF translation and scanned-document OCR use Sarvam AI (Sarvam Translate and Sarvam Vision). Google Gemini is used only when you explicitly choose the separate PDF visualization feature; it is not used to translate PDFs. No document data is permanently stored by this service. Requests are processed in real-time and discarded immediately.
             </p>
           </div>
 

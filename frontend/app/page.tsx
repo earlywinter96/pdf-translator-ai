@@ -235,7 +235,7 @@ export default function HomePage() {
               <Brain className="w-10 h-10 text-purple-400 mx-auto mb-3" />
               <h4 className="font-semibold text-white mb-2">AI-Powered</h4>
               <p className="text-sm text-gray-400">
-                Sarvam AI + Google Gemini
+                Sarvam for translation/OCR; Gemini for visualization only
               </p>
             </div>
           </div>
