@@ -23,7 +23,7 @@ export default function AboutPage() {
             Translation built for Indian documents
           </h1>
           <p className="text-gray-400 text-lg max-w-2xl mx-auto leading-relaxed">
-            LipiTranslate helps students, professionals, and organisations translate PDFs with a clear preview before they pay for the full document.
+            LipiTranslate.in helps students, professionals, and organisations translate PDFs with a clear preview before they pay for the full document.
           </p>
         </header>
 
@@ -31,13 +31,13 @@ export default function AboutPage() {
         <section className="rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 shadow-xl p-8 md:p-10 space-y-6 text-gray-300 leading-relaxed">
           <h2 className="text-2xl font-semibold text-white">Made for documents that matter</h2>
           <p>
-            LipiTranslate is designed for the PDFs people actually need to understand: study material, forms, notes, government documents, reports, and professional files. Gujarati, Hindi, Marathi and English translation are currently available; additional Indian languages are being quality-tested for a future release.
+            LipiTranslate.in is designed for the PDFs people actually need to understand: study material, forms, notes, government documents, reports, and professional files. Gujarati, Hindi, Marathi and English translation are currently available; additional Indian languages are being quality-tested for a future release.
           </p>
           <p>
             Every document starts with a <span className="text-cyan-300 font-medium">free one-page preview</span>. You can check the translation quality, language direction, and visual result before choosing to unlock the remaining pages.
           </p>
           <p>
-            For text-based PDFs, LipiTranslate keeps the original page as the canvas and replaces the selectable text in place. This helps preserve headings, tables, coloured backgrounds, images, and the document&apos;s overall layout. Scanned PDFs use OCR to read the page first, so results can depend on scan clarity.
+            For text-based PDFs, LipiTranslate.in keeps the original page as the canvas and replaces the selectable text in place. This helps preserve headings, tables, coloured backgrounds, images, and the document&apos;s overall layout. Scanned PDFs use OCR to read the page first, so results can depend on scan clarity.
           </p>
         </section>
 
@@ -77,7 +77,7 @@ export default function AboutPage() {
           </div>
           <h2 className="text-2xl font-semibold text-white">Built by Hemant Solanki</h2>
           <p className="text-gray-300 max-w-2xl mx-auto mt-3 leading-relaxed">
-            LipiTranslate was founded by Hemant Solanki to make Indian-language documents easier to access, understand, and share—without forcing users to choose between translation quality and a usable PDF.
+            LipiTranslate.in was founded by Hemant Solanki to make Indian-language documents easier to access, understand, and share—without forcing users to choose between translation quality and a usable PDF.
           </p>
           <Link href="/convert" className="inline-flex items-center gap-2 mt-6 rounded-lg bg-cyan-500 px-5 py-3 font-semibold text-slate-950 hover:bg-cyan-400 transition">
             Try the free preview <CheckCircle2 className="w-4 h-4" />
