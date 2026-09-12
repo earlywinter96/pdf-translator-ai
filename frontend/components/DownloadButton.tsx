@@ -2,6 +2,7 @@
 
 import { Download, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { reportSiteError, trackSiteInteraction } from "@/lib/analytics";
 
 export default function DownloadButton({ jobId }: { jobId: string }) {
   const [isDownloading, setIsDownloading] = useState(false);
@@ -10,6 +11,7 @@ export default function DownloadButton({ jobId }: { jobId: string }) {
   
   const handleDownload = async () => {
     try {
+      trackSiteInteraction("translation_download_clicked");
       setIsDownloading(true);
       console.log("🟢 Download started for jobId:", jobId);
       
@@ -41,6 +43,7 @@ export default function DownloadButton({ jobId }: { jobId: string }) {
       console.log("✅ Download completed successfully");
     } catch (error) {
       console.error("❌ Download failed:", error);
+      reportSiteError(error, "translation_download");
       alert("Download failed. Please try again.");
     } finally {
       setIsDownloading(false);

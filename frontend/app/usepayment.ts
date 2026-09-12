@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { reportSiteError } from '@/lib/analytics';
 
 interface RazorpaySuccessResponse {
   razorpay_payment_id: string;
@@ -100,6 +101,7 @@ export function usePayment() {
       await initializeSession();
       setIsLoading(false);
     } catch (err: unknown) {
+      reportSiteError(err, 'payment_initialize');
       setError(errorMessage(err, 'Failed to initialize payment system'));
       setIsLoading(false);
     }
@@ -247,7 +249,9 @@ export function usePayment() {
 
     if (!orderResponse.ok) {
       const err = await orderResponse.json().catch(() => ({}));
-      throw new Error(err.detail || 'Order creation failed');
+      const failure = new Error(err.detail || 'Order creation failed');
+      reportSiteError(failure, 'razorpay_order');
+      throw failure;
     }
 
     const orderData = await orderResponse.json() as RazorpayOrder;
@@ -262,7 +266,9 @@ export function usePayment() {
     const RazorpayConstructor = window.Razorpay;
 
     if (!RazorpayConstructor) {
-      throw new Error('Razorpay SDK not loaded');
+      const failure = new Error('Razorpay SDK not loaded');
+      reportSiteError(failure, 'razorpay_sdk');
+      throw failure;
     }
 
     return new Promise<string | null>((resolve, reject) => {
@@ -298,9 +304,12 @@ export function usePayment() {
                 await refreshSession();
                 resolve(response.razorpay_order_id);
             } else {
-              reject(new Error(verification?.detail || verification?.message || 'Payment verification failed'));
+              const failure = new Error(verification?.detail || verification?.message || 'Payment verification failed');
+              reportSiteError(failure, 'razorpay_verify');
+              reject(failure);
             }
           } catch (err) {
+            reportSiteError(err, 'razorpay_verify');
             reject(err);
           }
         },
@@ -321,6 +330,7 @@ export function usePayment() {
 
       razorpay.on('payment.failed', (response: RazorpayFailureResponse) => {
         void reportPaymentEvent(jobId, 'payment_failed');
+        reportSiteError(new Error(response?.error?.description || 'Payment failed'), 'razorpay_failed');
         reject(
           new Error(
             response?.error?.description || 'Payment failed'

@@ -89,7 +89,21 @@ def _bbox_to_rect(bbox: Any, page: fitz.Page, source_width: float, source_height
     if right <= left or bottom <= top:
         return None
     # Document AI returns page dimensions alongside JSON blocks. Scaling also
-    # works for pixels and avoids assuming A4 on uploaded documents.
+    # works for pixels and avoids assuming A4 on uploaded documents. Some
+    # Document AI responses report a portrait canvas for a landscape PDF;
+    # applying those boxes directly rotates every replacement lane. Detect
+    # that 90-degree orientation mismatch and map the box back to the PDF.
+    page_is_landscape = page.rect.width > page.rect.height
+    source_is_landscape = source_width > source_height
+    if page_is_landscape != source_is_landscape:
+        nx0, ny0 = left / source_width, top / source_height
+        nx1, ny1 = right / source_width, bottom / source_height
+        return (
+            (1 - ny1) * page.rect.width,
+            nx0 * page.rect.height,
+            (1 - ny0) * page.rect.width,
+            nx1 * page.rect.height,
+        )
     scale_x = page.rect.width / source_width if source_width else 1
     scale_y = page.rect.height / source_height if source_height else 1
     return (left * scale_x, top * scale_y, right * scale_x, bottom * scale_y)

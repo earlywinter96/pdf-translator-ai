@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ExternalLink, FileText } from "lucide-react";
-import { trackSiteInteraction } from "@/lib/analytics";
+import { reportSiteError, trackSiteInteraction } from "@/lib/analytics";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://pdf-translator-ai-ggqe.onrender.com";
 
@@ -14,6 +14,22 @@ interface Props {
 
 export default function BilingualPreview({ jobId, targetLanguage, isPreview = false }: Props) {
   const [activeTab, setActiveTab] = useState<"side-by-side" | "original" | "translated">("side-by-side");
+  const renderedRef = useRef({ original: false, translated: false });
+
+  useEffect(() => {
+    renderedRef.current = { original: false, translated: false };
+  }, [jobId, isPreview]);
+
+  const reportRendered = (kind: "original" | "translated") => {
+    if (renderedRef.current[kind]) return;
+    renderedRef.current[kind] = true;
+    trackSiteInteraction(kind === "original" ? "preview_rendered_original" : "preview_rendered_translated");
+  };
+
+  const reportRenderError = (kind: "original" | "translated") => {
+    reportSiteError(new Error(`${kind} preview iframe failed to load`), "preview_render");
+    trackSiteInteraction("preview_render_error");
+  };
 
   // Use preview endpoints instead of download endpoints
   const originalUrl = `${API_BASE}/api/preview/original/${jobId}`;
@@ -126,6 +142,8 @@ export default function BilingualPreview({ jobId, targetLanguage, isPreview = fa
                 src={originalUrl}
                 className="w-full h-full border-0"
                 title="Original PDF"
+                onLoad={() => reportRendered("original")}
+                onError={() => reportRenderError("original")}
               />
             </div>
           </div>
@@ -155,6 +173,8 @@ export default function BilingualPreview({ jobId, targetLanguage, isPreview = fa
                 src={translatedUrl}
                 className="w-full h-full border-0"
                 title="Translated PDF"
+                onLoad={() => reportRendered("translated")}
+                onError={() => reportRenderError("translated")}
               />
             </div>
           </div>

@@ -216,6 +216,12 @@ class SiteInteractionEvent(BaseModel):
     page: str = "unknown"
 
 
+class SiteErrorEvent(BaseModel):
+    error: str
+    context: str = "client"
+    page: str = "unknown"
+
+
 SITE_INTERACTION_LABELS = {
     "nav_translate": "Navigation: Translate",
     "nav_about": "Navigation: About",
@@ -231,6 +237,10 @@ SITE_INTERACTION_LABELS = {
     "preview_open_original": "Original preview opened in new tab",
     "preview_open_translated": "Translated preview opened in new tab",
     "preview_tab_changed": "Preview display changed",
+    "preview_rendered_original": "Original preview rendered in browser",
+    "preview_rendered_translated": "Translated preview rendered in browser",
+    "preview_render_error": "Preview failed to render in browser",
+    "translation_download_clicked": "Translation download clicked",
 }
 
 
@@ -242,6 +252,19 @@ async def record_site_interaction(event: SiteInteractionEvent):
         raise HTTPException(400, "Unsupported analytics event")
     asyncio.create_task(notify_discord("LipiTranslate site interaction", {
         "Event": label,
+        "Page": event.page[:120],
+    }))
+    return {"recorded": True}
+
+
+@app.post("/api/analytics/error")
+async def record_site_error(event: SiteErrorEvent):
+    """Route frontend failures to Discord without collecting document contents."""
+    if not event.error.strip():
+        raise HTTPException(400, "Error message is required")
+    asyncio.create_task(notify_discord("LipiTranslate UI error", {
+        "Error": event.error.strip()[:300],
+        "Context": event.context.strip()[:120] or "client",
         "Page": event.page[:120],
     }))
     return {"recorded": True}

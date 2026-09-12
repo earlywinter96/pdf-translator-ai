@@ -10,6 +10,7 @@ import { useState, useCallback } from "react";
 import { Upload, FileText, Languages, Zap, AlertCircle, LayoutTemplate, ImageIcon, Table2 } from "lucide-react";
 import { useDropzone } from "react-dropzone";
 import { uploadPDFForTranslation, SUPPORTED_LANGUAGES, PRIMARY_LANGUAGES } from "@/lib/api";
+import { reportSiteError } from "@/lib/analytics";
 
 const MAX_FILE_SIZE_MB = 25;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -144,6 +145,7 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
       }
     } catch (err: unknown) {
       console.error('❌ Upload failed:', err);
+      reportSiteError(err, "pdf_upload");
       setError(err instanceof Error ? err.message : 'Upload failed. Please try again.');
     } finally {
       setIsUploading(false);

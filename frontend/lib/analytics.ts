@@ -9,3 +9,20 @@ export function trackSiteInteraction(event: string) {
     keepalive: true,
   }).catch(() => undefined);
 }
+
+/** Report a client-side failure to the backend error channel.
+ *  The payload is deliberately short and excludes file contents or PII.
+ */
+export function reportSiteError(error: unknown, context?: string) {
+  const message = error instanceof Error ? error.message : String(error ?? "Unknown client error");
+  void fetch(`${API_BASE}/api/analytics/error`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      error: message.slice(0, 300),
+      context: context?.slice(0, 120) || "client",
+      page: typeof window === "undefined" ? "unknown" : window.location.pathname,
+    }),
+    keepalive: true,
+  }).catch(() => undefined);
+}

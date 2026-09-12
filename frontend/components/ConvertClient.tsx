@@ -20,6 +20,7 @@ import TranslationFeedback from "@/components/TranslationFeedback";
 import PaymentModal from "@/components/PaymentModal";
 import { getJobStatus, startPaidTranslation } from "@/lib/api";
 import { usePayment } from "@/app/usepayment";
+import { reportSiteError } from "@/lib/analytics";
 import type { PaymentQuote } from "@/components/FileUploaderWithPayment";
 
 type SelectedPlan = {
@@ -138,6 +139,7 @@ export default function ConvertClient() {
         }
 
         if (data.status === "failed") {
+          reportSiteError(new Error(data.message || "Translation job failed"), "translation_status");
           setJobStatus("failed");
           isActiveRef.current = false;
           return;
@@ -170,6 +172,7 @@ export default function ConvertClient() {
         const nextInterval = getPollInterval(data.progress);
         timeoutId = setTimeout(pollStatus, nextInterval);
       } catch (err) {
+        reportSiteError(err, "translation_poll");
         failureCountRef.current++;
         setFailureCount(failureCountRef.current);
 
@@ -244,6 +247,7 @@ export default function ConvertClient() {
       setPaidAmountTotal(Number(started?.paid_amount_total) / 100 || paidAmountTotal + (selectedPlan?.price ?? previewPayment?.amount_inr ?? 0));
     } catch (error) {
       awaitingPaidOutputRef.current = false;
+      reportSiteError(error, "paid_translation_start");
       throw error;
     }
     // Do not clear previewPayment yet. The polling loop clears it only after

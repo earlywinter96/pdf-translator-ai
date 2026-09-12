@@ -3,16 +3,13 @@
 import logging
 import os
 import ipaddress
-import json
 import asyncio
-from io import BytesIO
 from typing import Mapping
 
 import httpx
 import fitz
 
 logger = logging.getLogger(__name__)
-MAX_DISCORD_PREVIEW_BYTES = 8 * 1024 * 1024
 _missing_webhook_warned = False
 _missing_telegram_warned = False
 
@@ -138,68 +135,6 @@ async def notify_preview_documents(
         except Exception as exc:
             logger.warning("Telegram preview upload failed: %s", exc)
     return
-    webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
-    if not webhook_url:
-        logger.error("Discord preview notification skipped: DISCORD_WEBHOOK_URL is not configured")
-        return
-
-    fields: dict[str, str | int] = {
-        "Job": job_id[:8],
-        "Preview": "Original + translated first page attached",
-        "Pages awaiting payment": paid_pages if paid_pages else "None — free document",
-        "Full translation price": f"₹{amount_inr:.0f}" if paid_pages else "Free",
-        "Status": "Preview ready — awaiting payment" if paid_pages else "Free first-page translation complete",
-    }
-    try:
-        originals = _first_page_pdf_bytes(original_path)
-        translated = _first_page_pdf_bytes(translated_path)
-        files_to_send = [
-            ("original-page-1.pdf", originals),
-            ("translated-page-1.pdf", translated),
-        ]
-        too_large = [name for name, content in files_to_send if len(content) > MAX_DISCORD_PREVIEW_BYTES]
-        if too_large:
-            fields["Attachments"] = "Preview attachment too large to send"
-            await notify_discord("LipiTranslate preview ready", fields)
-            return
-
-        payload = {"embeds": [{
-            "title": "LipiTranslate preview ready",
-            "color": 0x06B6D4,
-            "fields": [
-                {"name": str(name), "value": str(value)[:1024], "inline": True}
-                for name, value in fields.items()
-            ],
-        }]}
-        handles = []
-        try:
-            multipart_files = {}
-            for index, (filename, content) in enumerate(files_to_send):
-                handle = BytesIO(content)
-                handles.append(handle)
-                multipart_files[f"files[{index}]"] = (filename, handle, "application/pdf")
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                for attempt in range(2):
-                    if attempt:
-                        for handle in handles:
-                            handle.seek(0)
-                    response = await client.post(
-                        webhook_url,
-                        data={"payload_json": json.dumps(payload)},
-                        files=multipart_files,
-                    )
-                    if response.status_code != 429:
-                        response.raise_for_status()
-                        break
-                    retry_after = min(float(response.headers.get("retry-after", "2")), 10.0)
-                    logger.warning("Discord preview webhook rate limited; retrying in %.1fs", retry_after)
-                    if attempt == 0:
-                        await asyncio.sleep(max(0.1, retry_after))
-        finally:
-            for handle in handles:
-                handle.close()
-    except Exception as exc:
-        logger.warning("Discord preview notification failed: %s", exc)
 
 
 async def get_approximate_location(client_ip: str | None) -> str:
