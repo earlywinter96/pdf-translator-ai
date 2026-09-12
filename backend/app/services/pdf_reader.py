@@ -152,8 +152,10 @@ def detect_pdf_language(pdf_path: str, sample_pages: int = 3) -> Tuple[str, floa
             if not all_text.strip():
                 logger.warning("No text extracted for language detection, trying OCR...")
                 try:
-                    # Use OCR with English first to detect language
-                    ocr_text, _ = extract_page_with_ocr(pdf_path, 0, "eng")
+                    # Use a multilingual OCR pass for detection. English-only
+                    # OCR can return an empty result for Gujarati/Devanagari
+                    # scans, causing the UI to keep the wrong source language.
+                    ocr_text, _ = extract_page_with_ocr(pdf_path, 0, "eng+guj+hin+mar")
                     if ocr_text.strip():
                         all_text = ocr_text
                         logger.info(f"   OCR extracted {len(ocr_text)} chars for language detection")

@@ -52,6 +52,7 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
   const [sourceLanguage, setSourceLanguage] = useState("gujarati");
   const [targetLanguage, setTargetLanguage] = useState("english");
   const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null);
+  const [detectingLanguage, setDetectingLanguage] = useState(false);
   const [translationMode, setTranslationMode] = useState("formal");
   
   const [isUploading, setIsUploading] = useState(false);
@@ -81,6 +82,7 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
     setDetectedLanguage(null);
     setError(null);
     console.log('📄 File selected:', uploadedFile.name);
+    setDetectingLanguage(true);
     try {
       const detected = await detectPdfLanguage(uploadedFile);
       const detectedKey = Object.entries(SUPPORTED_LANGUAGES).find(([, value]) => value.code === detected.detected)?.[0] ?? null;
@@ -90,6 +92,8 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
       }
     } catch (detectionError) {
       console.warn("PDF language detection unavailable:", detectionError);
+    } finally {
+      setDetectingLanguage(false);
     }
   }, []);
 
@@ -292,6 +296,9 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
           <div className="rounded-lg border border-amber-400/40 bg-amber-400/10 p-3 text-sm text-amber-100" role="alert">
             This PDF appears to be {SUPPORTED_LANGUAGES[detectedLanguage as keyof typeof SUPPORTED_LANGUAGES]?.name ?? detectedLanguage}, the same as your target language. Please choose a different “To” language before translating.
           </div>
+        )}
+        {detectingLanguage && (
+          <p className="text-xs text-cyan-200" role="status">Checking the PDF language…</p>
         )}
 
         {/* Translation Mode */}
