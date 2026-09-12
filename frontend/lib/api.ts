@@ -55,6 +55,15 @@ export async function checkPdfPages(file: File) {
   return res.json();
 }
 
+export async function detectPdfLanguage(file: File) {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch(`${API_BASE}/api/detect-language`, { method: "POST", body: fd });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || "Could not detect PDF language");
+  return data as { detected: string; confidence: number; message: string };
+}
+
 // ============================================================================
 // TRANSLATION API (Updated for Sarvam AI)
 // ============================================================================

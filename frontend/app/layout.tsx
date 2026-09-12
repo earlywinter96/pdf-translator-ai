@@ -18,7 +18,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: {
     default: "Free PDF Translator | Gujarati, Hindi & Marathi OCR",
-    template: "%s | LipiTranslate",
+    template: "%s | LipiTranslate.in",
   },
   description:
     "Free Translate PDFs and scanned documents using OCR. LipiTranslate supports Hindi, Marathi, Gujarati and English with fast AI-powered translation.",
@@ -48,7 +48,7 @@ export const metadata: Metadata = {
     description:
       "Translate PDFs & scanned documents in Hindi, Marathi, Gujarati & English using AI-powered OCR.",
     url: "https://www.lipitranslate.in/",
-    siteName: "LipiTranslate",
+    siteName: "LipiTranslate.in",
     type: "website",
     locale: "en_IN",
     images: [

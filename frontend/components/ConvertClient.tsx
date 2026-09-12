@@ -61,6 +61,7 @@ export default function ConvertClient() {
   const [completedPageLimit, setCompletedPageLimit] = useState<number | null>(null);
   const [documentPageCount, setDocumentPageCount] = useState(0);
   const [paidAmountTotal, setPaidAmountTotal] = useState(0);
+  const [paymentSuccessVisible, setPaymentSuccessVisible] = useState(false);
   const [fullDocumentPrice, setFullDocumentPrice] = useState(0);
   const [translationRun, setTranslationRun] = useState(0);
   const { initiatePayment, paymentConfig, reportPaymentEvent } = usePayment();
@@ -253,6 +254,14 @@ export default function ConvertClient() {
     // Do not clear previewPayment yet. The polling loop clears it only after
     // Render reports the separate paid output as completed.
     setShowPaymentModal(false);
+    setPaymentSuccessVisible(true);
+    if (typeof window !== "undefined") {
+      window.history.pushState({ lipiPaymentSuccess: true }, "", "/payment-success");
+      window.setTimeout(() => {
+        window.history.replaceState(null, "", "/convert");
+        setPaymentSuccessVisible(false);
+      }, 3500);
+    }
     setProgress(1);
     setStatusMessage("Payment verified. Starting full-document translation...");
     setJobStatus("processing");
@@ -303,6 +312,16 @@ export default function ConvertClient() {
   ============================================================================ */
   return (
     <main className="relative min-h-screen bg-gradient-to-br from-[#020617] to-black px-6 overflow-hidden">
+      {paymentSuccessVisible && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#020617]/90 px-6 backdrop-blur-sm" role="status" aria-live="polite">
+          <div className="w-full max-w-lg rounded-2xl border border-emerald-400/40 bg-slate-900 p-8 text-center shadow-2xl shadow-emerald-500/20">
+            <CheckCircle className="mx-auto h-14 w-14 text-emerald-400" />
+            <h1 className="mt-4 text-2xl font-bold text-white">Payment received</h1>
+            <p className="mt-2 text-cyan-200">LipiTranslate.in is now generating your selected translation.</p>
+            <p className="mt-3 text-sm text-gray-300">You’ll return to your result automatically when the PDF is ready.</p>
+          </div>
+        </div>
+      )}
       {jobId && (
         <div className="max-w-4xl mx-auto pt-8">
           <Link

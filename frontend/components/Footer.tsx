@@ -13,7 +13,7 @@ export default function Footer() {
           {/* Brand */}
           <div className="col-span-1 md:col-span-2">
             <h3 className="text-xl font-bold text-white mb-4">
-              Lipi<span className="text-cyan-500">Translate</span>
+              Lipi<span className="text-cyan-500">Translate.in</span>
             </h3>
             <p className="text-gray-400 text-sm">
               Free AI-powered PDF translation for Gujarati, Hindi, Marathi, and
@@ -81,7 +81,7 @@ export default function Footer() {
 
         <div className="mt-8 pt-8 border-t border-gray-800 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-gray-400">
   <span>
-    © 2025 LipiTranslate. All rights reserved.
+    © 2025 LipiTranslate.in. All rights reserved.
   </span>
 
   <DeveloperSignature />

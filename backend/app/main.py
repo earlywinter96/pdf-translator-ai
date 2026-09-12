@@ -429,9 +429,6 @@ async def detect_language_endpoint(file: UploadFile = File(...)):
     # Validate file
     if not file.filename.endswith('.pdf'):
         raise HTTPException(400, "Only PDF files are supported")
-    if is_same_language(source_language, target_language):
-        raise HTTPException(400, "Source and target language are the same. Please select a different target language.")
-    
     # Save temporary file
     temp_id = str(uuid.uuid4())
     temp_path = os.path.join(UPLOADS_DIR, f"temp_{temp_id}.pdf")

@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-const TERMINAL_TEXT = "< LipiTranslate – PDF & OCR Translator >";
-const SEO_TEXT = "LipiTranslate – PDF & OCR Translator for Gujarati, Hindi and Marathi";
+const TERMINAL_TEXT = "< LipiTranslate.in – PDF & OCR Translator >";
+const SEO_TEXT = "LipiTranslate.in – PDF & OCR Translator for Gujarati, Hindi and Marathi";
 
 export default function TerminalTitle() {
   const [displayed, setDisplayed] = useState("");

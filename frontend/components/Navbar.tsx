@@ -18,7 +18,7 @@ export default function Navbar() {
             <div className="flex items-center gap-4">
             <Link href="/" className="flex items-center space-x-2">
               <span className="text-2xl font-bold text-white">
-                Lipi<span className="text-cyan-500">Translate</span>
+                Lipi<span className="text-cyan-500">Translate.in</span>
               </span>
             </Link>
 

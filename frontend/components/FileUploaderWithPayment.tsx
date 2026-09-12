@@ -9,7 +9,7 @@
 import { useState, useCallback } from "react";
 import { Upload, FileText, Languages, Zap, AlertCircle, LayoutTemplate, ImageIcon, Table2 } from "lucide-react";
 import { useDropzone } from "react-dropzone";
-import { uploadPDFForTranslation, SUPPORTED_LANGUAGES, PRIMARY_LANGUAGES } from "@/lib/api";
+import { detectPdfLanguage, uploadPDFForTranslation, SUPPORTED_LANGUAGES, PRIMARY_LANGUAGES } from "@/lib/api";
 import { reportSiteError } from "@/lib/analytics";
 
 const MAX_FILE_SIZE_MB = 25;
@@ -51,6 +51,7 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [sourceLanguage, setSourceLanguage] = useState("gujarati");
   const [targetLanguage, setTargetLanguage] = useState("english");
+  const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null);
   const [translationMode, setTranslationMode] = useState("formal");
   
   const [isUploading, setIsUploading] = useState(false);
@@ -61,7 +62,7 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
   // FILE UPLOAD
   // ============================================================================
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const uploadedFile = acceptedFiles[0];
     
     if (!uploadedFile) return;
@@ -77,8 +78,19 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
     }
     
     setFile(uploadedFile);
+    setDetectedLanguage(null);
     setError(null);
     console.log('📄 File selected:', uploadedFile.name);
+    try {
+      const detected = await detectPdfLanguage(uploadedFile);
+      const detectedKey = Object.entries(SUPPORTED_LANGUAGES).find(([, value]) => value.code === detected.detected)?.[0] ?? null;
+      if (detectedKey) {
+        setDetectedLanguage(detectedKey);
+        setSourceLanguage(detectedKey);
+      }
+    } catch (detectionError) {
+      console.warn("PDF language detection unavailable:", detectionError);
+    }
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -274,6 +286,11 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
         {sameLanguage && (
           <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-200">
             Select a different language in “To” to create a translation.
+          </div>
+        )}
+        {detectedLanguage && sameLanguage && (
+          <div className="rounded-lg border border-amber-400/40 bg-amber-400/10 p-3 text-sm text-amber-100" role="alert">
+            This PDF appears to be {SUPPORTED_LANGUAGES[detectedLanguage as keyof typeof SUPPORTED_LANGUAGES]?.name ?? detectedLanguage}, the same as your target language. Please choose a different “To” language before translating.
           </div>
         )}
 
