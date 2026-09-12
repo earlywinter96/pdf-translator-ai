@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { Bot, LoaderCircle, Send, X } from "lucide-react";
-import { trackSiteInteraction } from "@/lib/analytics";
+import { reportSiteError, trackSiteInteraction } from "@/lib/analytics";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://pdf-translator-ai-ggqe.onrender.com";
 const MAX_CONVERSATIONS = 5;
@@ -12,7 +12,7 @@ type ChatMessage = { role: "assistant" | "user"; content: string };
 export default function FaqOrb() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: "assistant", content: "Hi! I’m Lipi Assistant. Ask about your free preview, payments, PDF quality, languages, or LipiTranslate." },
+    { role: "assistant", content: "Hi! I’m Lipi Assistant. Ask about LipiTranslate.in, Hemant Solanki, pricing, the free first-page preview, Sarvam translation/OCR, Gemini visualisation, supported languages, or PDF quality." },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -42,7 +42,8 @@ export default function FaqOrb() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || "Unable to answer right now");
       setMessages((current) => [...current, { role: "assistant", content: data.answer }]);
-    } catch {
+    } catch (error) {
+      reportSiteError(error, "support_chat");
       setMessages((current) => [...current, {
         role: "assistant",
         content: "I couldn’t connect just now. Please email lipitranslate.general@gmail.com with your question or suggestion.",
@@ -67,7 +68,7 @@ export default function FaqOrb() {
             </div>
             <div className="flex-1">
               <p className="text-sm font-semibold text-white">Lipi Assistant</p>
-              <p className="text-xs text-cyan-200">LipiTranslate support · {Math.max(MAX_CONVERSATIONS - askedCount, 0)} questions left</p>
+              <p className="text-xs text-cyan-200">LipiTranslate.in support · {Math.max(MAX_CONVERSATIONS - askedCount, 0)} questions left</p>
             </div>
             <button onClick={() => setOpen(false)} className="rounded-lg p-2 text-gray-300 hover:bg-white/10 hover:text-white" aria-label="Close FAQ help">
               <X className="h-4 w-4" />

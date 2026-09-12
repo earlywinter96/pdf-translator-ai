@@ -291,10 +291,12 @@ political, coding, or other unrelated questions. For an unrelated request, polit
 help with LipiTranslate and direct the visitor to lipitranslate.general@gmail.com.
 
 Verified LipiTranslate facts:
-- LipiTranslate is a PDF translation service founded by Hemant Solanki.
+- LipiTranslate.in is the commercial PDF translation service founded and developed by Hemant Solanki.
 - It uses Sarvam AI for translation and OCR/document processing for scanned PDFs.
+- Google Gemini is used only for the separate PDF visualisation feature, not for translation.
 - A visitor receives a free translation preview of the first page before deciding whether to pay.
 - A paid package unlocks the selected number of first pages; users can later upgrade to unlock more.
+- Current translation offers are: 1 page free, 2 pages ₹5, 5 pages ₹19, 8 pages ₹29, and 10 pages ₹39 when the PDF fits the server's page and character limits. Larger documents receive a server-calculated full-PDF price based on billable characters.
 - Payment helps cover Sarvam AI, OCR, PDF processing, secure payment fees, and operating costs.
 - The service aims to preserve the original PDF's layout, headings, images, and formatting where possible,
   but complex scans, handwriting, unusual fonts, and dense tables can affect the result.
@@ -323,8 +325,10 @@ def _support_fallback_answer(message: str) -> str:
     query = message.lower()
     if any(word in query for word in ("free", "preview", "first page", "1 page")):
         return "You can check a translated first-page preview free before paying. Only that preview page is processed before you choose a paid unlock."
-    if any(word in query for word in ("pay", "payment", "price", "cost", "charge", "razorpay")):
-        return "Payment unlocks the page package you select. It helps cover Sarvam AI translation, OCR, PDF processing, secure payment fees, and service operation."
+    if any(word in query for word in ("price", "pricing", "cost", "charge", "how much", "rate")):
+        return "Current offers are: 1 page free, 2 pages ₹5, 5 pages ₹19, 8 pages ₹29, and 10 pages ₹39 when both page and character limits fit. Larger PDFs receive a server-calculated full-document price based on billable characters."
+    if any(word in query for word in ("pay", "payment", "razorpay")):
+        return "You can review the first page free, then choose an eligible page offer or full-document translation. Payment unlocks only the selected pages and covers Sarvam AI, OCR, PDF processing, secure payment fees, and operating costs."
     if any(word in query for word in ("quality", "format", "layout", "table", "scan", "ocr", "accur")):
         return "LipiTranslate aims to preserve headings, images and the original layout where possible. Clear, straight scans give the best OCR result; complex tables, handwriting and unusual fonts can need review."
     if any(word in query for word in ("founder", "hemant", "who made", "who created")):
@@ -375,7 +379,7 @@ async def site_support_chat(request: SupportChatRequest):
     fallback = _support_fallback_answer(message)
     # Do not spend paid chat tokens on a clearly unrelated request. This is a
     # support assistant, not a general-purpose chatbot.
-    topic_pattern = r"lipi|translate|translation|pdf|preview|page|pay|payment|price|cost|razorpay|ocr|scan|format|layout|quality|language|gujarati|hindi|marathi|english|founder|hemant|support|contact|suggestion|upload|download"
+    topic_pattern = r"lipi|website|site|owner|founder|company|about|translate|translation|pdf|preview|page|pay|payment|price|cost|razorpay|ocr|scan|format|layout|quality|language|gujarati|hindi|marathi|english|gemini|visuali[sz]|support|contact|suggestion|upload|download"
     if not re.search(topic_pattern, message, flags=re.IGNORECASE):
         return {"answer": fallback, "provider": "site_only_guard", "questions_remaining": MAX_SUPPORT_CONVERSATIONS - question_count - 1}
     if not api_key:
