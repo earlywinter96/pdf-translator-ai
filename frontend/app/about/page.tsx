@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FileText, Zap, Target, Shield, Languages, CheckCircle2 } from "lucide-react";
+import { FileText, Zap, Target, Shield, Languages, CheckCircle2, Linkedin, Instagram, Globe } from "lucide-react";
 
 export default function AboutPage() {
   return (
@@ -79,6 +79,17 @@ export default function AboutPage() {
           <p className="text-gray-300 max-w-2xl mx-auto mt-3 leading-relaxed">
             LipiTranslate.in was founded by Hemant Solanki to make Indian-language documents easier to access, understand, and share—without forcing users to choose between translation quality and a usable PDF.
           </p>
+          <div className="flex flex-wrap justify-center gap-3 mt-5">
+            <a href="https://www.linkedin.com/in/hemant-solanki-366462199/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-cyan-500/30 px-4 py-2 text-sm text-cyan-300 hover:bg-cyan-500/10 transition">
+              <Linkedin className="w-4 h-4" /> Founder LinkedIn
+            </a>
+            <a href="https://my-portfolio2-peach-six.vercel.app/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-cyan-500/30 px-4 py-2 text-sm text-cyan-300 hover:bg-cyan-500/10 transition">
+              <Globe className="w-4 h-4" /> Founder portfolio
+            </a>
+            <a href="https://www.instagram.com/lipitranslate.in?utm_source=qr&stkn=MTg4YmNheW9xM2ltYg==" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-cyan-500/30 px-4 py-2 text-sm text-cyan-300 hover:bg-cyan-500/10 transition">
+              <Instagram className="w-4 h-4" /> Instagram
+            </a>
+          </div>
           <Link href="/convert" className="inline-flex items-center gap-2 mt-6 rounded-lg bg-cyan-500 px-5 py-3 font-semibold text-slate-950 hover:bg-cyan-400 transition">
             Try the free preview <CheckCircle2 className="w-4 h-4" />
           </Link>

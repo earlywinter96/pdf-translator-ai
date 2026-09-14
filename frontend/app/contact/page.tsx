@@ -1,4 +1,4 @@
-import { Github, Linkedin, Globe, Mail } from "lucide-react";
+import { Github, Linkedin, Globe, Mail, Instagram } from "lucide-react";
 
 export default function ContactPage() {
   return (
@@ -14,7 +14,7 @@ export default function ContactPage() {
         {/* Header */}
         <header className="text-center space-y-4">
           <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
-            Let's Connect
+            Let&apos;s Connect
           </h1>
           <p className="text-gray-400 leading-relaxed max-w-2xl mx-auto">
             This tool is designed for accuracy, clarity, and real-world use. Feedback, questions, and collaboration ideas are always welcome.
@@ -25,7 +25,7 @@ export default function ContactPage() {
         <section className="rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 shadow-xl p-8 space-y-4 text-gray-300">
           <h2 className="text-lg font-semibold text-white">Get in Touch</h2>
           <p className="leading-relaxed">
-            If you're using this tool for academic work, government documents, or research and have suggestions for improvement, feel free to reach out.
+            If you&apos;re using this tool for academic work, government documents, or research and have suggestions for improvement, feel free to reach out.
           </p>
           <p className="leading-relaxed">
             You can also contact me regarding feature requests, translation quality feedback, or potential collaboration around document AI systems.
@@ -46,9 +46,23 @@ export default function ContactPage() {
 
             <ContactCard
               icon={<Linkedin size={20} />}
-              label="LinkedIn"
-              value="Professional updates and discussions"
+              label="Founder LinkedIn"
+              value="Connect with Hemant Solanki"
               href="https://www.linkedin.com/in/hemant-solanki-366462199/"
+            />
+
+            <ContactCard
+              icon={<Linkedin size={20} />}
+              label="LipiTranslate.in on LinkedIn"
+              value="Product updates and announcements"
+              href="https://www.linkedin.com/company/lipitranslate.in?trk=public_post_follow-view-profile"
+            />
+
+            <ContactCard
+              icon={<Instagram size={20} />}
+              label="Instagram"
+              value="Follow LipiTranslate.in"
+              href="https://www.instagram.com/lipitranslate.in?utm_source=qr&stkn=MTg4YmNheW9xM2ltYg=="
             />
 
             <ContactCard
