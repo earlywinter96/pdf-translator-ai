@@ -35,49 +35,60 @@ export default function ContactPage() {
         {/* Contact Methods */}
         <section className="space-y-4">
           <h2 className="text-lg font-semibold text-white text-center">Ways to Connect</h2>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <ContactCard
-              icon={<Mail size={20} />}
-              label="Email"
-              value="lipitranslate.general@gmail.com"
-              href="mailto:lipitranslate.general@gmail.com"
-            />
+          <div className="space-y-8">
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-cyan-300">Founder profiles</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <ContactCard
+                  icon={<Linkedin size={20} />}
+                  label="Hemant Solanki on LinkedIn"
+                  value="Connect with the founder"
+                  href="https://www.linkedin.com/in/hemant-solanki-366462199/"
+                />
+                <ContactCard
+                  icon={<Globe size={20} />}
+                  label="Hemant Solanki portfolio"
+                  value="Projects, background, and experience"
+                  href="https://my-portfolio2-peach-six.vercel.app/"
+                />
+              </div>
+            </div>
 
-            <ContactCard
-              icon={<Linkedin size={20} />}
-              label="Founder LinkedIn"
-              value="Connect with Hemant Solanki"
-              href="https://www.linkedin.com/in/hemant-solanki-366462199/"
-            />
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-cyan-300">Company profiles</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <ContactCard
+                  icon={<Linkedin size={20} />}
+                  label="LipiTranslate.in on LinkedIn"
+                  value="Product updates and announcements"
+                  href="https://www.linkedin.com/company/lipitranslate.in?trk=public_post_follow-view-profile"
+                />
+                <ContactCard
+                  icon={<Instagram size={20} />}
+                  label="LipiTranslate.in on Instagram"
+                  value="Follow product news and updates"
+                  href="https://www.instagram.com/lipitranslate.in?utm_source=qr&stkn=MTg4YmNheW9xM2ltYg=="
+                />
+              </div>
+            </div>
 
-            <ContactCard
-              icon={<Linkedin size={20} />}
-              label="LipiTranslate.in on LinkedIn"
-              value="Product updates and announcements"
-              href="https://www.linkedin.com/company/lipitranslate.in?trk=public_post_follow-view-profile"
-            />
-
-            <ContactCard
-              icon={<Instagram size={20} />}
-              label="Instagram"
-              value="Follow LipiTranslate.in"
-              href="https://www.instagram.com/lipitranslate.in?utm_source=qr&stkn=MTg4YmNheW9xM2ltYg=="
-            />
-
-            <ContactCard
-              icon={<Github size={20} />}
-              label="GitHub"
-              value="Source code and technical work"
-              href="https://github.com/earlywinter96"
-            />
-
-            <ContactCard
-              icon={<Globe size={20} />}
-              label="Portfolio"
-              value="Projects, background, and experience"
-              href="https://my-portfolio2-peach-six.vercel.app/"
-            />
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-cyan-300">Support and code</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <ContactCard
+                  icon={<Mail size={20} />}
+                  label="Support email"
+                  value="lipitranslate.general@gmail.com"
+                  href="mailto:lipitranslate.general@gmail.com"
+                />
+                <ContactCard
+                  icon={<Github size={20} />}
+                  label="GitHub"
+                  value="Source code and technical work"
+                  href="https://github.com/earlywinter96"
+                />
+              </div>
+            </div>
           </div>
         </section>
 
