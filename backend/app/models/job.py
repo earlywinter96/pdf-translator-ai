@@ -331,14 +331,20 @@ def cleanup_job_files(job_id: str):
         except Exception as e:
             logger.error(f"   Failed to delete original: {e}")
 
-    # Translated PDF
-    output_path = os.path.join(OUTPUTS_DIR, f"{job_id}_translated.pdf")
-    if os.path.exists(output_path):
-        try:
-            os.remove(output_path)
-            logger.info(f"   Deleted translated: {output_path}")
-        except Exception as e:
-            logger.error(f"   Failed to delete translated: {e}")
+    # Generated PDFs use several safe, job-scoped names (preview_1, paid_2,
+    # paid_5, etc.). Remove every artifact for this job, including legacy
+    # ``_translated.pdf`` files, so paid and preview output cannot accumulate.
+    output_prefix = f"{job_id}_"
+    try:
+        for entry in os.scandir(OUTPUTS_DIR):
+            if entry.is_file() and entry.name.startswith(output_prefix):
+                try:
+                    os.remove(entry.path)
+                    logger.info(f"   Deleted output: {entry.path}")
+                except Exception as e:
+                    logger.error(f"   Failed to delete output {entry.path}: {e}")
+    except FileNotFoundError:
+        pass
 
     # Visualization JSON
     viz_json_path = os.path.join(VISUALIZATIONS_DIR, f"{job_id}_visualization.json")
@@ -396,6 +402,34 @@ def cleanup_old_jobs():
             cleanup_job_files(job_id)
     else:
         logger.debug("🧹 No old jobs to cleanup")
+
+    # A deploy/crash can leave files behind after its metadata is gone. Sweep
+    # only the application-owned artifact directories by modification time so
+    # Render's ephemeral disk is not consumed by orphaned PDFs.
+    cleanup_orphan_files()
+
+
+def cleanup_orphan_files():
+    """Delete stale app artifacts even when their job metadata is missing."""
+    cutoff = time.time() - (CLEANUP_AFTER_HOURS * 60 * 60)
+    directories = (UPLOADS_DIR, OUTPUTS_DIR, VISUALIZATIONS_DIR)
+    for directory in directories:
+        try:
+            entries = list(os.scandir(directory))
+        except FileNotFoundError:
+            continue
+        for entry in entries:
+            # Never touch the metadata directory; it is cleaned by job ID.
+            if directory == UPLOADS_DIR and entry.name == ".jobs":
+                continue
+            try:
+                if entry.is_file() and entry.stat().st_mtime < cutoff:
+                    os.remove(entry.path)
+                    logger.info("🧹 Deleted orphan artifact: %s", entry.path)
+            except FileNotFoundError:
+                continue
+            except Exception as exc:
+                logger.warning("Could not delete orphan artifact %s: %s", entry.path, exc)
 
 
 def start_cleanup_scheduler():
