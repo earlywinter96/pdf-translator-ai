@@ -1,4 +1,4 @@
-import { Github, Linkedin, Globe, Mail, Instagram } from "lucide-react";
+import { Github, Linkedin, Globe, Mail, Instagram, Users, Building2, LifeBuoy, ArrowUpRight } from "lucide-react";
 
 export default function ContactPage() {
   return (
@@ -36,8 +36,8 @@ export default function ContactPage() {
         <section className="space-y-4">
           <h2 className="text-lg font-semibold text-white text-center">Ways to Connect</h2>
           <div className="space-y-8">
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-cyan-300">Founder profiles</h3>
+            <div className="rounded-2xl border border-cyan-500/15 bg-cyan-500/[0.03] p-5 md:p-6 space-y-4">
+              <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-cyan-300"><Users className="h-4 w-4" /> Founder profiles</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <ContactCard
                   icon={<Linkedin size={20} />}
@@ -54,8 +54,8 @@ export default function ContactPage() {
               </div>
             </div>
 
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-cyan-300">Company profiles</h3>
+            <div className="rounded-2xl border border-cyan-500/15 bg-cyan-500/[0.03] p-5 md:p-6 space-y-4">
+              <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-cyan-300"><Building2 className="h-4 w-4" /> Company profiles</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <ContactCard
                   icon={<Linkedin size={20} />}
@@ -72,8 +72,8 @@ export default function ContactPage() {
               </div>
             </div>
 
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-cyan-300">Support and code</h3>
+            <div className="rounded-2xl border border-cyan-500/15 bg-cyan-500/[0.03] p-5 md:p-6 space-y-4">
+              <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-cyan-300"><LifeBuoy className="h-4 w-4" /> Support and code</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <ContactCard
                   icon={<Mail size={20} />}
@@ -115,15 +115,16 @@ function ContactCard({ icon, label, value, href }: {
       rel="noopener noreferrer"
       className="group flex items-start gap-4 p-5 rounded-xl
         bg-white/5 border border-white/10
-        hover:bg-white/10 hover:border-cyan-500/30 transition"
+        hover:-translate-y-0.5 hover:bg-cyan-500/[0.08] hover:border-cyan-400/50 hover:shadow-[0_10px_30px_rgba(6,182,212,0.1)] transition-all duration-200"
     >
       <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition">
         {icon}
       </div>
-      <div className="space-y-1">
+        <div className="min-w-0 flex-1 space-y-1">
         <div className="text-sm font-semibold text-white">
           {label}
         </div>
+        <ArrowUpRight className="h-4 w-4 shrink-0 text-gray-500 transition group-hover:text-cyan-300" />
         <div className="text-xs text-gray-400">
           {value}
         </div>
