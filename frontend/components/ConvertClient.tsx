@@ -64,7 +64,7 @@ export default function ConvertClient() {
   const [paymentSuccessVisible, setPaymentSuccessVisible] = useState(false);
   const [fullDocumentPrice, setFullDocumentPrice] = useState(0);
   const [translationRun, setTranslationRun] = useState(0);
-  const { initiatePayment, paymentConfig, reportPaymentEvent } = usePayment();
+  const { initiatePayment, paymentConfig, reportPaymentEvent, sessionId } = usePayment();
 
   const [failureCount, setFailureCount] = useState(0);
   const [stuckDetected, setStuckDetected] = useState(false);
@@ -336,7 +336,7 @@ export default function ConvertClient() {
 
       <div className="relative max-w-4xl mx-auto pt-28 pb-24 space-y-14">
         {!jobId && (
-          <FileUploaderWithPayment onJobCreated={handleJobCreated} />
+          <FileUploaderWithPayment onJobCreated={handleJobCreated} sessionId={sessionId} />
         )}
 
         {jobId && jobStatus !== "completed" && jobStatus !== "failed" && (

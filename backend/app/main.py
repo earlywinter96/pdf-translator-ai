@@ -57,6 +57,7 @@ from app.payment import payment_router
 from app.payment.payment_routes import register_paid_translation_starter
 from app.payment.payment_config import calculate_payment, FREE_PAGES_LIMIT
 from app.payment.payment_service import get_payment_status, is_payment_verified
+from app.payment.payment_session import get_session, use_free_pages, add_job_to_session
 
 # Load environment variables
 load_dotenv()
@@ -82,6 +83,9 @@ FREE_PREVIEW_PAGE_LIMIT = 1
 # A quote must never OCR or translate locked pages. For long scanned PDFs we
 # use this conservative page estimate until payment unlocks full OCR.
 SCANNED_PAGE_CHARACTER_ESTIMATE = 2_500
+UPLOAD_RATE_WINDOW_SECONDS = 60
+UPLOAD_RATE_LIMIT = 5
+_upload_attempts: dict[str, list[float]] = {}
 
 # Create directories
 os.makedirs(UPLOADS_DIR, exist_ok=True)
@@ -535,7 +539,8 @@ async def translate_pdf(
     request: Request,
     file: UploadFile = File(...),
     source_language: str = Form(...),
-    target_language: str = Form(...)
+    target_language: str = Form(...),
+    session_id: str | None = Header(None, alias="X-Session-ID"),
 ):
     """
     Translate a PDF file with language validation
@@ -548,12 +553,35 @@ async def translate_pdf(
     Returns:
         Job ID for tracking translation progress
     """
-    # Validate file
-    if not file.filename.endswith('.pdf'):
+    if not session_id:
+        raise HTTPException(401, "A translation session is required. Please refresh and try again.")
+    try:
+        session_id = str(uuid.UUID(session_id))
+    except (ValueError, AttributeError):
+        raise HTTPException(401, "Invalid translation session. Please refresh and try again.")
+    if not get_session(session_id):
+        raise HTTPException(401, "Translation session expired. Please refresh and try again.")
+
+    client_key = (request.headers.get("x-forwarded-for", "").split(",", 1)[0].strip()
+                  or (request.client.host if request.client else "unknown"))
+    now = time.time()
+    if len(_upload_attempts) > 1000:
+        _upload_attempts.clear()
+    attempts = [stamp for stamp in _upload_attempts.get(client_key, []) if now - stamp < UPLOAD_RATE_WINDOW_SECONDS]
+    if len(attempts) >= UPLOAD_RATE_LIMIT:
+        raise HTTPException(429, "Too many upload attempts. Please wait a minute and try again.")
+    attempts.append(now)
+    _upload_attempts[client_key] = attempts
+
+    # Validate extension and the PDF magic header before parsing.
+    if not file.filename or not file.filename.lower().endswith('.pdf'):
         raise HTTPException(400, "Only PDF files are supported")
     
     # Read file content
     content = await file.read()
+
+    if not content.startswith(b"%PDF-"):
+        raise HTTPException(400, "The uploaded file is not a valid PDF")
     
     if len(content) > MAX_FILE_SIZE_BYTES:
         raise HTTPException(
@@ -594,12 +622,19 @@ async def translate_pdf(
         os.remove(input_path)
         raise HTTPException(422, str(exc))
 
+    free_ok, free_message = use_free_pages(session_id, FREE_PREVIEW_PAGE_LIMIT)
+    if not free_ok:
+        os.remove(input_path)
+        raise HTTPException(429, f"{free_message}. Please start a new session for another free preview.")
+
     # Create a pending job. Multi-page documents must not reach Sarvam until
     # Razorpay has verified the matching order server-side.
     create_job(job_id, file.filename, "translation")
+    add_job_to_session(session_id, job_id)
     set_job_metadata(
         job_id,
         input_path=input_path,
+        session_id=session_id,
         source_language=source_language,
         target_language=target_language,
         page_count=page_count,

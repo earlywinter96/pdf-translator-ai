@@ -287,6 +287,8 @@ async def create_order(
     job = get_job(request.job_id)
     if not job or not job.get("payment_required"):
         raise HTTPException(400, "This job does not require payment")
+    if job.get("session_id") != session_id:
+        raise HTTPException(403, "This translation belongs to a different session")
     current_unlock = int(job.get("unlocked_page_limit") or 0)
     upgrading_paid_output = bool(
         job.get("payment_started")
@@ -405,6 +407,8 @@ async def verify_payment(
 
     job = get_job(request.job_id)
     payment = get_payment_status(request.order_id)
+    if job and job.get("session_id") != session_id:
+        raise HTTPException(403, "This translation belongs to a different session")
     order_matches_persisted_job = bool(
         job and job.get("pending_payment_order_id") == request.order_id
     )

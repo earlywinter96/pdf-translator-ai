@@ -73,13 +73,15 @@ export interface TranslationRequest {
   source_language: string;  // e.g., "gujarati", "hindi"
   target_language: string;  // e.g., "english", "hindi"
   mode?: string;           // "general" | "formal" | "casual"
+  session_id?: string;
 }
 
 export async function uploadPDFForTranslation({
   file,
   source_language,
   target_language,
-  mode = "general"
+  mode = "general",
+  session_id,
 }: TranslationRequest) {
   const fd = new FormData();
   fd.append("file", file);
@@ -95,8 +97,11 @@ export async function uploadPDFForTranslation({
     translator: 'Sarvam AI'
   });
 
+  const headers: HeadersInit = {};
+  if (session_id) headers["X-Session-ID"] = session_id;
   const res = await fetch(`${API_BASE}/api/translate`, {
     method: "POST",
+    headers,
     body: fd,
   });
 

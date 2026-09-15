@@ -22,6 +22,7 @@ interface Props {
     targetLanguage: string,
     payment?: PaymentQuote,
   ) => void;
+  sessionId?: string | null;
 }
 
 export interface PaymentQuote {
@@ -47,7 +48,7 @@ export interface PaymentQuote {
   }>;
 }
 
-export default function FileUploaderWithPayment({ onJobCreated }: Props) {
+export default function FileUploaderWithPayment({ onJobCreated, sessionId }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [sourceLanguage, setSourceLanguage] = useState("gujarati");
   const [targetLanguage, setTargetLanguage] = useState("english");
@@ -119,6 +120,10 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
       setError('Please select a PDF file');
       return;
     }
+    if (!sessionId) {
+      setError('Secure translation session is still initializing. Please try again in a moment.');
+      return;
+    }
 
     setIsUploading(true);
     setError(null);
@@ -136,6 +141,7 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
         source_language: sourceLanguage,
         target_language: targetLanguage,
         mode: translationMode,
+        session_id: sessionId ?? undefined,
       });
 
       if (result.status === "processing_preview") {
@@ -402,7 +408,7 @@ export default function FileUploaderWithPayment({ onJobCreated }: Props) {
       {/* Translate Button */}
       <button
         onClick={handleTranslate}
-        disabled={!file || isUploading || sameLanguage}
+        disabled={!file || isUploading || sameLanguage || !sessionId}
         className="w-full py-4 rounded-xl font-semibold text-white
           bg-gradient-to-r from-indigo-600 to-cyan-600
           hover:from-indigo-500 hover:to-cyan-500
