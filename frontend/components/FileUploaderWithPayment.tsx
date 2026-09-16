@@ -120,11 +120,6 @@ export default function FileUploaderWithPayment({ onJobCreated, sessionId }: Pro
       setError('Please select a PDF file');
       return;
     }
-    if (!sessionId) {
-      setError('Secure translation session is still initializing. Please try again in a moment.');
-      return;
-    }
-
     setIsUploading(true);
     setError(null);
 
@@ -408,7 +403,7 @@ export default function FileUploaderWithPayment({ onJobCreated, sessionId }: Pro
       {/* Translate Button */}
       <button
         onClick={handleTranslate}
-        disabled={!file || isUploading || sameLanguage || !sessionId}
+        disabled={!file || isUploading || sameLanguage}
         className="w-full py-4 rounded-xl font-semibold text-white
           bg-gradient-to-r from-indigo-600 to-cyan-600
           hover:from-indigo-500 hover:to-cyan-500

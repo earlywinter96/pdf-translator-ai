@@ -57,7 +57,7 @@ from app.payment import payment_router
 from app.payment.payment_routes import register_paid_translation_starter
 from app.payment.payment_config import calculate_payment, FREE_PAGES_LIMIT
 from app.payment.payment_service import get_payment_status, is_payment_verified
-from app.payment.payment_session import get_session, use_free_pages, add_job_to_session
+from app.payment.payment_session import create_session, get_session, use_free_pages, add_job_to_session
 
 # Load environment variables
 load_dotenv()
@@ -553,14 +553,19 @@ async def translate_pdf(
     Returns:
         Job ID for tracking translation progress
     """
-    if not session_id:
-        raise HTTPException(401, "A translation session is required. Please refresh and try again.")
-    try:
-        session_id = str(uuid.UUID(session_id))
-    except (ValueError, AttributeError):
-        raise HTTPException(401, "Invalid translation session. Please refresh and try again.")
-    if not get_session(session_id):
-        raise HTTPException(401, "Translation session expired. Please refresh and try again.")
+    # Keep uploads compatible with clients that have not adopted the payment
+    # session header yet. A job-scoped UUID session is created in that case;
+    # clients that do send X-Session-ID retain their free-preview quota.
+    supplied_session = bool(session_id)
+    if session_id:
+        try:
+            session_id = str(uuid.UUID(session_id))
+        except (ValueError, AttributeError):
+            raise HTTPException(401, "Invalid translation session. Please refresh and try again.")
+        if not get_session(session_id):
+            raise HTTPException(401, "Translation session expired. Please refresh and try again.")
+    else:
+        session_id = create_session()
 
     client_key = (request.headers.get("x-forwarded-for", "").split(",", 1)[0].strip()
                   or (request.client.host if request.client else "unknown"))
@@ -622,10 +627,11 @@ async def translate_pdf(
         os.remove(input_path)
         raise HTTPException(422, str(exc))
 
-    free_ok, free_message = use_free_pages(session_id, FREE_PREVIEW_PAGE_LIMIT)
-    if not free_ok:
-        os.remove(input_path)
-        raise HTTPException(429, f"{free_message}. Please start a new session for another free preview.")
+    if supplied_session:
+        free_ok, free_message = use_free_pages(session_id, FREE_PREVIEW_PAGE_LIMIT)
+        if not free_ok:
+            os.remove(input_path)
+            raise HTTPException(429, f"{free_message}. Please start a new session for another free preview.")
 
     # Create a pending job. Multi-page documents must not reach Sarvam until
     # Razorpay has verified the matching order server-side.
@@ -923,11 +929,15 @@ async def preview_paid_translated_pdf(job_id: str):
         raise HTTPException(409, "Your paid translation is still being generated")
 
     output_path = job.get("output_path")
+    # Older completed paid jobs may predate ``output_kind`` metadata. If the
+    # generated file is present and is clearly a paid output, serve it too.
+    # This avoids showing a misleading 404 after a successful payment while
+    # still preventing the preview/lock PDF from being returned here.
+    paid_file = bool(output_path and os.path.basename(output_path).startswith("paid_"))
     if (
         job.get("output_kind") != "paid_unlock"
-        or not output_path
-        or not os.path.exists(output_path)
-    ):
+        and not paid_file
+    ) or not output_path or not os.path.exists(output_path):
         raise HTTPException(404, "Completed paid translation not found")
 
     return FileResponse(
