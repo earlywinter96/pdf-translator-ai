@@ -120,7 +120,9 @@ export default function ConvertClient() {
         // -------------------------------
         if (data.status === "completed" || data.progress >= 100) {
           if (awaitingPaidOutputRef.current) {
-            if (data.output_kind !== "paid_unlock") {
+            const paidOutputReady = data.output_kind === "paid_unlock" ||
+              (typeof data.output_path === "string" && data.output_path.includes("_paid_"));
+            if (!paidOutputReady) {
               // A payment callback and its worker can reach Render just after
               // the final preview poll. Keep the customer on processing until
               // the paid worker writes its own output marker (or truly fails).
