@@ -933,7 +933,7 @@ async def preview_paid_translated_pdf(job_id: str):
     # generated file is present and is clearly a paid output, serve it too.
     # This avoids showing a misleading 404 after a successful payment while
     # still preventing the preview/lock PDF from being returned here.
-    paid_file = bool(output_path and os.path.basename(output_path).startswith("paid_"))
+    paid_file = bool(output_path and "_paid_" in os.path.basename(output_path))
     if (
         job.get("output_kind") != "paid_unlock"
         and not paid_file
