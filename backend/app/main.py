@@ -906,6 +906,8 @@ async def preview_translated_pdf(job_id: str):
         media_type="application/pdf",
         headers={
             "Content-Disposition": "inline",
+            "Cache-Control": "no-store, no-cache, max-age=0, must-revalidate",
+            "Pragma": "no-cache",
             # A paid job replaces the preview at this path. Never allow a
             # browser PDF viewer or CDN to keep showing the old lock-page PDF.
             "Cache-Control": "no-store, max-age=0",
