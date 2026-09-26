@@ -87,6 +87,9 @@ SCANNED_PAGE_CHARACTER_ESTIMATE = 2_500
 UPLOAD_RATE_WINDOW_SECONDS = 60
 UPLOAD_RATE_LIMIT = 5
 _upload_attempts: dict[str, list[float]] = {}
+CLEANUP_TOKEN = os.getenv("CLEANUP_TOKEN", "").strip()
+CLEANUP_AGE_MINUTES = int(os.getenv("CLEANUP_AGE_MINUTES", "40"))
+
 
 # Create directories
 os.makedirs(UPLOADS_DIR, exist_ok=True)
@@ -175,6 +178,25 @@ app = FastAPI(
     version="2.5.0",
     lifespan=lifespan
 )
+
+
+@app.post("/api/internal/cleanup")
+async def run_scheduled_cleanup(request: Request):
+    """Delete expired GCS job artifacts when called by Cloud Scheduler.
+
+    The endpoint is disabled unless CLEANUP_TOKEN is configured. Keep the
+    token in Cloud Run environment variables/Secret Manager, never in the
+    frontend.
+    """
+    if not CLEANUP_TOKEN or request.headers.get("X-Cleanup-Token") != CLEANUP_TOKEN:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    deleted = storage.cleanup_objects_older_than(
+        age_minutes=CLEANUP_AGE_MINUTES,
+        prefix="jobs/",
+    )
+    cleanup_old_jobs()
+    return {"deleted_objects": deleted, "age_minutes": CLEANUP_AGE_MINUTES}
 
 # ============================================================================
 # CORS CONFIGURATION - CRITICAL FOR PRODUCTION

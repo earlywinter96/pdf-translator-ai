@@ -30,7 +30,7 @@ VISUALIZATIONS_DIR = os.getenv("VISUALIZATIONS_DIR", "visualizations")
 JOBS_DIR = os.path.join(UPLOADS_DIR, ".jobs")  # Hidden dir for job metadata
 
 # Settings
-CLEANUP_AFTER_HOURS = 2  # Keep files for 2 hours
+CLEANUP_AFTER_HOURS = float(os.getenv("CLEANUP_AFTER_HOURS", "2"))
 SAVE_INTERVAL_SECONDS = 10  # Save to disk max every 10 seconds
 
 # ============================================================================
