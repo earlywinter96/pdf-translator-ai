@@ -41,6 +41,7 @@ from app.services.layout_pdf_writer import (
 from app.services.discord_notifier import notify_discord, notify_pdf_upload, notify_preview_documents
 from app.services.sarvam_vision import extract_sarvam_vision_blocks, is_sarvam_vision_enabled
 from app.sarvam_wrapper import is_same_language
+from app import storage
 
 # Import existing modules
 from app.models.job import (
@@ -90,6 +91,18 @@ _upload_attempts: dict[str, list[float]] = {}
 # Create directories
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 os.makedirs(OUTPUTS_DIR, exist_ok=True)
+
+
+def _artifact_path(job: dict, local_key: str, suffix: str = ".pdf") -> str | None:
+    """Return a usable local path, downloading a GCS artifact when needed."""
+    uri = job.get(local_key)
+    if uri and storage.exists(uri):
+        return storage.download(uri, suffix=suffix) if uri.startswith("gs://") else uri
+    return None
+
+
+def _persist_artifact(local_path: str, key: str, content_type: str = "application/pdf") -> str | None:
+    return storage.upload(local_path, key, content_type) if storage.enabled() else None
 
 
 def get_billable_character_counts(pdf_path: str) -> tuple[list[int], str]:
@@ -601,6 +614,7 @@ async def translate_pdf(
     input_path = os.path.join(UPLOADS_DIR, f"{job_id}.pdf")
     with open(input_path, 'wb') as f:
         f.write(content)
+    input_storage_uri = _persist_artifact(input_path, f"jobs/{job_id}/original.pdf")
     
     try:
         import PyPDF2
@@ -634,6 +648,7 @@ async def translate_pdf(
     set_job_metadata(
         job_id,
         input_path=input_path,
+        input_storage_uri=input_storage_uri,
         session_id=session_id,
         source_language=source_language,
         target_language=target_language,
@@ -832,7 +847,7 @@ async def download_translated_pdf(job_id: str):
     if job["status"] != "completed":
         raise HTTPException(400, "Translation not completed yet")
     
-    output_path = job.get("output_path")
+    output_path = _artifact_path(job, "output_storage_uri") or job.get("output_path")
     if not output_path or not os.path.exists(output_path):
         raise HTTPException(404, "Translated file not found")
     
@@ -864,7 +879,7 @@ async def preview_original_pdf(job_id: str):
         raise HTTPException(404, "Job not found")
     
     # Original file path
-    input_path = os.path.join(UPLOADS_DIR, f"{job_id}.pdf")
+    input_path = _artifact_path(job, "input_storage_uri") or os.path.join(UPLOADS_DIR, f"{job_id}.pdf")
     
     if not os.path.exists(input_path):
         raise HTTPException(404, "Original file not found")
@@ -897,7 +912,7 @@ async def preview_translated_pdf(job_id: str):
     if job["status"] != "completed":
         raise HTTPException(400, "Translation not completed yet")
     
-    output_path = job.get("output_path")
+    output_path = _artifact_path(job, "output_storage_uri") or job.get("output_path")
     if not output_path or not os.path.exists(output_path):
         raise HTTPException(404, "Translated file not found")
     
@@ -924,7 +939,7 @@ async def preview_paid_translated_pdf(job_id: str):
     if job.get("status") != "completed":
         raise HTTPException(409, "Your paid translation is still being generated")
 
-    output_path = job.get("output_path")
+    output_path = _artifact_path(job, "output_storage_uri") or job.get("output_path")
     # Older completed paid jobs may predate ``output_kind`` metadata. If the
     # generated file is present and is clearly a paid output, serve it too.
     # This avoids showing a misleading 404 after a successful payment while
@@ -1111,8 +1126,16 @@ async def translate_pdf_task(
             logger.info("Paid output verified for %s: %s translated pages", job_id, generated_pages)
             set_job_metadata(job_id, generated_page_count=generated_pages, output_kind="paid_unlock")
         
-        # Complete job
+        # Persist the generated result before marking the job complete. Local
+        # paths remain available for notifications during this request, while
+        # Cloud Run restarts can serve the durable GCS URI afterward.
+        output_storage_uri = _persist_artifact(
+            output_path,
+            f"jobs/{job_id}/{os.path.basename(output_path)}",
+        )
         complete_job(job_id, output_path)
+        if output_storage_uri:
+            set_job_metadata(job_id, output_storage_uri=output_storage_uri)
 
         if page_limit is not None:
             job = get_job(job_id) or {}

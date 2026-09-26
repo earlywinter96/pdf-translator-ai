@@ -16,6 +16,7 @@ import json
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
+from app import storage
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,13 @@ def _save_job_to_disk(job_id: str, force: bool = False):
         with open(_job_file_path(job_id), 'w') as f:
             json.dump(data_to_save, f, indent=2)
 
+        if storage.enabled():
+            storage.upload(
+                _job_file_path(job_id),
+                f"jobs/meta/{job_id}.json",
+                "application/json",
+            )
+
         _last_save_times[job_id] = current_time
         logger.debug(f"💾 Saved job {job_id} to disk")
 
@@ -93,7 +101,12 @@ def _load_job_from_disk(job_id: str) -> Optional[dict]:
     try:
         path = _job_file_path(job_id)
         if not os.path.exists(path):
-            return None
+            if not storage.enabled():
+                return None
+            uri = storage.uri_for(f"jobs/meta/{job_id}.json")
+            if not storage.exists(uri):
+                return None
+            path = storage.download(uri, suffix=".json")
 
         with open(path, 'r') as f:
             data = json.load(f)
@@ -322,6 +335,15 @@ def cleanup_job_files(job_id: str):
     """
     logger.info(f"🗑️  Cleaning up files for job: {job_id}")
 
+    job_snapshot = get_job(job_id) or {}
+    for artifact_key in ("input_storage_uri", "output_storage_uri"):
+        uri = job_snapshot.get(artifact_key)
+        if uri:
+            try:
+                storage.delete(uri)
+            except Exception as exc:
+                logger.warning("Failed to delete stored artifact %s: %s", uri, exc)
+
     # Original PDF
     original_path = os.path.join(UPLOADS_DIR, f"{job_id}.pdf")
     if os.path.exists(original_path):
@@ -372,6 +394,12 @@ def cleanup_job_files(job_id: str):
             logger.info(f"   Deleted metadata: {job_file}")
         except Exception as e:
             logger.error(f"   Failed to delete metadata: {e}")
+
+    if storage.enabled():
+        try:
+            storage.delete(storage.uri_for(f"jobs/meta/{job_id}.json"))
+        except Exception as exc:
+            logger.warning("Failed to delete stored job metadata: %s", exc)
 
     # Remove from memory
     with _lock:

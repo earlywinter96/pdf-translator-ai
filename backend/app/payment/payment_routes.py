@@ -41,6 +41,7 @@ from .payment_service import (
 )
 from app.models.job import get_job, set_job_metadata
 from app.services.discord_notifier import notify_discord
+from app import storage
 
 logger = logging.getLogger(__name__)
 
@@ -298,7 +299,8 @@ async def create_order(
     )
     if job.get("payment_started") and not upgrading_paid_output:
         raise HTTPException(409, "Translation is already being processed")
-    if job.get("status") != "completed" or not job.get("output_path"):
+    output_ready = bool(job.get("output_path") or (job.get("output_storage_uri") and storage.exists(job["output_storage_uri"])))
+    if job.get("status") != "completed" or not output_ready:
         raise HTTPException(409, "Your free preview is still being created. Please review it before payment.")
 
     # Never accept a browser-controlled page count or amount. The selected
