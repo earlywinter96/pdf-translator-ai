@@ -411,7 +411,22 @@ def create_layout_preserved_pdf(
                         size *= 0.82
             if result < 0:
                 overflowed += 1
-                logger.warning("Translation did not fit text block on page %s: %s", block.page_number + 1, translation[:80])
+                # Redaction happens before drawing so translated text replaces
+                # the source cleanly. If even the measured fallback box cannot
+                # fit, restore the source span instead of leaving a blank hole
+                # in the customer's PDF. A readable original is preferable to
+                # silently destroying document structure/content.
+                source_size = _fit_font_size(rect, block.font_size, block.text)
+                page.insert_textbox(
+                    rect, block.text,
+                    fontname=font_name if font_path else ("hebo" if block.is_bold else "helv"),
+                    fontfile=font_path, fontsize=source_size,
+                    color=block.color, lineheight=1.0, overlay=True,
+                )
+                logger.warning(
+                    "Translation did not fit text block on page %s; restored source text: %s",
+                    block.page_number + 1, translation[:80],
+                )
             else:
                 replaced += 1
 

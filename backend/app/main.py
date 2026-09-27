@@ -253,6 +253,7 @@ async def record_site_visit():
 class SiteInteractionEvent(BaseModel):
     event: str
     page: str = "unknown"
+    job_id: str | None = None
 
 
 class SiteErrorEvent(BaseModel):
@@ -280,6 +281,7 @@ SITE_INTERACTION_LABELS = {
     "preview_rendered_translated": "Translated preview rendered in browser",
     "preview_render_error": "Preview failed to render in browser",
     "translation_download_clicked": "Translation download clicked",
+    "translation_download_completed": "Translation download completed",
 }
 
 
@@ -289,10 +291,15 @@ async def record_site_interaction(event: SiteInteractionEvent):
     label = SITE_INTERACTION_LABELS.get(event.event)
     if not label:
         raise HTTPException(400, "Unsupported analytics event")
-    asyncio.create_task(notify_discord("LipiTranslate site interaction", {
+    fields = {
         "Event": label,
         "Page": event.page[:120],
-    }))
+    }
+    if event.job_id:
+        fields["Job"] = event.job_id[:8]
+    # Routine interaction updates stay in Telegram. Discord is reserved for
+    # actionable failures/errors so the webhook remains quiet and useful.
+    asyncio.create_task(notify_discord("LipiTranslate site interaction", fields))
     return {"recorded": True}
 
 

@@ -50,7 +50,7 @@ function errorMessage(error: unknown, fallback: string): string {
 }
 
 const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE || 'https://pdf-translator-ai-ggqe.onrender.com';
+  process.env.NEXT_PUBLIC_API_BASE || 'https://lipitranslate-api-500686400179.us-central1.run.app';
 
 async function reportPaymentEvent(jobId: string, event: string, details?: { package_id?: string; page_limit?: number; amount_inr?: number }) {
   try {

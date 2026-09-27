@@ -6,7 +6,7 @@
 
 // Production fallback for LipiTranslate. Override this locally with
 // NEXT_PUBLIC_API_BASE=http://localhost:8000 in frontend/.env.local.
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://pdf-translator-ai-ggqe.onrender.com";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://lipitranslate-api-500686400179.us-central1.run.app";
 
 // ============================================================================
 // LANGUAGE MAPPING (Updated for Sarvam AI)

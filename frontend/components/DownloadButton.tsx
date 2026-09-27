@@ -7,11 +7,11 @@ import { reportSiteError, trackSiteInteraction } from "@/lib/analytics";
 export default function DownloadButton({ jobId }: { jobId: string }) {
   const [isDownloading, setIsDownloading] = useState(false);
   
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://pdf-translator-ai-ggqe.onrender.com";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://lipitranslate-api-500686400179.us-central1.run.app";
   
   const handleDownload = async () => {
     try {
-      trackSiteInteraction("translation_download_clicked");
+      trackSiteInteraction("translation_download_clicked", { jobId });
       setIsDownloading(true);
       console.log("🟢 Download started for jobId:", jobId);
       
@@ -35,6 +35,7 @@ export default function DownloadButton({ jobId }: { jobId: string }) {
       link.download = `translated_${jobId}.pdf`;
       document.body.appendChild(link);
       link.click();
+      trackSiteInteraction("translation_download_completed", { jobId });
       
       // Cleanup
       document.body.removeChild(link);

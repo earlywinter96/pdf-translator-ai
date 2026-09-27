@@ -261,6 +261,8 @@ async def record_payment_funnel_event(event: PaymentFunnelEvent):
         fields["Size alert"] = "100+ page document"
     elif job.get("page_count", 0) >= 20:
         fields["Size alert"] = "20+ page document"
+    # Payment/preview milestones are routine updates and stay Telegram-only.
+    # notify_discord routes error titles to Discord only.
     asyncio.create_task(notify_discord("LipiTranslate customer funnel", fields))
     return {"recorded": True}
 

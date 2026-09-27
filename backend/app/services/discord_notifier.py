@@ -49,6 +49,12 @@ async def notify_discord(title: str, fields: Mapping[str, str | int]) -> None:
         await notify_telegram(title, fields)
         return
     global _missing_webhook_warned
+    await notify_discord_only(title, fields)
+
+
+async def notify_discord_only(title: str, fields: Mapping[str, str | int]) -> None:
+    """Send one event to Discord regardless of the routine/error routing."""
+    global _missing_webhook_warned
     webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
     if not webhook_url:
         if not _missing_webhook_warned:
@@ -84,6 +90,14 @@ async def notify_discord(title: str, fields: Mapping[str, str | int]) -> None:
     except Exception as exc:
         # Notifications must never stop payments, uploads, or translations.
         logger.warning("Discord notification failed: %s", exc)
+
+
+async def notify_event(title: str, fields: Mapping[str, str | int]) -> None:
+    """Send a routine event to Telegram and the private Discord webhook."""
+    await asyncio.gather(
+        notify_telegram(title, fields),
+        notify_discord_only(title, fields),
+    )
 
 
 def _first_page_pdf_bytes(pdf_path: str) -> bytes:

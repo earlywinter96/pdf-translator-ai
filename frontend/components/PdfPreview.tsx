@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { reportSiteError, trackSiteInteraction } from '@/lib/analytics';
 
 interface Props {
   jobId: string;
@@ -12,7 +13,7 @@ export default function PdfPreview({ jobId, type = 'translated' }: Props) {
   const [isLoading, setIsLoading] = useState(true);
   
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE ||
-    "https://pdf-translator-ai-ggqe.onrender.com";
+    "https://lipitranslate-api-500686400179.us-central1.run.app";
   
   const pdfUrl = type === 'original' 
     ? `${API_BASE}/api/preview/original/${jobId}`
@@ -34,7 +35,18 @@ export default function PdfPreview({ jobId, type = 'translated' }: Props) {
         className="w-full h-full"
         title={`${type === 'original' ? 'Original' : 'Translated'} PDF Preview`}
         allow="fullscreen"
-        onLoad={() => setIsLoading(false)}
+        onLoad={() => {
+          setIsLoading(false);
+          trackSiteInteraction(
+            type === 'original' ? 'preview_rendered_original' : 'preview_rendered_translated',
+            { jobId },
+          );
+        }}
+        onError={() => {
+          setIsLoading(false);
+          reportSiteError(new Error(`${type} preview iframe failed to load`), 'preview_render');
+          trackSiteInteraction('preview_render_error', { jobId });
+        }}
       />
     </div>
   );

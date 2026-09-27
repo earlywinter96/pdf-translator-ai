@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ExternalLink, FileText } from "lucide-react";
 import { reportSiteError, trackSiteInteraction } from "@/lib/analytics";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://pdf-translator-ai-ggqe.onrender.com";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://lipitranslate-api-500686400179.us-central1.run.app";
 
 interface Props {
   jobId: string;
@@ -23,12 +23,12 @@ export default function BilingualPreview({ jobId, targetLanguage, isPreview = fa
   const reportRendered = (kind: "original" | "translated") => {
     if (renderedRef.current[kind]) return;
     renderedRef.current[kind] = true;
-    trackSiteInteraction(kind === "original" ? "preview_rendered_original" : "preview_rendered_translated");
+    trackSiteInteraction(kind === "original" ? "preview_rendered_original" : "preview_rendered_translated", { jobId });
   };
 
   const reportRenderError = (kind: "original" | "translated") => {
     reportSiteError(new Error(`${kind} preview iframe failed to load`), "preview_render");
-    trackSiteInteraction("preview_render_error");
+    trackSiteInteraction("preview_render_error", { jobId });
   };
 
   // Use preview endpoints instead of download endpoints
@@ -42,7 +42,7 @@ export default function BilingualPreview({ jobId, targetLanguage, isPreview = fa
 
   const changeView = (view: "side-by-side" | "original" | "translated") => {
     setActiveTab(view);
-    trackSiteInteraction("preview_tab_changed");
+    trackSiteInteraction("preview_tab_changed", { jobId });
   };
 
   useEffect(() => {
@@ -101,7 +101,7 @@ export default function BilingualPreview({ jobId, targetLanguage, isPreview = fa
           href={originalUrl}
           target="_blank"
           rel="noreferrer"
-          onClick={() => trackSiteInteraction("preview_open_original")}
+          onClick={() => trackSiteInteraction("preview_open_original", { jobId })}
           className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium text-gray-200 hover:bg-white/10"
         >
           <ExternalLink className="h-4 w-4" /> Open original full screen
@@ -110,7 +110,7 @@ export default function BilingualPreview({ jobId, targetLanguage, isPreview = fa
           href={translatedUrl}
           target="_blank"
           rel="noreferrer"
-          onClick={() => trackSiteInteraction("preview_open_translated")}
+          onClick={() => trackSiteInteraction("preview_open_translated", { jobId })}
           className="inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-cyan-500"
         >
           <ExternalLink className="h-4 w-4" /> Open translation full screen

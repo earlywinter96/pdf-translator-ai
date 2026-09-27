@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react";
 import { Bot, LoaderCircle, Send, X } from "lucide-react";
 import { reportSiteError, trackSiteInteraction } from "@/lib/analytics";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://pdf-translator-ai-ggqe.onrender.com";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://lipitranslate-api-500686400179.us-central1.run.app";
 const MAX_CONVERSATIONS = 5;
 
 type ChatMessage = { role: "assistant" | "user"; content: string };

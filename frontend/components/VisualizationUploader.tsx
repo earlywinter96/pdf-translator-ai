@@ -26,7 +26,7 @@ export default function VisualizationUploader({
   const [contentType, setContentType] = useState<string>('auto');
   const [outputFormat, setOutputFormat] = useState<'json' | 'html'>('json');
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://pdf-translator-ai-ggqe.onrender.com";
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://lipitranslate-api-500686400179.us-central1.run.app";
   const MAX_PAGES = 20;
 
   // Format file size
