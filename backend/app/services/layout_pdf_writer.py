@@ -82,9 +82,33 @@ def extract_text_blocks(pdf_path: str) -> List[TextBlock]:
     return blocks
 
 
-def has_usable_layout(blocks: Iterable[TextBlock]) -> bool:
-    """Return true only when source text has enough geometry to preserve."""
-    return sum(len(block.text) for block in blocks) >= 40
+def has_usable_layout(
+    blocks: Iterable[TextBlock], expected_pages: int | None = None,
+) -> bool:
+    """Return true when the selectable layer represents the document.
+
+    Scanned PDFs exported by mobile scanner apps often contain a handful of
+    selectable watermark/date strings even though the actual page is an image.
+    A total-character threshold alone misclassifies those files as digital and
+    skips Marathi/Indic OCR entirely. When the page count is known, require
+    every page in the requested range to have a meaningful text layer; sparse
+    or missing pages are routed through Vision/Tesseract instead.
+    """
+    block_list = list(blocks)
+    if sum(len(block.text.strip()) for block in block_list) < 40:
+        return False
+    if expected_pages and expected_pages > 1:
+        page_characters = {
+            page: sum(len(block.text.strip()) for block in block_list if block.page_number == page)
+            for page in range(expected_pages)
+        }
+        # A real text PDF can have a short page, but a page with only a few
+        # watermark characters is not a usable translation layer. Requiring
+        # 20 characters per page avoids the false-positive scan seen in
+        # Marathi government notices while retaining short digital pages.
+        if any(count < 20 for count in page_characters.values()):
+            return False
+    return True
 
 
 def extract_ocr_text_blocks(

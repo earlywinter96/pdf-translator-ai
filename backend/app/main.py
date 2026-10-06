@@ -1031,14 +1031,15 @@ async def translate_pdf_task(
             block for block in extract_text_blocks(pdf_path)
             if page_limit is None or block.page_number < page_limit
         ]
-        use_layout_preservation = has_usable_layout(layout_blocks)
+        requested_pages = min(total_pages, page_limit) if page_limit is not None else total_pages
+        use_layout_preservation = has_usable_layout(layout_blocks, expected_pages=requested_pages)
         scan_overlay = False
         page_texts: list[str] = []
         if not use_layout_preservation:
             ocr_layout_blocks = await extract_sarvam_vision_blocks(
                 pdf_path, source_language, max_pages=page_limit
             )
-            if has_usable_layout(ocr_layout_blocks):
+            if has_usable_layout(ocr_layout_blocks, expected_pages=requested_pages):
                 layout_blocks = ocr_layout_blocks
                 use_layout_preservation = True
                 scan_overlay = True
@@ -1058,7 +1059,7 @@ async def translate_pdf_task(
                 ocr_layout_blocks = extract_ocr_text_blocks(
                     pdf_path, source_language, max_pages=page_limit
                 )
-                if has_usable_layout(ocr_layout_blocks):
+                if has_usable_layout(ocr_layout_blocks, expected_pages=requested_pages):
                     logger.warning("Sarvam Vision produced no usable blocks; using Tesseract OCR fallback")
                     asyncio.create_task(notify_discord("LipiTranslate OCR quality", {
                         "Job": job_id[:8],
@@ -1066,7 +1067,7 @@ async def translate_pdf_task(
                         "Pages": page_limit or "Full document",
                         "Status": "Sarvam Vision had no usable layout; local OCR used",
                     }))
-            if not use_layout_preservation and has_usable_layout(ocr_layout_blocks):
+            if not use_layout_preservation and has_usable_layout(ocr_layout_blocks, expected_pages=requested_pages):
                 layout_blocks = ocr_layout_blocks
                 use_layout_preservation = True
                 scan_overlay = True
@@ -1101,15 +1102,35 @@ async def translate_pdf_task(
             logger.info("Layout preservation unavailable; using reflow PDF output")
             translated_content = await translator.translate_chunks(preview_page_texts)
 
-        # Never create a downloadable PDF that silently contains the original
-        # text after a translation-provider failure.
+        # Do not discard an otherwise usable paid document because one OCR
+        # block was rejected by the provider. ``HybridTranslatorV2`` returns
+        # the source text for a failed block after exhausting its retries, so
+        # the layout remains intact and the customer still receives a valid
+        # PDF. A job is only failed when every non-blank block failed; this
+        # protects paid uploads from a single malformed OCR span or transient
+        # provider response while keeping an all-provider failure visible.
         stats = translator.get_statistics()
-        if stats["sarvam_failed"]:
+        if stats["sarvam_failed"] and stats["sarvam_used"] == 0 and stats["total_chunks"] > stats["blank_pages"]:
             fail_job(
                 job_id,
-                "Translation failed for one or more pages. Please try again with a clean, text-based PDF."
+                "Translation failed for every readable block. Please try again with a clearer scan."
             )
             return
+        if stats["sarvam_failed"]:
+            logger.warning(
+                "Continuing with partial translation for %s: %s of %s chunks failed; "
+                "failed blocks retain their source text",
+                job_id,
+                stats["sarvam_failed"],
+                stats["total_chunks"],
+            )
+            set_job_metadata(
+                job_id,
+                translation_warning=(
+                    f"{stats['sarvam_failed']} OCR block(s) could not be translated "
+                    "and were retained in the original language."
+                ),
+            )
         
         update_job(
             job_id,
