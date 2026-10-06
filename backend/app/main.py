@@ -1027,12 +1027,16 @@ async def translate_pdf_task(
         # First try native PDF geometry. A scanned/image page has almost no
         # selectable text, so send it to Sarvam Vision before ever invoking
         # local Tesseract. This is vital for Indic script accuracy.
+        native_layout_blocks = extract_text_blocks(pdf_path)
+        requested_pages = min(total_pages, page_limit) if page_limit is not None else total_pages
+        # Inspect the complete native layer before slicing to the purchased
+        # pages. A scan can leave stray text on page 1 while all other pages
+        # are images; checking only the requested preview page would skip OCR.
+        use_layout_preservation = has_usable_layout(native_layout_blocks, expected_pages=total_pages)
         layout_blocks = [
-            block for block in extract_text_blocks(pdf_path)
+            block for block in native_layout_blocks
             if page_limit is None or block.page_number < page_limit
         ]
-        requested_pages = min(total_pages, page_limit) if page_limit is not None else total_pages
-        use_layout_preservation = has_usable_layout(layout_blocks, expected_pages=requested_pages)
         scan_overlay = False
         page_texts: list[str] = []
         if not use_layout_preservation:
