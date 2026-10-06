@@ -168,7 +168,9 @@ def extract_ocr_text_blocks(
                     page_number=page_number,
                     rect=(left * scale_x, top * scale_y, right * scale_x, bottom * scale_y),
                     text=text,
-                    font_size=max(7.0, average_height * scale_y * 0.9),
+                    # Keep OCR translations readable on phones; a 7pt floor
+                    # made English/Hindi output appear unnecessarily tiny.
+                    font_size=max(9.0, average_height * scale_y * 0.9),
                     color=(0, 0, 0),
                     is_bold=False,
                 ))
@@ -405,6 +407,8 @@ def create_layout_preserved_pdf(
             if not translation or translation == source_content.strip():
                 continue
             size = _fit_font_size(rect, block.font_size, translation)
+            if scan_overlay:
+                size = max(8.5, size)
             result = -1
             # Tables and long translated cells need a measured shrink loop;
             # two fixed attempts produced clipped/blank output.
