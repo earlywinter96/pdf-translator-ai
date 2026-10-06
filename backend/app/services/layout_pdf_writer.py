@@ -333,6 +333,7 @@ def create_layout_preserved_pdf(
     translated_blocks: List[str],
     output_path: str,
     target_language: str,
+    source_language: str = "english",
     page_limit: int | None = None,
     scan_overlay: bool = False,
 ) -> dict:
@@ -354,9 +355,14 @@ def create_layout_preserved_pdf(
         for page in document:
             regular_font = _font_path(target_language, False)
             bold_font = _font_path(target_language, True)
+            source_regular_font = _font_path(source_language, False)
+            source_bold_font = _font_path(source_language, True)
             if regular_font:
                 page.insert_font(fontname="LipiTranslateRegular", fontfile=regular_font)
                 page.insert_font(fontname="LipiTranslateBold", fontfile=bold_font)
+            if source_regular_font:
+                page.insert_font(fontname="LipiTranslateSourceRegular", fontfile=source_regular_font)
+                page.insert_font(fontname="LipiTranslateSourceBold", fontfile=source_bold_font)
 
         # Digital PDFs can redact only selectable text. A scanned page has no
         # text layer, so lightly cover OCR text lanes before placing the
@@ -445,10 +451,15 @@ def create_layout_preserved_pdf(
                 # in the customer's PDF. A readable original is preferable to
                 # silently destroying document structure/content.
                 source_size = _fit_font_size(rect, block.font_size, block.text)
+                # Preserve the source script when a translation block cannot
+                # fit. Rendering Marathi/Hindi fallback text with an English
+                # font produces literal `???` glyphs in the PDF viewer.
+                source_font_path = _font_path(source_language, block.is_bold)
+                source_font_name = "LipiTranslateSourceBold" if block.is_bold else "LipiTranslateSourceRegular"
                 page.insert_textbox(
                     rect, block.text,
-                    fontname=font_name if font_path else ("hebo" if block.is_bold else "helv"),
-                    fontfile=font_path, fontsize=source_size,
+                    fontname=source_font_name if source_font_path else ("hebo" if block.is_bold else "helv"),
+                    fontfile=source_font_path, fontsize=source_size,
                     color=block.color, lineheight=1.0, overlay=True,
                 )
                 logger.warning(

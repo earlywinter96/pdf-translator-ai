@@ -1151,6 +1151,7 @@ async def translate_pdf_task(
         if use_layout_preservation:
             layout_result = create_layout_preserved_pdf(
                 pdf_path, layout_blocks, translated_content, output_path, target_language,
+                source_language=source_language,
                 page_limit=page_limit, scan_overlay=scan_overlay,
             )
             logger.info("Layout-preserved output: %s", layout_result)

@@ -20,7 +20,11 @@ logger = logging.getLogger(__name__)
 # contain many small OCR blocks. One controlled request at a time is slower
 # but prevents paid documents from failing midway with HTTP 429 responses.
 DEFAULT_CONCURRENCY = max(1, int(os.getenv("SARVAM_TRANSLATION_CONCURRENCY", "1")))
-MIN_CHARS_FOR_TRANSLATION = 10
+# Short OCR lines can be meaningful document content (names, headings, dates,
+# and labels). Skipping everything below ten characters caused Marathi/Hindi
+# fragments to remain in the source language. Keep only truly minimal OCR
+# noise out of Sarvam requests.
+MIN_CHARS_FOR_TRANSLATION = 2
 # Sarvam Translate accepts at most 2,000 characters. Leave room for any
 # preprocessing by keeping each request under this threshold.
 MAX_SARVAM_INPUT_CHARS = 1900
