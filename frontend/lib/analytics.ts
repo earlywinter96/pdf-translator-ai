@@ -10,9 +10,16 @@ type InteractionMetadata = {
 function getDeviceClass() {
   if (typeof navigator === "undefined") return "unknown";
   const ua = navigator.userAgent.toLowerCase();
-  if (/ipad|tablet|playbook|silk/.test(ua) || (navigator.maxTouchPoints > 1 && /android/.test(ua))) return "tablet";
-  if (/mobi|iphone|ipod|android/.test(ua)) return "phone";
-  return "desktop";
+  const platform = (navigator.platform || "").toLowerCase();
+  const os = /iphone|ipad|ipod/.test(ua) ? "iOS"
+    : /android/.test(ua) ? "Android"
+    : /mac/.test(platform) || /mac os/.test(ua) ? "macOS"
+    : /win/.test(platform) || /windows/.test(ua) ? "Windows"
+    : /linux/.test(platform) || /linux/.test(ua) ? "Linux"
+    : "unknown OS";
+  if (/ipad|tablet|playbook|silk/.test(ua) || (navigator.maxTouchPoints > 1 && /android/.test(ua))) return `tablet/${os}`;
+  if (/mobi|iphone|ipod|android/.test(ua)) return `phone/${os}`;
+  return `desktop/${os}`;
 }
 
 /** Best-effort, privacy-safe interaction telemetry for the private Telegram log. */
