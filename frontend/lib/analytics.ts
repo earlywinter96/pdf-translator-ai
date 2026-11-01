@@ -1,11 +1,29 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://lipitranslate-api-500686400179.us-central1.run.app";
 
-/** Best-effort, privacy-safe interaction telemetry for the private Discord log. */
-export function trackSiteInteraction(event: string, metadata?: { jobId?: string }) {
+type InteractionMetadata = {
+  jobId?: string;
+  device?: string;
+  renderState?: string;
+  elapsedMs?: number;
+};
+
+function getDeviceClass() {
+  if (typeof navigator === "undefined") return "unknown";
+  const ua = navigator.userAgent.toLowerCase();
+  if (/ipad|tablet|playbook|silk/.test(ua) || (navigator.maxTouchPoints > 1 && /android/.test(ua))) return "tablet";
+  if (/mobi|iphone|ipod|android/.test(ua)) return "phone";
+  return "desktop";
+}
+
+/** Best-effort, privacy-safe interaction telemetry for the private Telegram log. */
+export function trackSiteInteraction(event: string, metadata?: InteractionMetadata) {
   const payload = JSON.stringify({
     event,
     page: typeof window === "undefined" ? "unknown" : window.location.pathname,
     job_id: metadata?.jobId,
+    device: metadata?.device || getDeviceClass(),
+    render_state: metadata?.renderState,
+    elapsed_ms: metadata?.elapsedMs,
   });
   // sendBeacon is designed for tab closes/new-tab navigation and is much
   // less likely than fetch(keepalive) to lose the preview/download event.

@@ -14,16 +14,40 @@ interface Props {
 
 export default function BilingualPreview({ jobId, targetLanguage, isPreview = false }: Props) {
   const [activeTab, setActiveTab] = useState<"side-by-side" | "original" | "translated">("side-by-side");
+  const previewStartedAtRef = useRef<number | null>(null);
   const renderedRef = useRef({ original: false, translated: false });
+  const visibleRef = useRef({ original: false, translated: false });
+  const previewShellRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    previewStartedAtRef.current = Date.now();
     renderedRef.current = { original: false, translated: false };
+    visibleRef.current = { original: false, translated: false };
   }, [jobId, isPreview]);
 
   const reportRendered = (kind: "original" | "translated") => {
     if (renderedRef.current[kind]) return;
     renderedRef.current[kind] = true;
-    trackSiteInteraction(kind === "original" ? "preview_rendered_original" : "preview_rendered_translated", { jobId });
+    trackSiteInteraction(kind === "original" ? "preview_rendered_original" : "preview_rendered_translated", {
+      jobId,
+      renderState: "browser_pdf_loaded",
+      elapsedMs: Date.now() - (previewStartedAtRef.current ?? Date.now()),
+    });
+
+    // iframe load means the browser received a PDF; it does not prove the
+    // card was visible to the user. Confirm visibility after a short delay.
+    window.setTimeout(() => {
+      const shell = previewShellRef.current;
+      if (visibleRef.current[kind] || document.visibilityState !== "visible" || !shell) return;
+      const bounds = shell.getBoundingClientRect();
+      if (bounds.bottom <= 0 || bounds.top >= window.innerHeight) return;
+      visibleRef.current[kind] = true;
+      trackSiteInteraction(kind === "original" ? "preview_visible_original" : "preview_visible_translated", {
+        jobId,
+        renderState: "visible_after_browser_load",
+        elapsedMs: Date.now() - (previewStartedAtRef.current ?? Date.now()),
+      });
+    }, 1500);
   };
 
   const reportRenderError = (kind: "original" | "translated") => {
@@ -58,7 +82,7 @@ export default function BilingualPreview({ jobId, targetLanguage, isPreview = fa
   console.log("🔍 Preview URLs:", { originalUrl, translatedUrl });
 
   return (
-    <div className="space-y-4">
+    <div ref={previewShellRef} className="space-y-4">
       
       {/* View Toggle Tabs */}
       <div className="flex justify-center gap-2 flex-wrap">

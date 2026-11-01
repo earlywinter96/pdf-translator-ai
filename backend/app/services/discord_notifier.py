@@ -119,6 +119,7 @@ async def notify_preview_documents(
     page_count: int,
     paid_pages: int,
     amount_inr: float,
+    translation_warning: str | None = None,
 ) -> None:
     """Report preview readiness to Telegram as a routine notification."""
     await notify_telegram("LipiTranslate preview ready", {
@@ -127,6 +128,7 @@ async def notify_preview_documents(
         "Pages awaiting payment": paid_pages if paid_pages else "None — free document",
         "Full translation price": f"₹{amount_inr:.0f}" if paid_pages else "Free",
         "Status": "Preview ready — awaiting payment" if paid_pages else "Free first-page translation complete",
+        **({"Translation quality": translation_warning[:300]} if translation_warning else {}),
     })
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_ids = [value.strip() for value in os.getenv("TELEGRAM_CHAT_ID", "").split(",") if value.strip()]

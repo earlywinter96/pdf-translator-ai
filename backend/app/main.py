@@ -254,6 +254,9 @@ class SiteInteractionEvent(BaseModel):
     event: str
     page: str = "unknown"
     job_id: str | None = None
+    device: str = "unknown"
+    render_state: str | None = None
+    elapsed_ms: int | None = None
 
 
 class SiteErrorEvent(BaseModel):
@@ -279,6 +282,8 @@ SITE_INTERACTION_LABELS = {
     "preview_tab_changed": "Preview display changed",
     "preview_rendered_original": "Original preview rendered in browser",
     "preview_rendered_translated": "Translated preview rendered in browser",
+    "preview_visible_original": "Original preview visible after browser render",
+    "preview_visible_translated": "Translated preview visible after browser render",
     "preview_render_error": "Preview failed to render in browser",
     "translation_download_clicked": "Translation download clicked",
     "translation_download_completed": "Translation download completed",
@@ -294,9 +299,14 @@ async def record_site_interaction(event: SiteInteractionEvent):
     fields = {
         "Event": label,
         "Page": event.page[:120],
+        "Device": event.device[:32] or "unknown",
     }
     if event.job_id:
         fields["Job"] = event.job_id[:8]
+    if event.render_state:
+        fields["Render state"] = event.render_state[:80]
+    if event.elapsed_ms is not None:
+        fields["Elapsed"] = f"{max(0, event.elapsed_ms)} ms"
     # Routine interaction updates stay in Telegram. Discord is reserved for
     # actionable failures/errors so the webhook remains quiet and useful.
     asyncio.create_task(notify_discord("LipiTranslate site interaction", fields))
@@ -1207,12 +1217,15 @@ async def translate_pdf_task(
                 total_pages,
                 max(0, total_pages - page_limit),
                 float(quote.get("amount_inr", 0)),
+                (job.get("translation_warning") if job else None),
             ))
         else:
+            warning = (get_job(job_id) or {}).get("translation_warning")
             asyncio.create_task(notify_discord("LipiTranslate translation complete", {
                 "Job": job_id[:8],
                 "Pages": total_pages,
                 "Status": "Full document ready for download",
+                **({"Translation quality": warning[:300]} if warning else {}),
             }))
         
         logger.info(f"✅ Translation completed: {job_id}")
