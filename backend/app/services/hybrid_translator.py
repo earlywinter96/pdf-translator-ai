@@ -183,7 +183,17 @@ class HybridTranslatorV2:
         source = BATCH_SEPARATOR.join(
             sanitize_text_for_sarvam(blocks[index]).strip() for index in indices
         )
-        result = await self.sarvam.translate(source, self.source_language, self.target_language)
+        try:
+            result = await self.sarvam.translate(
+                source,
+                self.source_language,
+                self.target_language,
+                preserve_format=True,
+            )
+        except TypeError:
+            # Keep compatibility with lightweight test doubles and older
+            # injected Sarvam clients that expose the original signature.
+            result = await self.sarvam.translate(source, self.source_language, self.target_language)
         if not (result.get("success") and result.get("translated_text", "").strip()):
             raise ValueError(result.get("error", "Sarvam returned no translated text"))
         translated_parts = result["translated_text"].split(BATCH_SEPARATOR)

@@ -171,7 +171,8 @@ class SarvamTranslator:
         self,
         text: str,
         source_language: str,
-        target_language: str
+        target_language: str,
+        preserve_format: bool = False,
     ) -> Dict[str, Any]:
         """
         Translate text using Sarvam AI
@@ -236,7 +237,9 @@ class SarvamTranslator:
         # Attempt translation with retries
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                response = await self._make_request(text, source_code, target_code)
+                response = await self._make_request(
+                    text, source_code, target_code, preserve_format=preserve_format
+                )
                 
                 if response["success"]:
                     elapsed = time.time() - start_time
@@ -290,7 +293,8 @@ class SarvamTranslator:
         self,
         text: str,
         source_code: str,
-        target_code: str
+        target_code: str,
+        preserve_format: bool = False,
     ) -> Dict[str, Any]:
         """
         Make API request to Sarvam
@@ -310,7 +314,10 @@ class SarvamTranslator:
             "speaker_gender": "Male",
             "mode": "formal",
             "model": SARVAM_MODEL,
-            "enable_preprocessing": True
+            # Preprocessing can normalize layout separators. Structured OCR
+            # batches disable it so each translated span maps back to its PDF
+            # rectangle; ordinary requests retain the accuracy-friendly path.
+            "enable_preprocessing": not preserve_format
         }
         
         headers = {
