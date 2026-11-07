@@ -30,6 +30,10 @@ MIN_CHARS_FOR_TRANSLATION = 2
 # Sarvam Translate accepts at most 2,000 characters. Leave room for any
 # preprocessing by keeping each request under this threshold.
 MAX_SARVAM_INPUT_CHARS = 1900
+# OCR layout extraction commonly produces dozens of short spans per page. A
+# stable separator lets us translate several spans in one Sarvam request while
+# still mapping each response back to its original rectangle.
+BATCH_SEPARATOR = "\n⟦LIPI_BLOCK_BREAK⟧\n"
 
 
 @dataclass
@@ -152,6 +156,71 @@ class HybridTranslatorV2:
         translated = await asyncio.gather(
             *(translate_with_limit(chunk, index) for index, chunk in enumerate(chunks))
         )
+        self.stats.total_time = time.monotonic() - started_at
+        return translated
+
+    def _batch_block_indices(self, blocks: List[str]) -> List[List[int]]:
+        batches: List[List[int]] = []
+        current: List[int] = []
+        current_length = 0
+        for index, block in enumerate(blocks):
+            text = sanitize_text_for_sarvam(block or "").strip()
+            if self._is_blank_or_minimal(text):
+                continue
+            added = len(text) + (len(BATCH_SEPARATOR) if current else 0)
+            if current and current_length + added > MAX_SARVAM_INPUT_CHARS:
+                batches.append(current)
+                current = []
+                current_length = 0
+                added = len(text)
+            current.append(index)
+            current_length += added
+        if current:
+            batches.append(current)
+        return batches
+
+    async def _translate_block_batch(self, blocks: List[str], indices: List[int]) -> Dict[int, str]:
+        source = BATCH_SEPARATOR.join(
+            sanitize_text_for_sarvam(blocks[index]).strip() for index in indices
+        )
+        result = await self.sarvam.translate(source, self.source_language, self.target_language)
+        if not (result.get("success") and result.get("translated_text", "").strip()):
+            raise ValueError(result.get("error", "Sarvam returned no translated text"))
+        translated_parts = result["translated_text"].split(BATCH_SEPARATOR)
+        if len(translated_parts) != len(indices):
+            # Sarvam occasionally normalizes the separator. Do not silently
+            # misalign text with PDF rectangles; fall back to safe per-block
+            # calls for this batch instead.
+            raise ValueError("batch separator was not preserved")
+        self.stats.total_cost_inr += float(result.get("cost_inr", 0.0))
+        return {index: part.strip() for index, part in zip(indices, translated_parts)}
+
+    async def translate_layout_blocks(self, blocks: List[str]) -> List[str]:
+        """Translate OCR/native layout spans in bounded batches.
+
+        This avoids one network round trip per tiny OCR span (the main cause of
+        multi-minute 35% stalls) while retaining a strict index mapping. Any
+        batch whose separator is altered is retried safely span-by-span.
+        """
+        self.stats.total_chunks = len(blocks)
+        started_at = time.monotonic()
+        translated = list(blocks)
+        batches = self._batch_block_indices(blocks)
+        semaphore = asyncio.Semaphore(self.concurrency)
+
+        async def run_batch(indices: List[int]) -> None:
+            async with semaphore:
+                try:
+                    mapped = await self._translate_block_batch(blocks, indices)
+                    for index, value in mapped.items():
+                        translated[index] = value
+                    self.stats.sarvam_success += len(indices)
+                except Exception as batch_error:
+                    logger.warning("Batch translation fallback for %s spans: %s", len(indices), batch_error)
+                    for index in indices:
+                        translated[index] = await self.translate_chunk(blocks[index], index)
+
+        await asyncio.gather(*(run_batch(indices) for indices in batches))
         self.stats.total_time = time.monotonic() - started_at
         return translated
 

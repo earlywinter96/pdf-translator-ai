@@ -1111,7 +1111,7 @@ async def translate_pdf_task(
         preview_page_texts = page_texts if page_limit is None else page_texts[:page_limit]
         if use_layout_preservation:
             update_job(job_id, 35, "Translating text while preserving the original layout...")
-            translated_content = await translator.translate_chunks([block.text for block in layout_blocks])
+            translated_content = await translator.translate_layout_blocks([block.text for block in layout_blocks])
         else:
             logger.info("Layout preservation unavailable; using reflow PDF output")
             translated_content = await translator.translate_chunks(preview_page_texts)
