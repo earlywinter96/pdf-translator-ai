@@ -17,9 +17,11 @@ from app.sarvam_wrapper import SarvamTranslator, sanitize_text_for_sarvam
 
 logger = logging.getLogger(__name__)
 # Sarvam can rate-limit parallel requests, especially for scanned PDFs which
-# contain many small OCR blocks. One controlled request at a time is slower
-# but prevents paid documents from failing midway with HTTP 429 responses.
-DEFAULT_CONCURRENCY = max(1, int(os.getenv("SARVAM_TRANSLATION_CONCURRENCY", "1")))
+# contain many small OCR blocks. Keep a small bounded pool: two requests make
+# multi-block pages materially faster while avoiding the burst of 429s caused
+# by unbounded fan-out. Operators can lower this to 1 or raise it cautiously
+# with SARVAM_TRANSLATION_CONCURRENCY.
+DEFAULT_CONCURRENCY = max(1, int(os.getenv("SARVAM_TRANSLATION_CONCURRENCY", "2")))
 # Short OCR lines can be meaningful document content (names, headings, dates,
 # and labels). Skipping everything below ten characters caused Marathi/Hindi
 # fragments to remain in the source language. Keep only truly minimal OCR
