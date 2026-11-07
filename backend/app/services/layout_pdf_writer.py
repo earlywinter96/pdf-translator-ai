@@ -80,7 +80,7 @@ def coalesce_ocr_blocks(blocks: List[TextBlock], max_chars: int = 700) -> List[T
     # the geometry heuristic above may still leave hundreds of requests. For
     # those pages, use bounded page-level batches. The page union rectangle
     # keeps the output readable while the text remains in document order.
-    if len(result) > 40:
+    if result:
         compact: List[TextBlock] = []
         current = None
         for block in result:
