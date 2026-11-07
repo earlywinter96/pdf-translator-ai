@@ -1099,7 +1099,7 @@ async def translate_pdf_task(
                 fail_job(job_id, "We could not read text from page 1. Please upload a clearer scan.")
                 return
 
-        if use_layout_preservation and scan_overlay:
+        if use_layout_preservation:
             layout_blocks = coalesce_ocr_blocks(layout_blocks)
 
         work_label = (
