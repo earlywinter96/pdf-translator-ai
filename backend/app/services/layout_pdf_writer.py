@@ -37,6 +37,48 @@ class TextBlock:
     is_bold: bool
 
 
+def coalesce_ocr_blocks(blocks: List[TextBlock], max_chars: int = 700) -> List[TextBlock]:
+    """Merge nearby OCR spans into paragraph-sized layout boxes.
+
+    Vision/Tesseract can return one block per word or short line. Translating
+    those spans individually is extremely slow and produces poor context. We
+    merge only adjacent spans on the same page with aligned/overlapping lanes;
+    the union rectangle keeps the translated paragraph in the original area.
+    """
+    result: List[TextBlock] = []
+    current: TextBlock | None = None
+    for block in blocks:
+        text = block.text.strip()
+        if not text:
+            continue
+        if current is None:
+            current = block
+            continue
+        x0, y0, x1, y1 = current.rect
+        bx0, by0, bx1, by1 = block.rect
+        overlap = max(0.0, min(x1, bx1) - max(x0, bx0))
+        min_width = max(1.0, min(x1 - x0, bx1 - bx0))
+        aligned = overlap / min_width >= 0.15 or abs(x0 - bx0) <= 8
+        close = block.page_number == current.page_number and by0 - y1 <= max(14.0, current.font_size * 1.8)
+        can_merge = aligned and close and len(current.text) + len(text) + 1 <= max_chars
+        if can_merge:
+            current = TextBlock(
+                page_number=current.page_number,
+                rect=(min(x0, bx0), min(y0, by0), max(x1, bx1), max(y1, by1)),
+                text=f"{current.text.strip()} {text}",
+                font_size=min(current.font_size, block.font_size),
+                color=current.color,
+                is_bold=current.is_bold or block.is_bold,
+            )
+        else:
+            result.append(current)
+            current = block
+    if current is not None:
+        result.append(current)
+    logger.info("Coalesced OCR layout spans: %s -> %s", len(blocks), len(result))
+    return result
+
+
 def _pdf_color_to_rgb(color: int) -> tuple[float, float, float]:
     return (
         ((color >> 16) & 255) / 255,

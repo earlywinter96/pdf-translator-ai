@@ -33,6 +33,7 @@ from app.services.hybrid_translator import HybridTranslatorV2
 from app.services.pdf_writer import create_translated_pdf
 from app.services.layout_pdf_writer import (
     append_payment_required_page,
+    coalesce_ocr_blocks,
     create_layout_preserved_pdf,
     extract_ocr_text_blocks,
     extract_text_blocks,
@@ -1097,6 +1098,9 @@ async def translate_pdf_task(
             if not any(page_text.strip() for page_text in page_texts):
                 fail_job(job_id, "We could not read text from page 1. Please upload a clearer scan.")
                 return
+
+        if use_layout_preservation and scan_overlay:
+            layout_blocks = coalesce_ocr_blocks(layout_blocks)
 
         work_label = (
             f"your paid {page_limit}-page selection"
