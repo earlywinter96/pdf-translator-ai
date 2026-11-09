@@ -188,13 +188,13 @@ export default function FileUploaderWithPayment({ onJobCreated, sessionId }: Pro
       
       {/* Header */}
       <div className="text-center space-y-3">
-        <div className="inline-flex items-center gap-2 rounded-md border border-cyan-300/20 bg-cyan-300/10 px-3 py-1.5">
-          <Zap className="h-4 w-4 text-cyan-300" />
-          <span className="text-sm font-medium text-cyan-200">
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-cyan-500/10 to-indigo-500/10 border border-cyan-500/20">
+          <Zap className="w-4 h-4 text-cyan-400" />
+          <span className="text-sm text-cyan-300 font-medium">
             Powered by Sarvam AI
           </span>
         </div>
-        <h1 className="text-4xl font-medium tracking-[-0.02em] text-white">
+        <h1 className="text-4xl font-bold text-white">
           PDF Translation
         </h1>
         <p className="text-gray-400 max-w-2xl mx-auto">
@@ -208,16 +208,16 @@ export default function FileUploaderWithPayment({ onJobCreated, sessionId }: Pro
           { icon: ImageIcon, title: "Images stay", text: "Photos, logos and background artwork are retained." },
           { icon: Table2, title: "Table-aware", text: "Text is placed back inside its original PDF areas." },
         ].map(({ icon: Icon, title, text }) => (
-          <div key={title} className="rounded-xl border border-white/10 bg-[#191c24] p-4">
-            <Icon className="mb-2 h-5 w-5 text-cyan-300" />
-            <p className="text-sm font-medium text-white">{title}</p>
-            <p className="mt-1 text-xs leading-relaxed text-[#a3a9b8]">{text}</p>
+          <div key={title} className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4">
+            <Icon className="mb-2 h-5 w-5 text-cyan-400" />
+            <p className="text-sm font-semibold text-white">{title}</p>
+            <p className="mt-1 text-xs leading-relaxed text-gray-400">{text}</p>
           </div>
         ))}
       </div>
 
       {/* Language Selection */}
-      <div className="space-y-4 rounded-2xl border border-white/10 bg-[#11141c] p-6">
+      <div className="rounded-2xl bg-gradient-to-br from-white/5 to-white/10 border border-white/10 p-6 space-y-4">
         <div className="flex items-center gap-2 text-white font-medium">
           <Languages className="w-5 h-5 text-cyan-400" />
           <span>Translation Settings</span>
@@ -230,7 +230,7 @@ export default function FileUploaderWithPayment({ onJobCreated, sessionId }: Pro
             <select
               value={sourceLanguage}
               onChange={(e) => setSourceLanguage(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-[#191c24] px-4 py-3 text-white transition-colors focus:border-cyan-300 focus:outline-none"
+              className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white focus:border-cyan-500 focus:outline-none transition"
             >
               <optgroup label="Primary Languages">
                 {PRIMARY_LANGUAGES.map(lang => (
@@ -249,11 +249,11 @@ export default function FileUploaderWithPayment({ onJobCreated, sessionId }: Pro
           <div className="flex justify-center">
             <button
               onClick={swapLanguages}
-              className="group rounded-lg border border-white/10 bg-[#191c24] p-3 transition-colors hover:bg-[#202631]"
+              className="p-3 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition group"
               title="Swap languages"
             >
               <svg
-                className="h-5 w-5 text-[#a3a9b8] transition-colors group-hover:text-cyan-200"
+                className="w-5 h-5 text-gray-400 group-hover:text-cyan-400 transition"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -274,7 +274,7 @@ export default function FileUploaderWithPayment({ onJobCreated, sessionId }: Pro
             <select
               value={targetLanguage}
               onChange={(e) => setTargetLanguage(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-[#191c24] px-4 py-3 text-white transition-colors focus:border-cyan-300 focus:outline-none"
+              className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white focus:border-cyan-500 focus:outline-none transition"
             >
               <optgroup label="Primary Languages">
                 {PRIMARY_LANGUAGES.map(lang => (
@@ -404,10 +404,11 @@ export default function FileUploaderWithPayment({ onJobCreated, sessionId }: Pro
       <button
         onClick={handleTranslate}
         disabled={!file || isUploading || sameLanguage}
-          className="w-full rounded-lg bg-cyan-300 py-4 font-medium text-slate-950
-          hover:bg-cyan-200
+        className="w-full py-4 rounded-xl font-semibold text-white
+          bg-gradient-to-r from-indigo-600 to-cyan-600
+          hover:from-indigo-500 hover:to-cyan-500
           disabled:opacity-50 disabled:cursor-not-allowed
-          transition-colors
+          transition shadow-lg hover:shadow-cyan-500/25
           flex items-center justify-center gap-2"
       >
         {isUploading ? (

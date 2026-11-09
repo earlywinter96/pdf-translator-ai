@@ -313,12 +313,12 @@ export default function ConvertClient() {
      RENDER
   ============================================================================ */
   return (
-    <main className="min-h-screen bg-[#0b0d14] px-6 text-[#eef0f5]">
+    <main className="relative min-h-screen bg-gradient-to-br from-[#020617] to-black px-6 overflow-hidden">
       {paymentSuccessVisible && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#020617]/90 px-6 backdrop-blur-sm" role="status" aria-live="polite">
           <div className="w-full max-w-lg rounded-2xl border border-emerald-400/40 bg-slate-900 p-8 text-center shadow-2xl shadow-emerald-500/20">
             <CheckCircle className="mx-auto h-14 w-14 text-emerald-400" />
-            <h1 className="mt-4 text-2xl font-medium text-white">Payment received</h1>
+            <h1 className="mt-4 text-2xl font-bold text-white">Payment received</h1>
             <p className="mt-2 text-cyan-200">LipiTranslate.in is now generating your selected translation.</p>
             <p className="mt-3 text-sm text-gray-300">You’ll return to your result automatically when the PDF is ready.</p>
           </div>
@@ -336,14 +336,14 @@ export default function ConvertClient() {
         </div>
       )}
 
-      <div className="mx-auto max-w-4xl space-y-14 pb-24 pt-28">
+      <div className="relative max-w-4xl mx-auto pt-28 pb-24 space-y-14">
         {!jobId && (
           <FileUploaderWithPayment onJobCreated={handleJobCreated} sessionId={sessionId} />
         )}
 
         {jobId && jobStatus !== "completed" && jobStatus !== "failed" && (
           <div className="space-y-6">
-            <div className="space-y-4 rounded-2xl border border-white/10 bg-[#11141c] p-8 text-center">
+            <div className="rounded-2xl bg-white/5 p-8 text-center space-y-4">
               <Loader2 className="w-10 h-10 mx-auto animate-spin text-cyan-400" />
               <p className="text-white text-lg">{getFriendlyMessage()}</p>
               <ProgressBar progress={progress} />
@@ -368,7 +368,7 @@ export default function ConvertClient() {
         {jobStatus === "completed" && jobId && (
           <div className="space-y-6 text-center">
             <CheckCircle className="w-16 h-16 mx-auto text-green-400" />
-            <h2 className="text-2xl font-medium text-white">
+            <h2 className="text-white text-2xl font-bold">
               {previewPayment
                 ? "Your Free 1-Page Preview Is Ready"
                 : completedPageLimit
@@ -376,7 +376,7 @@ export default function ConvertClient() {
                   : "Your Design-Preserved Translation Is Ready 🎉"}
             </h2>
             {previewPayment ? (
-              <div className="mx-auto max-w-xl rounded-2xl border border-white/10 bg-[#11141c] p-6 text-left">
+              <div className="mx-auto max-w-xl rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/15 to-indigo-500/10 p-6 text-left shadow-xl shadow-cyan-950/30">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-lg font-semibold text-white">Check the first-page translation before you pay</p>
@@ -463,7 +463,7 @@ export default function ConvertClient() {
                     void reportPaymentEvent(jobId, "payment_modal_opened", selectedPlan ? { package_id: selectedPlan.id, page_limit: selectedPlan.pageLimit, amount_inr: selectedPlan.price } : undefined);
                     setShowPaymentModal(true);
                   }}
-                  className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-cyan-300 px-5 py-3 font-medium text-slate-950 transition-colors hover:bg-cyan-200"
+                  className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-cyan-600 px-5 py-3 font-semibold text-white hover:from-indigo-500 hover:to-cyan-500"
                 >
                   <CreditCard className="h-5 w-5" /> Pay ₹{(selectedPlan?.price ?? previewPayment.amount_inr).toFixed(0)} securely with Razorpay
                 </button>

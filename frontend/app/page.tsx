@@ -6,27 +6,33 @@
 import Link from "next/link";
 import TerminalTitle from "@/components/TerminalTitle";
 import DeveloperSignature from "@/components/DeveloperSignature";
-import { ArrowRight, Languages, Brain, Zap, Shield, FileText, Eye } from "lucide-react";
+import { ArrowRight, Languages, Brain, Zap, Shield, FileText, Eye, Sparkles } from "lucide-react";
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-[#0b0d14] px-4 text-[#eef0f5] sm:px-6">
-      <div className="mx-auto max-w-7xl pb-24 pt-32 lg:px-8">
+    <main className="relative min-h-screen bg-gradient-to-br from-[#020617] via-[#0c1838] to-[#020617] overflow-hidden">
+      {/* Animated background elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl -top-48 -left-48 animate-pulse"></div>
+        <div className="absolute w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -bottom-48 -right-48 animate-pulse" style={{ animationDelay: '1s' }}></div>
+      </div>
+
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-32 pb-24">
         
         {/* Hero Section */}
-        <div className="mb-16 space-y-8 text-center">
+        <div className="text-center space-y-8 mb-16">
           <TerminalTitle />
           
-          <div className="inline-flex items-center gap-2 rounded-md border border-cyan-300/20 bg-cyan-300/10 px-3 py-1.5">
-            <Zap className="h-4 w-4 text-cyan-300" />
-            <span className="text-sm font-medium text-cyan-200">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-cyan-500/10 to-indigo-500/10 border border-cyan-500/20 backdrop-blur-sm">
+            <Sparkles className="w-4 h-4 text-cyan-400" />
+            <span className="text-sm text-cyan-300 font-medium">
               Now powered by Sarvam AI - Native Indian Language Translation
             </span>
           </div>
           
-          <p className="mx-auto max-w-3xl text-xl leading-7 text-[#a3a9b8]">
+          <p className="text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
             AI-powered PDF translation and visualization for{" "}
-            <span className="font-medium text-cyan-200">Gujarati, Hindi, Marathi and English</span>
+            <span className="text-cyan-400 font-semibold">Gujarati, Hindi, Marathi and English</span>
           </p>
 
           <div className="flex justify-center">
@@ -37,7 +43,7 @@ export default function HomePage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
             <Link
               href="/convert"
-              className="group inline-flex w-full items-center justify-center gap-2 rounded-lg bg-cyan-300 px-8 py-4 font-medium text-slate-950 transition-colors hover:bg-cyan-200 sm:w-auto"
+              className="group px-8 py-4 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-semibold transition shadow-lg hover:shadow-cyan-500/25 flex items-center gap-2 w-full sm:w-auto justify-center"
             >
               <Languages className="w-5 h-5" />
               Translate PDF
@@ -46,7 +52,7 @@ export default function HomePage() {
 
             <Link
               href="/visualize"
-              className="group inline-flex w-full items-center justify-center gap-2 rounded-lg border border-white/15 bg-[#191c24] px-8 py-4 font-medium text-white transition-colors hover:border-cyan-300/40 hover:bg-[#202631] sm:w-auto"
+              className="group px-8 py-4 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-semibold transition shadow-lg hover:shadow-purple-500/25 flex items-center gap-2 w-full sm:w-auto justify-center"
             >
               <Brain className="w-5 h-5" />
               Visualize PDF
@@ -59,16 +65,16 @@ export default function HomePage() {
         <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto mb-16">
           
           {/* Translation Card */}
-          <div className="group rounded-2xl border border-white/10 bg-[#11141c] p-8 transition-colors hover:border-cyan-300/35 hover:bg-[#151a23]">
-            <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-xl bg-cyan-300/10">
-              <Languages className="h-7 w-7 text-cyan-300" />
+          <div className="group rounded-2xl bg-gradient-to-br from-indigo-500/10 to-cyan-500/10 border border-indigo-500/20 p-8 hover:border-cyan-500/40 transition backdrop-blur-sm">
+            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-indigo-500/20 to-cyan-500/20 flex items-center justify-center mb-6 group-hover:scale-110 transition">
+              <Languages className="w-7 h-7 text-cyan-400" />
             </div>
-            <h3 className="mb-3 text-2xl font-medium text-white">PDF translation</h3>
-            <p className="mb-4 leading-7 text-[#a3a9b8]">
+            <h3 className="text-2xl font-bold text-white mb-3">PDF Translation</h3>
+            <p className="text-gray-400 mb-4 leading-relaxed">
               Get a free one-page translation preview to check the accuracy before you pay.
-              Full-document translation is powered by <span className="font-medium text-cyan-200">Sarvam AI</span>.
+              Full-document translation is powered by <span className="text-cyan-400 font-semibold">Sarvam AI</span>.
             </p>
-            <ul className="space-y-2 text-sm text-[#a3a9b8]">
+            <ul className="space-y-2 text-sm text-gray-300">
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-cyan-400"></div>
                 Gujarati, Hindi, Marathi and English are currently available
@@ -83,12 +89,12 @@ export default function HomePage() {
               </li>
               <li className="flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-green-400"></div>
-                <span className="font-medium text-emerald-300">Secure payment unlocks full-document translation</span>
+                <span className="text-green-400 font-medium">Secure payment unlocks full-document translation</span>
               </li>
             </ul>
             <Link
               href="/convert"
-              className="mt-6 inline-flex items-center gap-2 font-medium text-cyan-200 transition-colors hover:text-cyan-100"
+              className="inline-flex items-center gap-2 mt-6 text-cyan-400 hover:text-cyan-300 font-medium transition"
             >
               Start Translating
               <ArrowRight className="w-4 h-4" />
@@ -96,17 +102,17 @@ export default function HomePage() {
           </div>
 
           {/* Visualization Card */}
-          <div className="group rounded-2xl border border-white/10 bg-[#11141c] p-8 transition-colors hover:border-cyan-300/35 hover:bg-[#151a23]">
-            <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-xl bg-cyan-300/10">
-              <Brain className="h-7 w-7 text-cyan-300" />
+          <div className="group rounded-2xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20 p-8 hover:border-pink-500/40 transition backdrop-blur-sm">
+            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center mb-6 group-hover:scale-110 transition">
+              <Brain className="w-7 h-7 text-purple-400" />
             </div>
-            <h3 className="mb-3 text-2xl font-medium text-white">PDF visualization</h3>
-            <p className="mb-4 leading-7 text-[#a3a9b8]">
+            <h3 className="text-2xl font-bold text-white mb-3">PDF Visualization</h3>
+            <p className="text-gray-400 mb-4 leading-relaxed">
               Transform English PDFs into visual data structures using Google Gemini. Perfect for understanding complex documents, research papers, and reports.
             </p>
-            <ul className="space-y-2 text-sm text-[#a3a9b8]">
+            <ul className="space-y-2 text-sm text-gray-300">
               <li className="flex items-center gap-2">
-                <div className="h-1.5 w-1.5 rounded-full bg-cyan-300"></div>
+                <div className="w-1.5 h-1.5 rounded-full bg-purple-400"></div>
                 Up to 20 pages
               </li>
               <li className="flex items-center gap-2">
@@ -120,7 +126,7 @@ export default function HomePage() {
             </ul>
             <Link
               href="/visualize"
-              className="mt-6 inline-flex items-center gap-2 font-medium text-cyan-200 transition-colors hover:text-cyan-100"
+              className="inline-flex items-center gap-2 mt-6 text-purple-400 hover:text-purple-300 font-medium transition"
             >
               Start Visualizing
               <ArrowRight className="w-4 h-4" />
@@ -130,23 +136,23 @@ export default function HomePage() {
 
         {/* New Section: Translation Engine */}
         <div className="max-w-5xl mx-auto mb-16">
-          <div className="rounded-2xl border border-white/10 bg-[#11141c] p-8">
+          <div className="rounded-2xl bg-gradient-to-br from-cyan-500/5 to-indigo-500/5 border border-cyan-500/20 p-8">
             <div className="text-center mb-8">
-              <h2 className="mb-3 text-3xl font-medium text-white">
+              <h2 className="text-3xl font-bold text-white mb-3">
                 Powered by Sarvam AI
               </h2>
-              <p className="mx-auto max-w-2xl text-[#a3a9b8]">
+              <p className="text-gray-400 max-w-2xl mx-auto">
                 We use Sarvam AI&apos;s translation model for authentic Indian-language translation.
               </p>
             </div>
             
             <div className="max-w-md mx-auto">
-              <div className="rounded-lg border border-white/10 bg-[#191c24] p-6">
+              <div className="bg-white/5 rounded-lg p-6">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-300/10">
-                    <Zap className="h-5 w-5 text-cyan-300" />
+                  <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+                    <Zap className="w-5 h-5 text-cyan-400" />
                   </div>
-                  <h3 className="font-medium text-white">Sarvam AI</h3>
+                  <h3 className="font-semibold text-white">Sarvam AI</h3>
                 </div>
                 <ul className="space-y-2 text-sm text-gray-300">
                   <li>• Native speaker quality</li>
@@ -162,13 +168,13 @@ export default function HomePage() {
 
         {/* How It Works */}
         <div className="max-w-5xl mx-auto mb-16">
-          <h2 className="mb-12 text-center text-3xl font-medium text-white">
-            How it works
+          <h2 className="text-3xl font-bold text-white text-center mb-12">
+            How It Works
           </h2>
           <div className="grid md:grid-cols-3 gap-8">
             <div className="text-center space-y-4">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-cyan-300/10">
-                <FileText className="h-8 w-8 text-cyan-300" />
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 flex items-center justify-center mx-auto">
+                <FileText className="w-8 h-8 text-cyan-400" />
               </div>
               <h3 className="text-xl font-semibold text-white">1. Upload PDF</h3>
               <p className="text-gray-400 text-sm">
@@ -177,8 +183,8 @@ export default function HomePage() {
             </div>
             
             <div className="text-center space-y-4">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-cyan-300/10">
-                <Zap className="h-8 w-8 text-cyan-300" />
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center mx-auto">
+                <Zap className="w-8 h-8 text-purple-400" />
               </div>
               <h3 className="text-xl font-semibold text-white">2. AI Processing</h3>
               <p className="text-gray-400 text-sm">
@@ -187,8 +193,8 @@ export default function HomePage() {
             </div>
             
             <div className="text-center space-y-4">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-300/10">
-                <Eye className="h-8 w-8 text-emerald-300" />
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-500/20 to-emerald-500/20 flex items-center justify-center mx-auto">
+                <Eye className="w-8 h-8 text-green-400" />
               </div>
               <h3 className="text-xl font-semibold text-white">3. Download Result</h3>
               <p className="text-gray-400 text-sm">
@@ -201,7 +207,7 @@ export default function HomePage() {
         {/* Benefits */}
         <div className="max-w-5xl mx-auto mb-16">
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="rounded-xl border border-white/10 bg-[#191c24] p-6 text-center">
+            <div className="rounded-xl bg-white/5 border border-white/10 p-6 text-center">
               <Zap className="w-10 h-10 text-yellow-400 mx-auto mb-3" />
               <h4 className="font-semibold text-white mb-2">Lightning Fast</h4>
               <p className="text-sm text-gray-400">
@@ -209,7 +215,7 @@ export default function HomePage() {
               </p>
             </div>
             
-            <div className="rounded-xl border border-white/10 bg-[#191c24] p-6 text-center">
+            <div className="rounded-xl bg-white/5 border border-white/10 p-6 text-center">
               <Shield className="w-10 h-10 text-green-400 mx-auto mb-3" />
               <h4 className="font-semibold text-white mb-2">Secure & Private</h4>
               <p className="text-sm text-gray-400">
@@ -217,7 +223,7 @@ export default function HomePage() {
               </p>
             </div>
             
-            <div className="rounded-xl border border-white/10 bg-[#191c24] p-6 text-center">
+            <div className="rounded-xl bg-white/5 border border-white/10 p-6 text-center">
               <Languages className="w-10 h-10 text-cyan-400 mx-auto mb-3" />
               <h4 className="font-semibold text-white mb-2">4 Languages Available</h4>
               <p className="text-sm text-gray-400">
@@ -225,7 +231,7 @@ export default function HomePage() {
               </p>
             </div>
             
-            <div className="rounded-xl border border-white/10 bg-[#191c24] p-6 text-center">
+            <div className="rounded-xl bg-white/5 border border-white/10 p-6 text-center">
               <Brain className="w-10 h-10 text-purple-400 mx-auto mb-3" />
               <h4 className="font-semibold text-white mb-2">AI-Powered</h4>
               <p className="text-sm text-gray-400">
@@ -237,23 +243,23 @@ export default function HomePage() {
 
         {/* CTA Section */}
         <div className="text-center space-y-6">
-          <h2 className="text-3xl font-medium text-white">
-            Ready to get started?
+          <h2 className="text-3xl font-bold text-white">
+            Ready to Get Started?
           </h2>
-          <p className="mx-auto max-w-2xl text-[#a3a9b8]">
+          <p className="text-gray-400 max-w-2xl mx-auto">
             Choose your service below and experience the power of AI-driven document processing
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               href="/convert"
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-300 px-8 py-4 font-medium text-slate-950 transition-colors hover:bg-cyan-200"
+              className="px-8 py-4 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-semibold transition shadow-lg flex items-center gap-2 justify-center"
             >
               <Languages className="w-5 h-5" />
               Translate Now
             </Link>
             <Link
               href="/visualize"
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/15 bg-[#191c24] px-8 py-4 font-medium text-white transition-colors hover:border-cyan-300/40 hover:bg-[#202631]"
+              className="px-8 py-4 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-semibold transition shadow-lg flex items-center gap-2 justify-center"
             >
               <Brain className="w-5 h-5" />
               Visualize Now
