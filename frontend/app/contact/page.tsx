@@ -2,42 +2,36 @@ import { Github, Linkedin, Globe, Mail, Instagram, Users, Building2, LifeBuoy, A
 
 export default function ContactPage() {
   return (
-    <main className="relative min-h-screen bg-gradient-to-br from-[#020617] to-black px-6 overflow-hidden">
-
-      {/* Background glow */}
-      <div className="pointer-events-none absolute inset-0 flex justify-center">
-        <div className="w-[700px] h-[700px] bg-cyan-500/15 blur-[150px] rounded-full -translate-y-1/3" />
-      </div>
-
-      <div className="relative max-w-3xl mx-auto pt-28 pb-24 space-y-12">
+    <main className="min-h-screen bg-[#0b0d14] px-6 text-[#eef0f5]">
+      <div className="mx-auto max-w-4xl space-y-16 pb-24 pt-28">
 
         {/* Header */}
         <header className="text-center space-y-4">
-          <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
+          <h1 className="text-3xl font-medium tracking-[-0.02em] text-white md:text-4xl">
             Let&apos;s Connect
           </h1>
-          <p className="text-gray-400 leading-relaxed max-w-2xl mx-auto">
+          <p className="mx-auto max-w-2xl leading-7 text-[#a3a9b8]">
             This tool is designed for accuracy, clarity, and real-world use. Feedback, questions, and collaboration ideas are always welcome.
           </p>
         </header>
 
         {/* Purpose */}
-        <section className="rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 shadow-xl p-8 space-y-4 text-gray-300">
-          <h2 className="text-lg font-semibold text-white">Get in Touch</h2>
-          <p className="leading-relaxed">
+        <section className="space-y-4 rounded-2xl border border-white/10 bg-[#11141c] p-8 text-[#a3a9b8]">
+          <h2 className="text-lg font-medium text-white">Get in touch</h2>
+          <p className="leading-7">
             If you&apos;re using this tool for academic work, government documents, or research and have suggestions for improvement, feel free to reach out.
           </p>
-          <p className="leading-relaxed">
+          <p className="leading-7">
             You can also contact me regarding feature requests, translation quality feedback, or potential collaboration around document AI systems.
           </p>
         </section>
 
         {/* Contact Methods */}
         <section className="space-y-4">
-          <h2 className="text-lg font-semibold text-white text-center">Ways to Connect</h2>
+          <h2 className="text-center text-lg font-medium text-white">Ways to connect</h2>
           <div className="space-y-8">
-            <div className="rounded-2xl border border-cyan-500/15 bg-cyan-500/[0.03] p-5 md:p-6 space-y-4">
-              <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-cyan-300"><Users className="h-4 w-4" /> Founder profiles</h3>
+            <div className="space-y-4 rounded-2xl border border-white/10 bg-[#11141c] p-5 md:p-6">
+              <h3 className="flex items-center gap-2 text-sm font-medium text-cyan-300"><Users className="h-4 w-4" /> Founder profiles</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <ContactCard
                   icon={<Linkedin size={20} />}
@@ -54,8 +48,8 @@ export default function ContactPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-cyan-500/15 bg-cyan-500/[0.03] p-5 md:p-6 space-y-4">
-              <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-cyan-300"><Building2 className="h-4 w-4" /> Company profiles</h3>
+            <div className="space-y-4 rounded-2xl border border-white/10 bg-[#11141c] p-5 md:p-6">
+              <h3 className="flex items-center gap-2 text-sm font-medium text-cyan-300"><Building2 className="h-4 w-4" /> Company profiles</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <ContactCard
                   icon={<Linkedin size={20} />}
@@ -72,8 +66,8 @@ export default function ContactPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-cyan-500/15 bg-cyan-500/[0.03] p-5 md:p-6 space-y-4">
-              <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-cyan-300"><LifeBuoy className="h-4 w-4" /> Support and code</h3>
+            <div className="space-y-4 rounded-2xl border border-white/10 bg-[#11141c] p-5 md:p-6">
+              <h3 className="flex items-center gap-2 text-sm font-medium text-cyan-300"><LifeBuoy className="h-4 w-4" /> Support and code</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <ContactCard
                   icon={<Mail size={20} />}
@@ -93,7 +87,7 @@ export default function ContactPage() {
         </section>
 
         {/* Footer */}
-        <footer className="text-center text-sm text-gray-500 border-t border-white/10 pt-6">
+        <footer className="border-t border-white/10 pt-6 text-center text-sm text-[#7a8296]">
           This tool is continuously improving. Thoughtful feedback helps make it more accurate, reliable, and useful for everyone.
         </footer>
 
@@ -113,19 +107,17 @@ function ContactCard({ icon, label, value, href }: {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="group flex items-start gap-4 p-5 rounded-xl
-        bg-white/5 border border-white/10
-        hover:-translate-y-0.5 hover:bg-cyan-500/[0.08] hover:border-cyan-400/50 hover:shadow-[0_10px_30px_rgba(6,182,212,0.1)] transition-all duration-200"
+      className="group flex items-start gap-4 rounded-xl border border-white/10 bg-[#191c24] p-5 transition-colors duration-150 hover:border-cyan-300/40 hover:bg-[#202631]"
     >
-      <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition">
+      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-cyan-400/10 text-cyan-300">
         {icon}
       </div>
         <div className="min-w-0 flex-1 space-y-1">
-        <div className="text-sm font-semibold text-white">
+        <div className="text-sm font-medium text-white">
           {label}
         </div>
-        <ArrowUpRight className="h-4 w-4 shrink-0 text-gray-500 transition group-hover:text-cyan-300" />
-        <div className="text-xs text-gray-400">
+        <ArrowUpRight className="h-4 w-4 shrink-0 text-[#7a8296] transition-colors group-hover:text-cyan-300" />
+        <div className="text-xs text-[#a3a9b8]">
           {value}
         </div>
       </div>
