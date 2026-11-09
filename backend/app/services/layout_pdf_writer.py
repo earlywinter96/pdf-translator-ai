@@ -527,25 +527,15 @@ def create_layout_preserved_pdf(
                         size *= 0.82
             if result < 0:
                 overflowed += 1
-                # Redaction happens before drawing so translated text replaces
-                # the source cleanly. If even the measured fallback box cannot
-                # fit, restore the source span instead of leaving a blank hole
-                # in the customer's PDF. A readable original is preferable to
-                # silently destroying document structure/content.
-                source_size = _fit_font_size(rect, block.font_size, block.text)
-                # Preserve the source script when a translation block cannot
-                # fit. Rendering Marathi/Hindi fallback text with an English
-                # font produces literal `???` glyphs in the PDF viewer.
-                source_font_path = _font_path(source_language, block.is_bold)
-                source_font_name = "LipiTranslateSourceBold" if block.is_bold else "LipiTranslateSourceRegular"
-                page.insert_textbox(
-                    rect, block.text,
-                    fontname=source_font_name if source_font_path else ("hebo" if block.is_bold else "helv"),
-                    fontfile=source_font_path, fontsize=source_size,
-                    color=block.color, lineheight=1.0, overlay=True,
-                )
+                # ``insert_textbox`` may paint a partial string before
+                # returning a negative spare-space value. The source text has
+                # already been redacted, so restoring it here would paint the
+                # original Indic heading over that partial translation and
+                # produce the mixed-language collisions seen in production.
+                # Keep the translated layer only and surface the overflow in
+                # logs/metadata rather than reintroducing the source glyphs.
                 logger.warning(
-                    "Translation did not fit text block on page %s; restored source text: %s",
+                    "Translation did not fit text block on page %s; keeping translated layer: %s",
                     block.page_number + 1, translation[:80],
                 )
             else:
