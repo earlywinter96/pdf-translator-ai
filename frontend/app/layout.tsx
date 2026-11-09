@@ -1,10 +1,17 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import VisitTracker from "@/components/VisitTracker";
 import FaqOrb from "@/components/FaqOrb";
 import Script from "next/script";
+
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+});
 
 /* ================= SEO METADATA ================= */
 
@@ -78,7 +85,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className="bg-[#020617] text-gray-200 antialiased"
+        className={`${inter.variable} bg-[#020617] text-gray-200 antialiased`}
       >
         {/* Razorpay SDK */}
         <Script
