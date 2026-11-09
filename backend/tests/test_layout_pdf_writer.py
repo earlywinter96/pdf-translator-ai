@@ -47,3 +47,16 @@ def test_ocr_coalescing_keeps_blocks_bounded_for_scan_layouts():
     assert len(merged) == 2
     assert merged[0].text == "First line"
     assert merged[1].text == "Second line"
+
+
+def test_line_coalescing_groups_indic_word_spans_without_zero_width_markers():
+    blocks = [
+        TextBlock(0, (72, 100, 120, 118), "मॉड्यूल", 14, (0, 0, 0), False),
+        TextBlock(0, (120, 100, 150, 118), "\u200c 2\u200c", 14, (0, 0, 0), False),
+        TextBlock(0, (150, 100, 230, 118), "टेक्निकल", 14, (0, 0, 0), False),
+    ]
+
+    merged = coalesce_ocr_blocks(blocks)
+
+    assert len(merged) == 1
+    assert merged[0].text == "मॉड्यूल 2 टेक्निकल"

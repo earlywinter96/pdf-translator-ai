@@ -48,7 +48,7 @@ def coalesce_ocr_blocks(blocks: List[TextBlock], max_chars: int = 700) -> List[T
     result: List[TextBlock] = []
     current: TextBlock | None = None
     for block in blocks:
-        text = block.text.strip()
+        text = re.sub(r"[\u200b-\u200f\ufeff]", "", block.text).strip()
         if not text:
             continue
         if current is None:
@@ -116,7 +116,12 @@ def extract_text_blocks(pdf_path: str) -> List[TextBlock]:
                 # so the original column and answer-key geometry is retained.
                 for line in block.get("lines", []):
                     for span in line.get("spans", []):
-                        text = span.get("text", "").strip()
+                        # Indic PDFs frequently encode zero-width joiners and
+                        # direction markers as separate spans.  Keeping those
+                        # invisible spans makes every translated word occupy a
+                        # tiny box and produces the scattered/overlapping
+                        # output seen in Hindi and Marathi documents.
+                        text = re.sub(r"[\u200b-\u200f\ufeff]", "", span.get("text", "")).strip()
                         if not text:
                             continue
                         blocks.append(

@@ -1102,10 +1102,13 @@ async def translate_pdf_task(
                 fail_job(job_id, "We could not read text from page 1. Please upload a clearer scan.")
                 return
 
-        # Coalescing is an OCR-only optimization. Native text PDFs already
-        # contain exact span geometry; merging those spans into page-sized
-        # rectangles changes line breaks, whitespace, and the source design.
-        if use_layout_preservation and layout_blocks_from_ocr:
+        # Translate complete visual lines rather than individual PDF spans.
+        # Indic PDFs commonly split each word (and zero-width markers) into a
+        # separate span; translating those tiny boxes independently causes
+        # Hindi/Marathi/Gujarati output to collapse into narrow columns. The
+        # coalescer only joins adjacent spans on the same visual line, so
+        # columns, artwork, and page-level structure remain separate.
+        if use_layout_preservation:
             layout_blocks = coalesce_ocr_blocks(layout_blocks)
 
         work_label = (
