@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import DeveloperSignature from "@/components/DeveloperSignature";
@@ -17,7 +18,15 @@ export default function Navbar() {
           {/* Logo */}
             <div className="flex items-center gap-4">
             <Link href="/" className="flex items-center space-x-2">
-              <span className="text-2xl font-bold text-white">
+              <Image
+                src="/lipitranslate-logo.png"
+                alt="LipiTranslate.in logo"
+                width={34}
+                height={34}
+                priority
+                className="h-8 w-8 rounded-lg"
+              />
+              <span className="text-2xl font-semibold text-white">
                 Lipi<span className="text-cyan-500">Translate.in</span>
               </span>
             </Link>

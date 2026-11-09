@@ -61,8 +61,8 @@ export const metadata: Metadata = {
     images: ["/lipitranslate-share.png"],
   },
   icons: {
-    icon: [{ url: "/icon.png", type: "image/png" }],
-    apple: [{ url: "/icon.png", type: "image/png" }],
+    icon: [{ url: "/lipitranslate-logo.png", type: "image/png" }],
+    apple: [{ url: "/lipitranslate-logo.png", type: "image/png" }],
   },
   metadataBase: new URL("https://www.lipitranslate.in"),
 };

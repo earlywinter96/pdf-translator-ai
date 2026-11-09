@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import DeveloperSignature from "@/components/DeveloperSignature";
 import { trackSiteInteraction } from "@/lib/analytics";
 import { ArrowUpRight, Instagram, Linkedin, Mail } from "lucide-react";
@@ -13,9 +14,18 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Brand */}
           <div className="col-span-1 md:col-span-2">
-            <h3 className="text-xl font-bold text-white mb-4">
-              Lipi<span className="text-cyan-500">Translate.in</span>
-            </h3>
+            <Link href="/" className="mb-4 inline-flex items-center gap-3">
+              <Image
+                src="/lipitranslate-logo.png"
+                alt="LipiTranslate.in logo"
+                width={36}
+                height={36}
+                className="h-9 w-9 rounded-lg"
+              />
+              <span className="text-xl font-semibold text-white">
+                Lipi<span className="text-cyan-500">Translate.in</span>
+              </span>
+            </Link>
             <p className="text-gray-400 text-sm">
               Free AI-powered PDF translation for Gujarati, Hindi, Marathi, and
               English. OCR support for scanned documents.
