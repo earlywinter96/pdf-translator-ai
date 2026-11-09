@@ -3,26 +3,33 @@ import { FileText, Zap, Target, Shield, Languages, CheckCircle2, Linkedin, Insta
 
 export default function AboutPage() {
   return (
-    <main className="min-h-screen bg-[#0b0d14] px-6 text-[#eef0f5]">
-      <div className="mx-auto max-w-4xl space-y-16 pb-24 pt-28">
+    <main className="relative min-h-screen bg-gradient-to-br from-[#020617] to-black px-6 overflow-hidden">
+
+      {/* Background glow */}
+      <div className="pointer-events-none absolute inset-0 flex justify-center">
+        <div className="w-[700px] h-[700px] bg-cyan-500/15 blur-[150px] rounded-full -translate-y-1/3" />
+      </div>
+
+      {/* Content */}
+      <div className="relative max-w-4xl mx-auto pt-28 pb-24 space-y-12">
 
         {/* Header */}
         <header className="text-center space-y-4">
-          <div className="mb-4 inline-flex items-center gap-2 rounded-md border border-cyan-300/20 bg-cyan-300/10 px-3 py-1.5">
-            <Zap className="h-3 w-3 text-cyan-300" />
-            <span className="text-xs text-cyan-200">Document translation</span>
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 mb-4">
+            <Zap className="w-3 h-3 text-cyan-400" />
+            <span className="text-xs text-cyan-300">AI-Powered Translation</span>
           </div>
-          <h1 className="text-3xl font-medium tracking-[-0.02em] text-white md:text-4xl">
+          <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
             Translation built for Indian documents
           </h1>
-          <p className="mx-auto max-w-2xl text-lg leading-7 text-[#a3a9b8]">
+          <p className="text-gray-400 text-lg max-w-2xl mx-auto leading-relaxed">
             LipiTranslate.in helps students, professionals, and organisations translate PDFs with a clear preview before they pay for the full document.
           </p>
         </header>
 
         {/* Main content */}
-        <section className="space-y-6 rounded-2xl border border-white/10 bg-[#11141c] p-8 leading-7 text-[#a3a9b8] md:p-10">
-          <h2 className="text-2xl font-medium text-white">Made for documents that matter</h2>
+        <section className="rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 shadow-xl p-8 md:p-10 space-y-6 text-gray-300 leading-relaxed">
+          <h2 className="text-2xl font-semibold text-white">Made for documents that matter</h2>
           <p>
             LipiTranslate.in is designed for the PDFs people actually need to understand: study material, forms, notes, government documents, reports, and professional files. Gujarati, Hindi, Marathi and English translation are currently available; additional Indian languages are being quality-tested for a future release.
           </p>
@@ -34,14 +41,14 @@ export default function AboutPage() {
           </p>
         </section>
 
-        <section className="grid gap-5 md:grid-cols-3">
+        <section className="grid md:grid-cols-3 gap-5">
           <TrustPoint title="Preview before payment" description="Review a translated first page before paying for a full document." />
           <TrustPoint title="Sarvam AI translation" description="Indian-language translation is powered by Sarvam AI, chosen for this use case." />
           <TrustPoint title="Secure payment flow" description="Full translation starts only after the matching payment is verified on the server." />
         </section>
 
         {/* Key Features Grid */}
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <FeatureCard
             icon={<Target className="w-6 h-6" />}
             title="Meaning before decoration"
@@ -64,32 +71,32 @@ export default function AboutPage() {
           />
         </div>
 
-        <section className="rounded-2xl border border-cyan-300/20 bg-[#111c25] p-8 text-center md:p-10">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-300/10 text-cyan-300">
+        <section className="rounded-2xl bg-gradient-to-br from-cyan-500/10 to-indigo-500/10 border border-cyan-500/20 p-8 md:p-10 text-center">
+          <div className="w-12 h-12 mx-auto rounded-xl bg-cyan-500/15 text-cyan-300 flex items-center justify-center mb-4">
             <Languages className="w-6 h-6" />
           </div>
-          <h2 className="text-2xl font-medium text-white">Built by Hemant Solanki</h2>
-          <p className="mx-auto mt-3 max-w-2xl leading-7 text-[#a3a9b8]">
+          <h2 className="text-2xl font-semibold text-white">Built by Hemant Solanki</h2>
+          <p className="text-gray-300 max-w-2xl mx-auto mt-3 leading-relaxed">
             LipiTranslate.in was founded by Hemant Solanki to make Indian-language documents easier to access, understand, and share—without forcing users to choose between translation quality and a usable PDF.
           </p>
           <div className="flex flex-wrap justify-center gap-3 mt-5">
-            <a href="https://www.linkedin.com/in/hemant-solanki-366462199/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-cyan-300/30 px-4 py-2 text-sm text-cyan-200 transition-colors hover:bg-cyan-300/10">
+            <a href="https://www.linkedin.com/in/hemant-solanki-366462199/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-cyan-500/30 px-4 py-2 text-sm text-cyan-300 hover:bg-cyan-500/10 transition">
               <Linkedin className="w-4 h-4" /> Founder LinkedIn
             </a>
-            <a href="https://my-portfolio2-peach-six.vercel.app/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-cyan-300/30 px-4 py-2 text-sm text-cyan-200 transition-colors hover:bg-cyan-300/10">
+            <a href="https://my-portfolio2-peach-six.vercel.app/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-cyan-500/30 px-4 py-2 text-sm text-cyan-300 hover:bg-cyan-500/10 transition">
               <Globe className="w-4 h-4" /> Founder portfolio
             </a>
-            <a href="https://www.instagram.com/lipitranslate.in?utm_source=qr&stkn=MTg4YmNheW9xM2ltYg==" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-cyan-300/30 px-4 py-2 text-sm text-cyan-200 transition-colors hover:bg-cyan-300/10">
+            <a href="https://www.instagram.com/lipitranslate.in?utm_source=qr&stkn=MTg4YmNheW9xM2ltYg==" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-cyan-500/30 px-4 py-2 text-sm text-cyan-300 hover:bg-cyan-500/10 transition">
               <Instagram className="w-4 h-4" /> Instagram
             </a>
           </div>
-          <Link href="/convert" className="mt-6 inline-flex items-center gap-2 rounded-lg bg-cyan-300 px-5 py-3 font-medium text-slate-950 transition-colors hover:bg-cyan-200">
-            Try the free preview <CheckCircle2 className="h-4 w-4" />
+          <Link href="/convert" className="inline-flex items-center gap-2 mt-6 rounded-lg bg-cyan-500 px-5 py-3 font-semibold text-slate-950 hover:bg-cyan-400 transition">
+            Try the free preview <CheckCircle2 className="w-4 h-4" />
           </Link>
         </section>
 
         {/* Footer */}
-        <footer className="border-t border-white/10 pt-6 text-center text-sm text-[#7a8296]">
+        <footer className="text-center text-sm text-gray-500 border-t border-white/10 pt-6">
           Built for clarity. Designed for real-world documents.
         </footer>
 
@@ -100,21 +107,21 @@ export default function AboutPage() {
 
 function TrustPoint({ title, description }: { title: string; description: string }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-[#191c24] p-5">
-      <p className="font-medium text-white">{title}</p>
-      <p className="mt-2 text-sm leading-6 text-[#a3a9b8]">{description}</p>
+    <div className="rounded-xl bg-white/5 border border-white/10 p-5">
+      <p className="text-white font-semibold">{title}</p>
+      <p className="text-gray-400 text-sm leading-relaxed mt-2">{description}</p>
     </div>
   );
 }
 
 function FeatureCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
   return (
-    <div className="space-y-3 rounded-xl border border-white/10 bg-[#191c24] p-6 transition-colors hover:bg-[#202631]">
-      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-300/10 text-cyan-300">
+    <div className="rounded-xl bg-white/5 border border-white/10 p-6 hover:bg-white/10 transition space-y-3">
+      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-500/20 to-indigo-500/20 flex items-center justify-center text-cyan-400">
         {icon}
       </div>
-      <h3 className="font-medium text-white">{title}</h3>
-      <p className="text-sm leading-6 text-[#a3a9b8]">{description}</p>
+      <h3 className="text-white font-semibold">{title}</h3>
+      <p className="text-gray-400 text-sm leading-relaxed">{description}</p>
     </div>
   );
 }
