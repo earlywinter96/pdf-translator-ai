@@ -14,15 +14,15 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Brand */}
           <div className="col-span-1 md:col-span-2">
-            <Link href="/" className="mb-4 inline-flex items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70">
+            <Link href="/" className="mb-4 inline-flex items-center gap-3">
               <Image
                 src="/lipitranslate-logo.png"
                 alt="LipiTranslate.in logo"
                 width={36}
                 height={36}
-                className="h-10 w-10 rounded-xl border border-cyan-300/20 bg-[#11141c] p-0.5"
+                className="h-9 w-9 rounded-lg"
               />
-              <span className="text-xl font-semibold tracking-[-0.01em] text-white">
+              <span className="text-xl font-semibold text-white">
                 Lipi<span className="text-cyan-500">Translate.in</span>
               </span>
             </Link>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
+import DeveloperSignature from "@/components/DeveloperSignature";
 import { trackSiteInteraction } from "@/lib/analytics";
 
 
@@ -30,6 +31,10 @@ export default function Navbar() {
               </span>
             </Link>
 
+            {/* Dev signature */}
+            <div className="hidden lg:block">
+              <DeveloperSignature variant="navbar" />
+            </div>
           </div>
 
 
