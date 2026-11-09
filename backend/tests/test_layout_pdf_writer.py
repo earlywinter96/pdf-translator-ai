@@ -1,4 +1,4 @@
-from app.services.layout_pdf_writer import TextBlock, has_usable_layout
+from app.services.layout_pdf_writer import TextBlock, coalesce_ocr_blocks, has_usable_layout
 
 
 def _block(page: int, text: str) -> TextBlock:
@@ -33,3 +33,17 @@ def test_single_page_short_document_keeps_existing_layout_behavior():
     blocks = [_block(0, "A short digital page with enough text to preserve")]
 
     assert has_usable_layout(blocks, expected_pages=1)
+
+
+def test_ocr_coalescing_keeps_blocks_bounded_for_scan_layouts():
+    blocks = [
+        TextBlock(0, (0, 0, 40, 10), "First", 10, (0, 0, 0), False),
+        TextBlock(0, (42, 0, 82, 10), "line", 10, (0, 0, 0), False),
+        TextBlock(0, (0, 14, 100, 24), "Second line", 10, (0, 0, 0), False),
+    ]
+
+    merged = coalesce_ocr_blocks(blocks, max_chars=700)
+
+    assert len(merged) == 2
+    assert merged[0].text == "First line"
+    assert merged[1].text == "Second line"

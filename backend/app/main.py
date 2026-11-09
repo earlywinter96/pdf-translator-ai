@@ -1049,6 +1049,7 @@ async def translate_pdf_task(
             if page_limit is None or block.page_number < page_limit
         ]
         scan_overlay = False
+        layout_blocks_from_ocr = False
         page_texts: list[str] = []
         if not use_layout_preservation:
             ocr_layout_blocks = await extract_sarvam_vision_blocks(
@@ -1058,6 +1059,7 @@ async def translate_pdf_task(
                 layout_blocks = ocr_layout_blocks
                 use_layout_preservation = True
                 scan_overlay = True
+                layout_blocks_from_ocr = True
                 logger.info("Using Sarvam Vision OCR-positioned layout preservation; local Tesseract skipped")
                 asyncio.create_task(notify_discord("LipiTranslate OCR quality", {
                     "Job": job_id[:8],
@@ -1086,6 +1088,7 @@ async def translate_pdf_task(
                 layout_blocks = ocr_layout_blocks
                 use_layout_preservation = True
                 scan_overlay = True
+                layout_blocks_from_ocr = True
                 logger.info("Using OCR-positioned layout preservation for scanned PDF (vision=%s)", is_sarvam_vision_enabled())
 
         # Only use text extraction for the reflow emergency fallback. Layout
@@ -1099,7 +1102,10 @@ async def translate_pdf_task(
                 fail_job(job_id, "We could not read text from page 1. Please upload a clearer scan.")
                 return
 
-        if use_layout_preservation:
+        # Coalescing is an OCR-only optimization. Native text PDFs already
+        # contain exact span geometry; merging those spans into page-sized
+        # rectangles changes line breaks, whitespace, and the source design.
+        if use_layout_preservation and layout_blocks_from_ocr:
             layout_blocks = coalesce_ocr_blocks(layout_blocks)
 
         work_label = (

@@ -38,7 +38,7 @@ class TextBlock:
 
 
 def coalesce_ocr_blocks(blocks: List[TextBlock], max_chars: int = 700) -> List[TextBlock]:
-    """Merge nearby OCR spans into paragraph-sized layout boxes.
+    """Merge OCR words that share a visual line.
 
     Vision/Tesseract can return one block per word or short line. Translating
     those spans individually is extremely slow and produces poor context. We
@@ -56,10 +56,17 @@ def coalesce_ocr_blocks(blocks: List[TextBlock], max_chars: int = 700) -> List[T
             continue
         x0, y0, x1, y1 = current.rect
         bx0, by0, bx1, by1 = block.rect
+        vertical_overlap = max(0.0, min(y1, by1) - max(y0, by0))
+        same_line = vertical_overlap > 0 or abs(by0 - y0) <= max(4.0, current.font_size * 0.5)
         overlap = max(0.0, min(x1, bx1) - max(x0, bx0))
         min_width = max(1.0, min(x1 - x0, bx1 - bx0))
-        aligned = overlap / min_width >= 0.15 or abs(x0 - bx0) <= 8
-        close = block.page_number == current.page_number and by0 - y1 <= max(14.0, current.font_size * 1.8)
+        horizontal_gap = max(0.0, max(x0, bx0) - min(x1, bx1))
+        aligned = (
+            overlap / min_width >= 0.15
+            or abs(x0 - bx0) <= 8
+            or horizontal_gap <= max(8.0, current.font_size * 1.5)
+        )
+        close = block.page_number == current.page_number and same_line
         can_merge = aligned and close and len(current.text) + len(text) + 1 <= max_chars
         if can_merge:
             current = TextBlock(
@@ -75,33 +82,9 @@ def coalesce_ocr_blocks(blocks: List[TextBlock], max_chars: int = 700) -> List[T
             current = block
     if current is not None:
         result.append(current)
-    # OCR providers can return unrelated-looking boxes (for example, a word
-    # at the end of one line followed by the first word of the next line), so
-    # the geometry heuristic above may still leave hundreds of requests. For
-    # those pages, use bounded page-level batches. The page union rectangle
-    # keeps the output readable while the text remains in document order.
-    if result:
-        compact: List[TextBlock] = []
-        current = None
-        for block in result:
-            if current is None or block.page_number != current.page_number or len(current.text) + len(block.text) + 1 > max_chars:
-                if current is not None:
-                    compact.append(current)
-                current = block
-                continue
-            x0, y0, x1, y1 = current.rect
-            bx0, by0, bx1, by1 = block.rect
-            current = TextBlock(
-                page_number=current.page_number,
-                rect=(min(x0, bx0), min(y0, by0), max(x1, bx1), max(y1, by1)),
-                text=f"{current.text.strip()} {block.text.strip()}",
-                font_size=min(current.font_size, block.font_size),
-                color=current.color,
-                is_bold=current.is_bold or block.is_bold,
-            )
-        if current is not None:
-            compact.append(current)
-        result = compact
+    # Translation batching is handled separately by translate_layout_blocks.
+    # Do not merge unrelated lines or whole-page spans here: a large union
+    # rectangle can paint over logos, stamps, tables, and whitespace on a scan.
     logger.info("Coalesced OCR layout spans: %s -> %s", len(blocks), len(result))
     return result
 
