@@ -296,6 +296,28 @@ def _preserved_prefix(text: str) -> tuple[str, str]:
     return (match.group(1), text[match.end():]) if match else ("", text)
 
 
+def _remove_source_echo(translation: str, source_text: str) -> str:
+    """Remove an exact source-span echo returned beside a translation.
+
+    Sarvam can occasionally answer a short Indic heading with both the
+    original phrase and its English translation (for example,
+    ``अध्याय 1 Chapter 1``). The source is already present on the canvas and
+    drawing that echoed phrase creates the visible collisions reported by
+    customers. Only an exact normalized source-span match is removed, so
+    legitimate translated words are left untouched.
+    """
+    source = re.sub(r"[\u200b-\u200f\ufeff]", "", source_text).strip()
+    value = re.sub(r"[\u200b-\u200f\ufeff]", "", translation).strip()
+    if not source or not value or source == value:
+        return value
+    source_compact = re.sub(r"\s+", " ", source)
+    value_compact = re.sub(r"\s+", " ", value)
+    if source_compact not in value_compact:
+        return value
+    cleaned = value_compact.replace(source_compact, "", 1)
+    return cleaned.strip(" \t\r\n-–—:;,.|/")
+
+
 def _normalise_vision_table(text: str) -> str:
     """Turn Vision's HTML table output into readable rows for PDF drawing."""
     if "<table" not in text.lower():
@@ -486,6 +508,7 @@ def create_layout_preserved_pdf(
             translation = _normalise_vision_table(translation)
             if "\n" not in translation:
                 translation = " ".join(translation.split())
+            translation = _remove_source_echo(translation, block.text)
             if prefix:
                 _, translation = _preserved_prefix(translation)
                 # Preserve the source choice marker exactly once. Sarvam
