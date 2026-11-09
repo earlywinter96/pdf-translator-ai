@@ -384,6 +384,25 @@ def _is_static_label(text: str) -> bool:
     )
 
 
+def _expanded_redaction_rect(rect: fitz.Rect, page: fitz.Page) -> fitz.Rect:
+    """Return a small bleed around a text span before redacting it.
+
+    PDF span bboxes describe the font's nominal advance box, not always the
+    full painted glyph (this is especially common with Indic combining marks
+    and zero-width shaping spans).  Redacting the exact bbox can therefore
+    leave source glyphs behind when the translated text is painted over it.
+    A bounded 1.5pt bleed catches those glyphs while staying inside the page
+    and avoiding neighbouring lines or artwork.
+    """
+    bleed = 1.5
+    return fitz.Rect(
+        max(page.rect.x0, rect.x0 - bleed),
+        max(page.rect.y0, rect.y0 - bleed),
+        min(page.rect.x1, rect.x1 + bleed),
+        min(page.rect.y1, rect.y1 + bleed),
+    )
+
+
 def create_layout_preserved_pdf(
     source_pdf_path: str,
     blocks: List[TextBlock],
@@ -436,7 +455,13 @@ def create_layout_preserved_pdf(
                     fill=_scan_background_color(document[block.page_number], rect), overlay=True,
                 )
             else:
-                document[block.page_number].add_redact_annot(rect, fill=False, cross_out=False)
+                page = document[block.page_number]
+                # Span bboxes can stop short of Indic combining marks.  Use a
+                # tiny bleed so the source glyph is removed completely before
+                # the translated text is inserted.
+                page.add_redact_annot(
+                    _expanded_redaction_rect(rect, page), fill=False, cross_out=False
+                )
 
         if not scan_overlay:
             for page in document:
