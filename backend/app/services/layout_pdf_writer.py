@@ -201,7 +201,11 @@ def extract_ocr_text_blocks(
                 confidence = float(data["conf"][index])
                 # Low-confidence OCR is usually scanner noise or a broken
                 # glyph. Never send it to the translator as if it were text.
-                if not word or confidence < 50:
+                # Keep moderately confident words in scanned documents.  A
+                # high threshold drops light glyphs and Indic/Latin mixed
+                # lines, leaving source-language fragments visible beside the
+                # translated overlay.
+                if not word or confidence < 35:
                     continue
                 key = (
                     int(data["block_num"][index]), int(data["par_num"][index]),
@@ -428,6 +432,24 @@ def _expanded_redaction_rect(rect: fitz.Rect, page: fitz.Page) -> fitz.Rect:
     )
 
 
+def _expanded_scan_rect(rect: fitz.Rect, page: fitz.Page) -> fitz.Rect:
+    """Bleed OCR lanes before covering text on a scanned-page background.
+
+    OCR boxes commonly stop at the last dark pixel.  The source raster can
+    still contain anti-aliased glyph edges just outside that box, which show
+    through as stray English fragments in the translated PDF.  A small bleed
+    removes those pixels while keeping adjacent rules, columns, and artwork.
+    """
+    horizontal_bleed = 4.5
+    vertical_bleed = 3.0
+    return fitz.Rect(
+        max(page.rect.x0, rect.x0 - horizontal_bleed),
+        max(page.rect.y0, rect.y0 - vertical_bleed),
+        min(page.rect.x1, rect.x1 + horizontal_bleed),
+        min(page.rect.y1, rect.y1 + vertical_bleed),
+    )
+
+
 def create_layout_preserved_pdf(
     source_pdf_path: str,
     blocks: List[TextBlock],
@@ -473,9 +495,10 @@ def create_layout_preserved_pdf(
                 continue
             rect = fitz.Rect(block.rect)
             if scan_overlay:
+                cover_rect = _expanded_scan_rect(rect, document[block.page_number])
                 document[block.page_number].draw_rect(
-                    rect, color=None,
-                    fill=_scan_background_color(document[block.page_number], rect), overlay=True,
+                    cover_rect, color=None,
+                    fill=_scan_background_color(document[block.page_number], cover_rect), overlay=True,
                 )
             else:
                 page = document[block.page_number]
