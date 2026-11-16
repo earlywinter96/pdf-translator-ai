@@ -413,10 +413,13 @@ def _expanded_redaction_rect(rect: fitz.Rect, page: fitz.Page) -> fitz.Rect:
     full painted glyph (this is especially common with Indic combining marks
     and zero-width shaping spans).  Redacting the exact bbox can therefore
     leave source glyphs behind when the translated text is painted over it.
-    A bounded 1.5pt bleed catches those glyphs while staying inside the page
+    A bounded 2.5pt bleed catches those glyphs while staying inside the page
     and avoiding neighbouring lines or artwork.
     """
-    bleed = 1.5
+    # A few PDFs split a single visual word across adjacent spans and place
+    # combining marks just outside the nominal span bbox.  A slightly wider
+    # bleed removes those remnants without reaching the next line.
+    bleed = 2.5
     return fitz.Rect(
         max(page.rect.x0, rect.x0 - bleed),
         max(page.rect.y0, rect.y0 - bleed),
@@ -468,8 +471,6 @@ def create_layout_preserved_pdf(
         for block, translation in zip(blocks, translated_blocks):
             if _is_static_label(block.text):
                 continue
-            if not translation or translation.strip() == block.text.strip():
-                continue
             rect = fitz.Rect(block.rect)
             if scan_overlay:
                 document[block.page_number].draw_rect(
@@ -515,7 +516,12 @@ def create_layout_preserved_pdf(
                 # usually returns it too, but the redaction removes the
                 # original PDF text, so it must be part of the replacement.
                 translation = f"{prefix}{translation}"
-            if not translation or translation == source_content.strip():
+            if not translation:
+                # The provider can reject an isolated span.  Keep that span
+                # readable after the source layer was cleared rather than
+                # allowing the old glyphs to remain beside nearby output.
+                translation = source_content.strip()
+            if not translation:
                 continue
             size = _fit_font_size(rect, block.font_size, translation)
             if scan_overlay:
