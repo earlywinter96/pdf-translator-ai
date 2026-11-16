@@ -565,7 +565,7 @@ def create_layout_preserved_pdf(
             # modest vertical expansion before declaring the text missing.
             # This avoids the old behaviour where translated legal headings
             # simply disappeared when an Indic sentence was longer.
-            if result < 0 and not scan_overlay:
+            if result < 0:
                 expanded_rect = _expanded_text_rect(page, rect, block.font_size)
                 size = max(7.0, min(block.font_size * 0.88, 10.5))
                 while size >= 6.75 and result < 0:
