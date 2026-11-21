@@ -1088,17 +1088,35 @@ async def translate_pdf_task(
         scan_overlay = False
         layout_blocks_from_ocr = False
         page_texts: list[str] = []
-        # Full-page artwork scans stay on the original page canvas. Their OCR
-        # boxes use the artwork-safe overlay writer below, so logos, images,
-        # colours, and page geometry remain intact.
-        artwork_heavy_scan = (
-            not use_layout_preservation
-            and _is_artwork_heavy_scan(pdf_path, page_limit)
+        # Full-page artwork scans stay on the original page canvas. Local OCR
+        # gives better coverage for cover typography than a sparse Vision
+        # response, while Vision remains the fallback for difficult Indic
+        # scans. Both routes use the artwork-safe overlay writer below.
+        artwork_heavy_scan = not use_layout_preservation and _is_artwork_heavy_scan(
+            pdf_path, page_limit
         )
         if not use_layout_preservation:
-            ocr_layout_blocks = await extract_sarvam_vision_blocks(
-                pdf_path, source_language, max_pages=page_limit
-            )
+            ocr_layout_blocks = []
+            if artwork_heavy_scan:
+                local_ocr_blocks = extract_ocr_text_blocks(
+                    pdf_path, source_language, max_pages=page_limit
+                )
+                if has_usable_layout(local_ocr_blocks, expected_pages=requested_pages):
+                    ocr_layout_blocks = local_ocr_blocks
+                    logger.info(
+                        "Artwork-heavy scan using local coordinate OCR before Vision (blocks=%s)",
+                        len(local_ocr_blocks),
+                    )
+                    asyncio.create_task(notify_discord("LipiTranslate OCR quality", {
+                        "Job": job_id[:8],
+                        "OCR engine": "Tesseract artwork-safe fallback",
+                        "Pages": page_limit or "Full document",
+                        "Status": "Artwork canvas preserved with coordinate OCR",
+                    }))
+            if not ocr_layout_blocks:
+                ocr_layout_blocks = await extract_sarvam_vision_blocks(
+                    pdf_path, source_language, max_pages=page_limit
+                )
             if has_usable_layout(ocr_layout_blocks, expected_pages=requested_pages):
                 layout_blocks = ocr_layout_blocks
                 use_layout_preservation = True
