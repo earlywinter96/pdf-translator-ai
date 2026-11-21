@@ -92,6 +92,43 @@ CLEANUP_TOKEN = os.getenv("CLEANUP_TOKEN", "").strip()
 CLEANUP_AGE_MINUTES = int(os.getenv("CLEANUP_AGE_MINUTES", "40"))
 
 
+def _requires_scan_reflow(pdf_path: str, page_limit: int | None) -> bool:
+    """Choose readable OCR reflow for artwork-heavy image-only pages.
+
+    A full-page cover has no safe way to repaint every title, logo, and
+    illustration in-place from OCR boxes.  The old overlay path left large
+    coloured rectangles, clipped labels, and missing text on these pages.
+    When the native text layer is effectively empty and an image occupies most
+    of a requested page, use the clean OCR/reflow writer instead.  Normal
+    digital PDFs and image-backed pages with a real text layer keep their
+    design-preserving route.
+    """
+    try:
+        document = fitz.open(pdf_path)
+        try:
+            pages = min(document.page_count, page_limit) if page_limit else document.page_count
+            for index in range(pages):
+                page = document[index]
+                native_chars = len(page.get_text().strip())
+                if native_chars >= 40:
+                    continue
+                image_area = 0.0
+                for image in page.get_images(full=True):
+                    for image_rect in page.get_image_rects(image[0]):
+                        image_area += (image_rect & page.rect).get_area()
+                if image_area / max(page.rect.get_area(), 1.0) >= 0.75:
+                    logger.info(
+                        "Artwork-heavy image page %s selected for OCR reflow (native_chars=%s)",
+                        index + 1, native_chars,
+                    )
+                    return True
+        finally:
+            document.close()
+    except Exception as error:
+        logger.debug("Could not inspect image coverage for OCR route: %s", error)
+    return False
+
+
 # Create directories
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 os.makedirs(OUTPUTS_DIR, exist_ok=True)
@@ -1051,7 +1088,15 @@ async def translate_pdf_task(
         scan_overlay = False
         layout_blocks_from_ocr = False
         page_texts: list[str] = []
-        if not use_layout_preservation:
+        # Full-page artwork scans cannot be reliably repainted from OCR
+        # rectangles. Route those pages through the clean text-output path to
+        # avoid coloured cover boxes, clipped titles, and missing labels.
+        # Pages with a meaningful native text layer keep design preservation.
+        force_scan_reflow = (
+            not use_layout_preservation
+            and _requires_scan_reflow(pdf_path, page_limit)
+        )
+        if not use_layout_preservation and not force_scan_reflow:
             ocr_layout_blocks = await extract_sarvam_vision_blocks(
                 pdf_path, source_language, max_pages=page_limit
             )
