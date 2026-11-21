@@ -511,6 +511,14 @@ def create_layout_preserved_pdf(
         for block, translation in zip(blocks, translated_blocks):
             if _is_static_label(block.text):
                 continue
+            # OCR providers can still return isolated punctuation for lines
+            # inside illustrations. Never cover or repaint those tokens on a
+            # scan: the original artwork is more accurate than a guessed
+            # replacement glyph.
+            if scan_overlay and not any(char.isalnum() for char in block.text):
+                continue
+            if scan_overlay and not any(char.isalnum() for char in translation):
+                continue
             rect = fitz.Rect(block.rect)
             if scan_overlay:
                 cover_rect = _expanded_scan_rect(rect, document[block.page_number])
