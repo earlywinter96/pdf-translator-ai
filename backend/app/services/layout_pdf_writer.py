@@ -205,7 +205,13 @@ def extract_ocr_text_blocks(
                 # high threshold drops light glyphs and Indic/Latin mixed
                 # lines, leaving source-language fragments visible beside the
                 # translated overlay.
-                if not word or confidence < 35:
+                # Ignore punctuation/noise boxes from artwork (for example
+                # ``=``, ``|`` and ``&`` picked up from an illustration).
+                # Repainting those boxes creates visible white/grey artifacts
+                # over logos and cover art while contributing no translatable
+                # content. Unicode letters and numbers, including Indic
+                # scripts, pass this check.
+                if not word or confidence < 35 or not any(char.isalnum() for char in word):
                     continue
                 key = (
                     int(data["block_num"][index]), int(data["par_num"][index]),
