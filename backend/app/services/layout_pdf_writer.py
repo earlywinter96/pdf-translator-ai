@@ -241,15 +241,27 @@ def extract_ocr_text_blocks(
 
 
 def _scan_background_color(page: fitz.Page, rect: fitz.Rect) -> tuple[float, float, float]:
-    """Estimate the local scan background, avoiding conspicuous white boxes."""
+    """Estimate the local scan background from the text box's border.
+
+    Sampling the whole OCR box includes the dark glyphs themselves and turns
+    a cover's red/blue/black background into a conspicuous grey or pink block.
+    Border pixels are usually untouched artwork, so they produce a much more
+    faithful fill when the source text is covered before translation.
+    """
     try:
         sample = page.get_pixmap(clip=rect, matrix=fitz.Matrix(0.15, 0.15), alpha=False)
         if sample.width <= 0 or sample.height <= 0:
             return (1, 1, 1)
         pixels = sample.samples
         channels = sample.n
-        values = [pixels[index:index + channels] for index in range(0, len(pixels), channels)]
-        # A median is robust against the dark ink inside the rectangle.
+        border: list[tuple[int, ...]] = []
+        for y in range(sample.height):
+            for x in range(sample.width):
+                if x not in {0, sample.width - 1} and y not in {0, sample.height - 1}:
+                    continue
+                offset = (y * sample.width + x) * channels
+                border.append(tuple(pixels[offset:offset + channels]))
+        values = border or [tuple(pixels[index:index + channels]) for index in range(0, len(pixels), channels)]
         color = tuple(sorted(pixel[channel] for pixel in values)[len(values) // 2] / 255 for channel in range(3))
         # Most scanned government pages are white. Removing near-white JPEG
         # tint prevents grey replacement bars while preserving genuine colour
@@ -565,7 +577,7 @@ def create_layout_preserved_pdf(
             # modest vertical expansion before declaring the text missing.
             # This avoids the old behaviour where translated legal headings
             # simply disappeared when an Indic sentence was longer.
-            if result < 0:
+            if result < 0 and not scan_overlay:
                 expanded_rect = _expanded_text_rect(page, rect, block.font_size)
                 size = max(7.0, min(block.font_size * 0.88, 10.5))
                 while size >= 6.75 and result < 0:

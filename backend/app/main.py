@@ -92,15 +92,15 @@ CLEANUP_TOKEN = os.getenv("CLEANUP_TOKEN", "").strip()
 CLEANUP_AGE_MINUTES = int(os.getenv("CLEANUP_AGE_MINUTES", "40"))
 
 
-def _requires_scan_reflow(pdf_path: str, page_limit: int | None) -> bool:
-    """Choose readable OCR reflow for artwork-heavy image-only pages.
+def _is_artwork_heavy_scan(pdf_path: str, page_limit: int | None) -> bool:
+    """Detect image-only artwork pages that need careful text repainting.
 
     A full-page cover has no safe way to repaint every title, logo, and
     illustration in-place from OCR boxes.  The old overlay path left large
     coloured rectangles, clipped labels, and missing text on these pages.
     When the native text layer is effectively empty and an image occupies most
-    of a requested page, use the clean OCR/reflow writer instead.  Normal
-    digital PDFs and image-backed pages with a real text layer keep their
+    of a requested page, keep the original page as the canvas and use the
+    artwork-safe OCR overlay path. Normal digital PDFs keep their existing
     design-preserving route.
     """
     try:
@@ -118,7 +118,7 @@ def _requires_scan_reflow(pdf_path: str, page_limit: int | None) -> bool:
                         image_area += (image_rect & page.rect).get_area()
                 if image_area / max(page.rect.get_area(), 1.0) >= 0.75:
                     logger.info(
-                        "Artwork-heavy image page %s selected for OCR reflow (native_chars=%s)",
+                        "Artwork-heavy image page %s selected for artwork-safe OCR overlay (native_chars=%s)",
                         index + 1, native_chars,
                     )
                     return True
@@ -1088,15 +1088,14 @@ async def translate_pdf_task(
         scan_overlay = False
         layout_blocks_from_ocr = False
         page_texts: list[str] = []
-        # Full-page artwork scans cannot be reliably repainted from OCR
-        # rectangles. Route those pages through the clean text-output path to
-        # avoid coloured cover boxes, clipped titles, and missing labels.
-        # Pages with a meaningful native text layer keep design preservation.
-        force_scan_reflow = (
+        # Full-page artwork scans stay on the original page canvas. Their OCR
+        # boxes use the artwork-safe overlay writer below, so logos, images,
+        # colours, and page geometry remain intact.
+        artwork_heavy_scan = (
             not use_layout_preservation
-            and _requires_scan_reflow(pdf_path, page_limit)
+            and _is_artwork_heavy_scan(pdf_path, page_limit)
         )
-        if not use_layout_preservation and not force_scan_reflow:
+        if not use_layout_preservation:
             ocr_layout_blocks = await extract_sarvam_vision_blocks(
                 pdf_path, source_language, max_pages=page_limit
             )
